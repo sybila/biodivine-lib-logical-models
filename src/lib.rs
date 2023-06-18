@@ -9,7 +9,6 @@ pub use prototype::*;
 #[cfg(test)]
 mod tests {
     use super::add;
-    use super::foo;
 
     #[test]
     pub fn test() {
@@ -18,6 +17,11 @@ mod tests {
 
     #[test]
     pub fn test_foo() {
-        foo();
+        super::foo();
+    }
+
+    #[test]
+    pub fn test_tutorial() {
+        super::tutorial();
     }
 }

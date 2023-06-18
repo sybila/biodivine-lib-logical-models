@@ -10,3 +10,4 @@ name = "biodivine_lib_logical_models"
 path = "src/lib.rs"
 
 [dependencies]
+biodivine-lib-bdd = "0.5.1"
