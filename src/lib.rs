@@ -24,4 +24,9 @@ mod tests {
     pub fn test_tutorial() {
         super::tutorial();
     }
+
+    #[test]
+    pub fn test_sol() {
+        super::node_processing();
+    }
 }
