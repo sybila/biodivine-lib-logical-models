@@ -50,7 +50,7 @@ pub fn tutorial() {
 
     let a_and_b = a.and(&b);
     let b_or_c = b.or(&c);
-    let a_and_b_not_eq_b_or_c = a_and_b.iff(&b_or_c).not();
+    let _a_and_b_not_eq_b_or_c = a_and_b.iff(&b_or_c).not();
 
     let variables = BddVariableSet::new(&["a", "b", "c"]);
 
@@ -59,7 +59,7 @@ pub fn tutorial() {
     let expression = BooleanExpression::try_from("(b | a ^ c) & a").unwrap();
     let f2 = variables.eval_expression(&expression);
 
-    let f3 = variables.safe_eval_expression(&expression).unwrap(); // nice we can catch errors c:
+    let _f3 = variables.safe_eval_expression(&expression).unwrap(); // nice we can catch errors c:
 
     assert_eq!(f1, f2);
 

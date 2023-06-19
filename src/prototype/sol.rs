@@ -69,23 +69,23 @@ impl<Repr: MvRepr> MvddVariable<Repr> {
     }
 }
 
-fn stuff() {
+pub fn stuff() {
     let arity = Arity::new(3);
-    let value = arity.value();
+    let _value = arity.value();
 }
 
-struct TermConst(u16);
+pub struct TermConst(u16);
 impl TermConst {
-    fn try_from_str(s: &str) -> Result<Self, std::num::ParseIntError> {
+    pub fn try_from_str(s: &str) -> Result<Self, std::num::ParseIntError> {
         Ok(Self(s.parse::<u16>()?))
     }
-    fn value(&self) -> u16 {
+    pub fn value(&self) -> u16 {
         self.0
     }
 }
-struct TermVar(String);
+pub struct TermVar(String);
 
-enum CmpOp {
+pub enum CmpOp {
     Eq,
     Neq,
     Lt,
@@ -95,7 +95,7 @@ enum CmpOp {
 }
 
 impl CmpOp {
-    fn flip(&self) -> Self {
+    pub fn flip(&self) -> Self {
         match self {
             CmpOp::Eq => CmpOp::Eq,
             CmpOp::Neq => CmpOp::Neq,
@@ -106,7 +106,7 @@ impl CmpOp {
         }
     }
 
-    fn try_from_str(s: &str) -> Result<Self, ParseCmpOpError> {
+    pub fn try_from_str(s: &str) -> Result<Self, ParseCmpOpError> {
         match s {
             "eq" => Ok(CmpOp::Eq),
             "neq" => Ok(CmpOp::Neq),
@@ -121,46 +121,65 @@ impl CmpOp {
 
 #[derive(Debug, Error)]
 #[error("Invalid comparison operator: {0}")]
-struct ParseCmpOpError(String);
+pub struct ParseCmpOpError(String);
 
-enum Term {
+pub enum Proposition {
     Flipped(CmpOp, TermConst, TermVar),
     Standard(CmpOp, TermVar, TermConst),
 }
 
 // lol this is retarded
 #[derive(Debug, Error)]
-enum TermError {
+pub enum TermError {
     #[error("Invalid comparison operator: {0}")]
     ParseCmpOpError(#[from] ParseCmpOpError),
     #[error("ParseIntError: {0}")]
     ParseIntError(#[from] std::num::ParseIntError),
 }
 
-impl Term {
+impl Proposition {
     // consumes self & returns a flipped version of it
-    fn flip(self) -> Self {
+    pub fn flip(self) -> Self {
         match self {
-            Term::Flipped(op, c, v) => Term::Standard(op.flip(), v, c),
-            Term::Standard(op, v, c) => Term::Flipped(op.flip(), c, v),
+            Proposition::Flipped(op, c, v) => Proposition::Standard(op.flip(), v, c),
+            Proposition::Standard(op, v, c) => Proposition::Flipped(op.flip(), c, v),
         }
     }
 
     /// creates somewhat normalized representation of a term from a comparison operator and two strings.<br>
     /// does not guarantee the validity of name of the variable, not even if it is a valid BDD variable name.<br>
-    fn try_from_xml_strings(op: String, lhs: String, rhs: String) -> Result<Self, TermError> {
+    pub fn try_from_xml_strings(op: String, lhs: String, rhs: String) -> Result<Self, TermError> {
         let op = CmpOp::try_from_str(&op)?;
 
         if let Ok(lhs_const) = TermConst::try_from_str(&lhs) {
-            return Ok(Term::Flipped(op, lhs_const, TermVar(rhs)));
+            return Ok(Proposition::Flipped(op, lhs_const, TermVar(rhs)));
         }
 
-        return Ok(Term::Standard(
+        Ok(Proposition::Standard(
             op,
             TermVar(lhs),
             TermConst(rhs.parse::<u16>()?),
-        ));
+        ))
     }
+}
+
+pub enum LogicOp {
+    Not,
+    And,
+    Or,
+    Xor,
+    Implies,
+}
+
+/// recursive structure representing a logical formula<br>
+/// leaf nodes are propositions, internal nodes are logical operators<br>
+pub enum LogicFormula {
+    Terminal(Proposition),
+    Not(Box<LogicFormula>),
+    And(Box<LogicFormula>, Box<LogicFormula>),
+    Or(Box<LogicFormula>, Box<LogicFormula>),
+    Xor(Box<LogicFormula>, Box<LogicFormula>),
+    Implies(Box<LogicFormula>, Box<LogicFormula>),
 }
 
 // #[derive(Debug)]

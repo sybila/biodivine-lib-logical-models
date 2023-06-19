@@ -25,8 +25,13 @@ mod tests {
         super::tutorial();
     }
 
+    // #[test]
+    // pub fn test_sol() {
+    //     super::node_processing();
+    // }
+
     #[test]
-    pub fn test_sol() {
-        super::node_processing();
+    pub fn test_sbml_model() {
+        super::trying();
     }
 }
