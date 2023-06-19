@@ -1,5 +1,5 @@
-use thiserror::Error;
 use std::marker::PhantomData;
+use thiserror::Error;
 
 use biodivine_lib_bdd as bdd;
 
@@ -7,7 +7,7 @@ use biodivine_lib_bdd as bdd;
 /// lowest allowed arity is 2 corresponding to a boolean variable.<br>
 /// the domain of a variable with arity `n` is `{0, 1, ..., n-1}`.<br>
 #[derive(Clone)]
-pub struct Arity(u8);  // todo decide size; ie eg the original Bdd lib uses u16 iirc
+pub struct Arity(u8); // todo decide size; ie eg the original Bdd lib uses u16 iirc
 
 impl Arity {
     /// creates a new Arity with the given arity.<br>
@@ -46,7 +46,7 @@ impl MvRepr for MvReprGrayCode {
 pub struct MvddVariable<Repr: MvRepr> {
     repr: PhantomData<Repr>, // til abt PhantomData
     arity: Arity,
-    phantom: Vec<bdd::BddVariable>
+    phantom: Vec<bdd::BddVariable>,
 }
 
 impl<Repr: MvRepr> MvddVariable<Repr> {
@@ -91,7 +91,7 @@ enum CmpOp {
     Lt,
     Leq,
     Gt,
-    Geq
+    Geq,
 }
 
 impl CmpOp {
@@ -128,7 +128,6 @@ enum Term {
     Standard(CmpOp, TermVar, TermConst),
 }
 
-
 // lol this is retarded
 #[derive(Debug, Error)]
 enum TermError {
@@ -156,7 +155,11 @@ impl Term {
             return Ok(Term::Flipped(op, lhs_const, TermVar(rhs)));
         }
 
-        Ok(Term::Standard(op, TermVar(lhs), TermConst(rhs.parse::<u16>()?)))
+        return Ok(Term::Standard(
+            op,
+            TermVar(lhs),
+            TermConst(rhs.parse::<u16>()?),
+        ));
     }
 }
 
