@@ -40,23 +40,33 @@ mod tests {
         let xml = r#"<apply>
             <lt/>
             <cn type="integer">5</cn>
+            <ci>    x    </ci>
+        </apply>
+        <apply>
+            <eq/>
             <ci>x</ci>
-        </apply>"#;
+            <cn type="integer">6</cn>
+        </apply>
+        "#;
         let mut xml = xml::reader::EventReader::new(xml.as_bytes());
         loop {
-            if let Ok(xml::reader::XmlEvent::StartElement { name, .. }) = xml.next() {
-                println!("got the apply name: {:?}", name);
-                break;
+            match xml.next() {
+                Ok(xml::reader::XmlEvent::StartElement { name, .. }) => {
+                    if name.to_string() == "apply" {
+                        println!("parsed apply {:?}", super::parse_apply_element(&mut xml));
+                    }
+                }
+                Ok(xml::reader::XmlEvent::EndDocument) => {
+                    println!("end of document");
+                    break;
+                }
+                Err(err) => {
+                    println!("err: {:?}", err);
+                    break;
+                }
+                _ => {}
             }
         }
-        let res = super::parse_apply_element(&mut xml);
-        println!(
-            "res: {:?}",
-            match res {
-                Ok(res) => format!("{:?}", res),
-                Err(err) => err.to_string(),
-            }
-        );
 
         // super::parse_apply_element(&mut xml::reader::EventReader::new(xml.as_bytes()));
     }

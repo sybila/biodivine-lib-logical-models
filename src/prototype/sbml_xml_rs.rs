@@ -51,115 +51,150 @@ pub struct Proposition {
     pub cn: u16,    // the constant value
 }
 
+struct PropositionBuilder {
+    _cmp: Option<CmpOp>,
+    _ci: Option<String>,
+    _cn: Option<u16>,
+}
+
+impl PropositionBuilder {
+    pub fn new() -> Self {
+        Self {
+            _cmp: None,
+            _ci: None,
+            _cn: None,
+        }
+    }
+
+    pub fn cmp(&mut self, cmp: &str) -> Result<&mut Self, ParsePropositionError> {
+        if self._cmp.is_some() {
+            return Err(ParsePropositionError("duplicit cmp element".to_string()));
+        }
+
+        self._cmp =
+            Some(CmpOp::try_from_str(cmp).map_err(|e| ParsePropositionError(e.to_string()))?);
+
+        Ok(self)
+    }
+
+    pub fn ci(&mut self, ci: XmlEvent) -> Result<&mut Self, ParsePropositionError> {
+        if self._ci.is_some() {
+            return Err(ParsePropositionError("duplicit ci element".to_string()));
+        }
+
+        if self._cmp.is_none() {
+            return Err(ParsePropositionError(
+                // enforce order, because of its semantics (lhs vs rhs)
+                "cmp op must be set before ci".to_string(),
+            ));
+        }
+
+        match ci {
+            XmlEvent::Characters(s) => {
+                // todo should i validate it somehow? or eg truncate whitespaces?
+                self._ci = Some(s);
+            }
+            _ => {
+                return Err(ParsePropositionError(
+                    "ci must be followed by characters - the variable name".to_string(),
+                ));
+            }
+        }
+
+        Ok(self)
+    }
+
+    pub fn cn(&mut self, cn: XmlEvent) -> Result<&mut Self, ParsePropositionError> {
+        if self._cn.is_some() {
+            return Err(ParsePropositionError("duplicit cn element".to_string()));
+        }
+
+        if self._cmp.is_none() {
+            return Err(ParsePropositionError(
+                // enforce order, because of its semantics (lhs vs rhs)
+                "cmp op must be set before cn".to_string(),
+            ));
+        }
+
+        // todo should check attributes? i mean checked implicitly with the following code
+
+        match cn {
+            XmlEvent::Characters(s) => {
+                // todo should i validate it somehow? or eg truncate whitespaces?
+                let ok_val = s.parse::<u16>().map_err(|_| {
+                    ParsePropositionError(format!("could not parse cn value {s} to u16"))
+                })?;
+                self._cn = Some(ok_val);
+            }
+            _ => {
+                return Err(ParsePropositionError(
+                    "cn must be followed by characters - the constant value".to_string(),
+                ));
+            }
+        }
+
+        if self._ci.is_none() {
+            self._cmp.as_mut().unwrap().flip(); // safe unwrap; checkd above
+        }
+
+        Ok(self)
+    }
+
+    // consumes the builder; think this makes sense
+    pub fn build(self) -> Result<Proposition, ParsePropositionError> {
+        Ok(Proposition {
+            cmp: self
+                ._cmp
+                .ok_or(ParsePropositionError("cmp op not set".to_string()))?,
+            ci: self
+                ._ci
+                .ok_or(ParsePropositionError("ci not set".to_string()))?,
+            cn: self
+                ._cn
+                .ok_or(ParsePropositionError("cn not set".to_string()))?,
+        })
+    }
+}
+
 #[derive(Debug, Error)]
 #[error("Invalid proposition: {0}")]
 pub struct ParsePropositionError(String);
 
 pub fn parse_apply_element<T: BufRead>(
     xml: &mut EventReader<T>,
-) -> Result<Proposition, Box<dyn std::error::Error>> {
-    let mut ci: Option<String> = None; // the variable name
-    let mut cn: Option<u16> = None; // the constant value
-    let mut cmp: Option<CmpOp> = None; // comparison operator
+    // ) -> Result<Proposition, Box<dyn std::error::Error>> {
+) -> Result<Proposition, ParsePropositionError> {
+    let mut builder = PropositionBuilder::new();
 
     loop {
         match xml.next() {
-            Ok(XmlEvent::StartElement {
-                name, attributes, ..
-            }) => match name.local_name.as_str() {
+            Ok(XmlEvent::StartElement { name, .. }) => match name.local_name.as_str() {
                 "apply" => (), // todo not implemented
-                // todo abstract this bs using builder once not prototype
                 "ci" => {
-                    if ci.is_some() {
-                        return Err(Box::new(ParsePropositionError(
-                            "duplicit ci element".to_string(),
-                        )));
-                    }
-
-                    // todo move this to cn
-
-                    if cmp.is_none() {
-                        return Err(Box::new(ParsePropositionError(
-                            "cmp op must be first".to_string(),
-                        )));
-                    }
-
-                    let hopefully_ci_val = xml.next()?;
-                    match hopefully_ci_val {
-                        XmlEvent::Characters(s) => {
-                            ci = Some(s);
-                        }
-                        _ => {
-                            return Err(Box::new(ParsePropositionError(
-                                "ci must be followed by characters - the variable name".to_string(),
-                            )));
-                        }
-                    }
+                    builder.ci(xml.next().map_err(|_| {
+                        ParsePropositionError("underlying xml reader failed".to_string())
+                    })?)?;
                 }
                 "cn" => {
-                    if cn.is_some() {
-                        return Err(Box::new(ParsePropositionError(
-                            "duplicit cn element".to_string(),
-                        )));
-                    }
-
-                    // todo should i care abt such bs?
-                    if attributes
-                        .iter()
-                        .filter(|a| a.name.local_name == "type" && a.value == "integer")
-                        .count()
-                        != 1
-                    {
-                        return Err(Box::new(ParsePropositionError(
-                            "ci must have exactly one attr of type=\"integer\" specified"
-                                .to_string(),
-                        )));
-                    }
-
-                    if cmp.is_none() {
-                        return Err(Box::new(ParsePropositionError(
-                            "cmp op must be first".to_string(),
-                        )));
-                    }
-
-                    if ci.is_none() {
-                        // input cn is lhs -> flip cmp to normalize
-                        cmp = Some(cmp.unwrap().flip());
-                    }
-
-                    let hopefully_cn_val = xml.next()?;
-                    match hopefully_cn_val {
-                        XmlEvent::Characters(s) => {
-                            cn = Some(s.parse::<u16>()?);
-                        }
-                        _ => {
-                            return Err(Box::new(ParsePropositionError(
-                                "cn must be followed by characters - ie contain int value"
-                                    .to_string(),
-                            )));
-                        }
-                    }
+                    // builder.cn(xml.next()?)?;
+                    builder.cn(xml.next().map_err(|_| {
+                        ParsePropositionError("underlying xml reader failed".to_string())
+                    })?)?;
                 }
-                hopefully_cmp_op => {
-                    let cmp_op = CmpOp::try_from_str(hopefully_cmp_op)?;
-                    if cmp.is_some() {
-                        return Err(Box::new(ParsePropositionError(
-                            "duplicit cmp op".to_string(),
-                        )));
-                    }
-
-                    cmp = Some(cmp_op);
+                n if CmpOp::try_from_str(n).is_ok() => {
+                    builder.cmp(n)?;
                 }
+                _ => (),
             },
             Ok(XmlEvent::EndElement { name, .. }) => {
-                println!("ending {:?}", &name);
                 if name.local_name == "apply" {
-                    return Ok(Proposition {
-                        cmp: cmp.unwrap(),
-                        ci: ci.unwrap(),
-                        cn: cn.unwrap(),
-                    });
+                    return builder.build();
                 }
+            }
+            Ok(XmlEvent::EndDocument) => {
+                return Err(ParsePropositionError(
+                    "unexpected end of document".to_string(),
+                ));
             }
             Err(e) => panic!("Error: {}", e),
             _ => (),
