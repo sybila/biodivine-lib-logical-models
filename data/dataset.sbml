@@ -449,16 +449,6 @@
                   <cn type="integer"> 1 </cn>
                 </apply>
               </apply>
-              <apply>
-                <eq />
-                <ci> p53 </ci>
-                <cn type="integer"> 1 </cn>
-              </apply>
-              <apply>
-                <eq />
-                <cn type="integer"> 2 </cn>
-                <ci> DNAdam </ci>
-              </apply>
             </math>
           </qual:functionTerm>
         </qual:listOfFunctionTerms>
