@@ -5,7 +5,6 @@ use xml::reader::{EventReader, XmlEvent};
 #[derive(Debug)]
 pub enum Expression {
     Terminal(Proposition),
-    // Internal(Box<Expression>),
     Not(Box<Expression>),
     And(Box<Expression>, Box<Expression>),
     Or(Box<Expression>, Box<Expression>),
@@ -13,11 +12,38 @@ pub enum Expression {
     Implies(Box<Expression>, Box<Expression>),
 }
 
-impl Expression {
-    pub fn dflt() -> Self {
-        unimplemented!("default expression")
+enum LogicOp {
+    Not,
+    And,
+    Or,
+    Xor,
+    Implies,
+}
+
+impl LogicOp {
+    fn from_str(op: &str) -> Option<Self> {
+        match op {
+            "not" => Some(Self::Not),
+            "and" => Some(Self::And),
+            "or" => Some(Self::Or),
+            "xor" => Some(Self::Xor),
+            "implies" => Some(Self::Implies),
+            _ => None,
+        }
     }
 
+    fn its_string(&self) -> String {
+        match self {
+            Self::Not => "not".to_string(),
+            Self::And => "and".to_string(),
+            Self::Or => "or".to_string(),
+            Self::Xor => "xor".to_string(),
+            Self::Implies => "implies".to_string(),
+        }
+    }
+}
+
+impl Expression {
     // todo consider iterative approach instead of recursive?
     pub fn try_from_xml<T: BufRead>(
         xml: &mut EventReader<T>,
@@ -25,87 +51,19 @@ impl Expression {
         loop {
             match xml.next() {
                 Ok(xml::reader::XmlEvent::StartElement { name, .. }) => {
-                    match name.local_name.as_str() {
-                        "not" => {
-                            expect_closure_of(&name.local_name, xml)?; // self closing tag must be "closed"
-                            expect_opening_of("apply", xml)?;
-                            let inner = Expression::try_from_xml(xml)?;
-                            expect_closure_of("apply", xml)?; // close *this* apply tag ie the one wrapping the <not/>
-                            return Ok(Expression::Not(Box::new(inner)));
-                        }
-                        "and" => {
-                            expect_closure_of(&name.local_name, xml)?; // self closing tag must be "closed"
-                            expect_opening_of("apply", xml)?;
-                            let inner_lhs = Expression::try_from_xml(xml)?;
-                            expect_opening_of("apply", xml)?;
-                            let inner_rhs = Expression::try_from_xml(xml)?;
-                            expect_closure_of("apply", xml)?;
-                            return Ok(Expression::And(Box::new(inner_lhs), Box::new(inner_rhs)));
-                        }
-                        "or" => {
-                            expect_closure_of(&name.local_name, xml)?; // self closing tag must be "closed"
-                            expect_opening_of("apply", xml)?;
-                            let inner_lhs = Expression::try_from_xml(xml)?;
-                            expect_opening_of("apply", xml)?;
-                            let inner_rhs = Expression::try_from_xml(xml)?;
-                            expect_closure_of("apply", xml)?;
-                            return Ok(Expression::Or(Box::new(inner_lhs), Box::new(inner_rhs)));
-                        }
-                        "xor" => {
-                            expect_closure_of(&name.local_name, xml)?; // self closing tag must be "closed"
-                            expect_opening_of("apply", xml)?;
-                            let inner_lhs = Expression::try_from_xml(xml)?;
-                            expect_opening_of("apply", xml)?;
-                            let inner_rhs = Expression::try_from_xml(xml)?;
-                            expect_closure_of("apply", xml)?;
-                            return Ok(Expression::Xor(Box::new(inner_lhs), Box::new(inner_rhs)));
-                        }
-                        "implies" => {
-                            expect_closure_of(&name.local_name, xml)?; // self closing tag must be "closed"
-                            expect_opening_of("apply", xml)?;
-                            let inner_lhs = Expression::try_from_xml(xml)?;
-                            expect_opening_of("apply", xml)?;
-                            let inner_rhs = Expression::try_from_xml(xml)?;
-                            expect_closure_of("apply", xml)?;
-                            return Ok(Expression::Implies(
-                                Box::new(inner_lhs),
-                                Box::new(inner_rhs),
-                            ));
-                        }
-                        // must_be_cmp_op => {
-                        //     // todo oh fck already consumed the operator; need to pass it to parse_apply_element
-                        //     let proposition = super::parse_apply_element(xml)?; // pass the op somehow
-                        //     drain(xml, "apply")?; // clean the xml iterator; will be used
-                        //     return Ok(Expression::Terminal(proposition));
-                        // }
-                        // "eq" => unimplemented!(),
-                        // "neq" => unimplemented!(),
-                        // "lt" => unimplemented!(),
-                        // "leq" => unimplemented!(),
-                        // "gt" => unimplemented!(),
-                        // "geq" => unimplemented!(),
-                        "eq" | "neq" | "lt" | "leq" | "gt" | "geq" => {
-                            expect_closure_of(&name.local_name, xml)?; // close the cmp op tag
-                            let prp = parse_terminal_ops(xml)?;
-                            expect_closure_of("apply", xml)?; // todo likely not; alrdy inside parse_terminal_ops
-                            return Ok(Expression::Terminal(Proposition::new(
-                                CmpOp::try_from_str(&name.local_name)?,
-                                prp,
-                            )));
-                        }
-                        _ => {
-                            return Err(format!(
-                                "expected one of {{ not, and, or, xor, implies, eq, neq, lt, leq, gt, geq }}, found {}",
-                                name.local_name
-                            )
-                            .into());
-                        }
+                    let op = name.local_name.as_str();
+                    if let Some(log_op) = LogicOp::from_str(op) {
+                        return logical_from_xml(log_op, xml);
                     }
+
+                    if let Ok(cmp_op) = CmpOp::try_from_str(op) {
+                        return terminal_from_xml(cmp_op, xml);
+                    }
+
+                    return Err(format!("expected one of {{ not, and, or, xor, implies, eq, neq, lt, leq, gt, geq }}, found {}",op).into());
                 }
                 Ok(xml::reader::XmlEvent::EndElement { name, .. }) => {
-                    if name.local_name == "apply" {
-                        return Ok(Expression::dflt()); // todo not default ofc; build
-                    }
+                    return Err(format!("unexpected end of element {}", name.local_name).into())
                 }
                 Ok(xml::reader::XmlEvent::EndDocument) => {
                     return Err("unexpected end of document".into())
@@ -117,86 +75,67 @@ impl Expression {
     }
 }
 
-// i imagine this is what the <not/> node looks like
-// <apply>
-//     <not/>
-//     <apply>
-//         ...
-//     </apply>
-// </apply>
+fn terminal_from_xml(
+    op: CmpOp,
+    xml: &mut EventReader<impl BufRead>,
+) -> Result<Expression, Box<dyn std::error::Error>> {
+    expect_closure_of(&op.its_string(), xml)?; // close the cmp op tag
+    let prp = parse_terminal_ops(xml)?;
+    expect_closure_of("apply", xml)?;
+    Ok(Expression::Terminal(Proposition::new(op, prp)))
+}
+
+fn logical_from_xml<T: BufRead>(
+    op: LogicOp,
+    xml: &mut EventReader<T>,
+) -> Result<Expression, Box<dyn std::error::Error>> {
+    expect_closure_of(&op.its_string(), xml)?; // self closing tag must be "closed"
+    match op {
+        LogicOp::Not => {
+            expect_opening_of("apply", xml)?;
+            let inner = Expression::try_from_xml(xml)?;
+            expect_closure_of("apply", xml)?; // close *this* apply tag ie the one wrapping the op
+            Ok(Expression::Not(Box::new(inner)))
+        }
+        LogicOp::And | LogicOp::Or | LogicOp::Xor | LogicOp::Implies => {
+            expect_opening_of("apply", xml)?;
+            let inner_lhs = Expression::try_from_xml(xml)?;
+            expect_opening_of("apply", xml)?;
+            let inner_rhs = Expression::try_from_xml(xml)?;
+            expect_closure_of("apply", xml)?; // close *this* apply tag ie the one wrapping the op
+            match op {
+                LogicOp::And => Ok(Expression::And(Box::new(inner_lhs), Box::new(inner_rhs))),
+                LogicOp::Or => Ok(Expression::Or(Box::new(inner_lhs), Box::new(inner_rhs))),
+                LogicOp::Xor => Ok(Expression::Xor(Box::new(inner_lhs), Box::new(inner_rhs))),
+                LogicOp::Implies => Ok(Expression::Implies(
+                    Box::new(inner_lhs),
+                    Box::new(inner_rhs),
+                )),
+                _ => unreachable!(), // because of the not
+            }
+        }
+    }
+}
 
 fn expect_opening_of<T: BufRead>(
     expected: &str,
     xml: &mut EventReader<T>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    print!("expecting opening {}...", expected);
-    // match xml.next() {
-    //     Ok(xml::reader::XmlEvent::StartElement { name, .. }) => {
-    //         if name.local_name == expected {
-    //             Ok(())
-    //         } else {
-    //             Err(format!(
-    //                 "expected start element {} but found {}",
-    //                 expected, name.local_name
-    //             )
-    //             .into())
-    //         }
-    //     }
-    //     Ok(xml::reader::XmlEvent::EndElement { name, .. }) => Err(format!(
-    //         "expected start element {} but found closing {}",
-    //         expected, name.local_name
-    //     )
-    //     .into()),
-    //     Ok(xml::reader::XmlEvent::EndDocument) => Err("unexpected end of document".into()),
-    //     // Ok(unexp) => Err(format!(
-    //     //     "unexpected event: {:?}; expected opening {} instead",
-    //     //     unexp, expected
-    //     // )
-    //     // .into()),
-    //     Ok(_) => {}
-    //     Err(e) => Err(e.into()),
-    // }
     loop {
         match xml.next() {
-            Ok(xml::reader::XmlEvent::StartElement { name, .. }) => {
-                if name.local_name == expected {
-                    println!("ok");
-                    return Ok(());
+            Ok(XmlEvent::Whitespace(_)) => { /* whitespace is the reason we want to loop */ }
+            Ok(XmlEvent::StartElement { name, .. }) => {
+                return if name.local_name == expected {
+                    Ok(())
                 } else {
-                    println!(
-                        "expected start element {} but found {}",
-                        expected, name.local_name
-                    );
-                    return Err(format!(
-                        "expected start element {} but found {}",
+                    Err(format!(
+                        "expected opening element {}, got {}",
                         expected, name.local_name
                     )
-                    .into());
+                    .into())
                 }
             }
-            Ok(xml::reader::XmlEvent::EndElement { name, .. }) => {
-                println!(
-                    "expected start element {} but found closing {}",
-                    expected, name.local_name
-                );
-                return Err(format!(
-                    "expected start element {} but found closing {}",
-                    expected, name.local_name
-                )
-                .into());
-            }
-            Ok(xml::reader::XmlEvent::EndDocument) => {
-                println!("unexpected end of document");
-                return Err("unexpected end of document".into());
-            }
-            Ok(_) => {}
-            Err(e) => {
-                println!(
-                    "unexpected event: {:?}; expected opening {} instead",
-                    e, expected
-                );
-                return Err(e.into());
-            }
+            any => return Err(format!("expected opening of {}, got {:?}", expected, any).into()),
         }
     }
 }
@@ -205,32 +144,17 @@ fn expect_closure_of<T: BufRead>(
     expected: &str,
     xml: &mut EventReader<T>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("expecting closing {}...", expected);
     loop {
         match xml.next() {
-            Ok(xml::reader::XmlEvent::StartElement { name, .. }) => {
-                return Err(format!(
-                    "expected closing element {} but found opening {}",
-                    expected, name.local_name
-                )
-                .into())
-            }
-            Ok(xml::reader::XmlEvent::EndElement { name, .. }) => {
-                if name.local_name == expected {
-                    return Ok(());
+            Ok(XmlEvent::Whitespace(_)) => { /* whitespace is the reason we want to loop */ }
+            Ok(XmlEvent::EndElement { name, .. }) => {
+                return if name.local_name == expected {
+                    Ok(())
                 } else {
-                    return Err(format!(
-                        "expected closing element {} but found {}",
-                        expected, name.local_name
-                    )
-                    .into());
+                    Err(format!("expected closing of {}, got {}", expected, name.local_name).into())
                 }
             }
-            Ok(xml::reader::XmlEvent::EndDocument) => {
-                return Err("unexpected end of document".into())
-            }
-            Ok(_) => { /* want to loop in this case */ } // return Err(format!("unexpected event: {:?}", unexp).into()),
-            Err(e) => return Err(e.into()),
+            any => return Err(format!("expected closing of {}, got {:?}", expected, any).into()),
         }
     }
 }
@@ -301,14 +225,9 @@ fn expect_opening<T: BufRead>(
 ) -> Result<String, Box<dyn std::error::Error>> {
     loop {
         match xml.next() {
+            Ok(XmlEvent::Whitespace(_)) => { /* whitespace is the reason we want to loop */ }
             Ok(XmlEvent::StartElement { name, .. }) => return Ok(name.local_name),
-            Ok(XmlEvent::EndDocument) => return Err("unexpected end of document".into()),
-            // Ok(unexp) => Err(format!("expected event {:?}", unexp).into()),
-            Ok(_) => {
-                // do not loop; there are some cases you want to skip like whitespaces...
-                // return Err(format!("unexpected event: {:?}; expected any opening", unexp).into())
-            }
-            Err(_) => return Err("underlying xml reader failed".into()),
+            any => return Err(format!("expected an opening, got {:?}", any).into()),
         }
     }
 }
@@ -336,6 +255,17 @@ impl CmpOp {
         }
     }
 
+    pub fn its_string(&self) -> String {
+        match self {
+            Self::Eq => "eq".to_string(),
+            Self::Neq => "neq".to_string(),
+            Self::Lt => "lt".to_string(),
+            Self::Leq => "leq".to_string(),
+            Self::Gt => "gt".to_string(),
+            Self::Geq => "geq".to_string(),
+        }
+    }
+
     pub fn flip(&self) -> Self {
         match self {
             Self::Eq => Self::Eq,
@@ -352,8 +282,7 @@ impl CmpOp {
 #[error("Invalid comparison operator: {0}")]
 pub struct ParseCmpOpError(String);
 
-/// sbml proposition<br>
-/// normalized ie in the form of `var op const`<br>
+/// sbml proposition normalized ie in the form of `var op const`
 #[derive(Debug)]
 pub struct Proposition {
     pub cmp: CmpOp,
@@ -362,11 +291,9 @@ pub struct Proposition {
 }
 
 impl Proposition {
+    /// if the input terminal operands are flipped, the returning value will flip the operands as well
+    /// as the comparison operator in order to normalize the proposition
     pub fn new(cmp_op: CmpOp, ops: TerminalOps) -> Self {
-        // if let TerminalOps::Standard(lhs, rhs) = ops {
-
-        // }
-
         match ops {
             TerminalOps::Standard(lhs, rhs) => Self {
                 cmp: cmp_op,
