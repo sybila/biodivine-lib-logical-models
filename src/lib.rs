@@ -149,6 +149,7 @@ mod tests {
                     println!("{}<{:?}>", "  ".repeat(indent), name);
                     indent += 1;
                     if name.local_name == "transition" {
+                        println!("parsing transition");
                         let update_fn = super::UpdateFn::try_from_xml(&mut xml);
                         println!("update fn: {:?}", update_fn);
                         return;
