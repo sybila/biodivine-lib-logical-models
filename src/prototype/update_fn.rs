@@ -66,16 +66,13 @@ impl UpdateFn {
         // maybe would make sense to use iterators? i do not see too big gain tho
         let target_vars_names =
             process_list("listOfOutputs", "output", process_output_var_name_item, xml)?;
-        println!("target vars names {:?}", target_vars_names);
-        let (head, tail) = target_vars_names
-            .split_first()
-            .ok_or("expected target var name, none found")?;
-        tail.is_empty().then_some(()).ok_or(
-            // lol basically throw if not empty
-            "expected only one target var, but found multiple; todo might allow in the future",
-        )?;
-
-        expect_opening_of("listOfFunctionTerms", xml)?;
+        let mut target_vars_names = target_vars_names.iter(); // lmao idk
+        let head = target_vars_names
+            .next()
+            .ok_or("expected target variable name but none found")?;
+        target_vars_names
+            .next()
+            .map_or_else(|| Ok(()), |_| Err("expected only one target var but found multiple; todo might want to change this"))?;
         let (default, terms) = get_default_and_list_of_terms(xml)?;
 
         expect_closure_of("transition", xml)?;
