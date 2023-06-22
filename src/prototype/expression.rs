@@ -60,7 +60,8 @@ impl Expression {
                         return terminal_from_xml(cmp_op, xml);
                     }
 
-                    return Err(format!("expected one of {{ not, and, or, xor, implies, eq, neq, lt, leq, gt, geq }}, found {}",op).into());
+                    // lol rust-analyzer kinda choked on the next line
+                    return Err(format!("expected one of not, and, or, xor, implies, eq, neq, lt, leq, gt, geq, found {}", op).into());
                 }
                 Ok(xml::reader::XmlEvent::EndElement { name, .. }) => {
                     return Err(format!("unexpected end of element {}", name.local_name).into())

@@ -28,28 +28,135 @@ mod tests {
         //     <cn type="integer">6</cn>
         // </apply>
         // "#;
-        let xml = r#"<apply>
-        <and />
+        let sane = r#"
+              <apply>
+                <or />
+                <apply>
+                  <and />
+                  <apply>
+                    <eq />
+                    <ci> p53 </ci>
+                    <cn type="integer"> 0 </cn>
+                  </apply>
+                  <apply>
+                    <eq />
+                    <ci> Mdm2cyt </ci>
+                    <cn type="integer"> 2 </cn>
+                  </apply>
+                </apply>
+                <apply>
+                  <and />
+                  <apply>
+                    <geq />
+                    <ci> p53 </ci>
+                    <cn type="integer"> 1 </cn>
+                  </apply>
+                  <apply>
+                    <eq />
+                    <ci> Mdm2cyt </ci>
+                    <cn type="integer"> 2 </cn>
+                  </apply>
+                </apply>
+              </apply>
+        "#;
+        let with_ternary = r#"
         <apply>
-          <eq />
-          <ci> Mdm2nuc </ci>
-          <cn>1</cn>
+        <or />
+        <apply>
+          <and />
+          <apply>
+            <eq />
+            <ci> p53 </ci>
+            <cn type="integer"> 0 </cn>
+          </apply>
+          <apply>
+            <eq />
+            <ci> Mdm2cyt </ci>
+            <cn type="integer"> 1 </cn>
+          </apply>
+          <apply>
+            <eq />
+            <ci> DNAdam </ci>
+            <cn type="integer"> 0 </cn>
+          </apply>
         </apply>
         <apply>
-          <eq />
-          <ci> p53 </ci>
-          <cn>0</cn>
+          <and />
+          <apply>
+            <eq />
+            <ci> p53 </ci>
+            <cn type="integer"> 0 </cn>
+          </apply>
+          <apply>
+            <eq />
+            <ci> Mdm2cyt </ci>
+            <cn type="integer"> 2 </cn>
+          </apply>
         </apply>
-      </apply>"#;
-        let mut xml = xml::reader::EventReader::new(xml.as_bytes());
+        <apply>
+          <and />
+          <apply>
+            <geq />
+            <ci> p53 </ci>
+            <cn type="integer"> 1 </cn>
+          </apply>
+          <apply>
+            <eq />
+            <ci> Mdm2cyt </ci>
+            <cn type="integer"> 2 </cn>
+          </apply>
+        </apply>
+      </apply>
+        "#;
+        let mut xml = xml::reader::EventReader::new(with_ternary.as_bytes());
         loop {
             match xml.next() {
                 Ok(xml::reader::XmlEvent::StartElement { name, .. }) => {
-                    if name.to_string() == "apply" {
+                    println!("start element {:?}", name);
+                    if name.local_name == "apply" {
                         println!("parsing apply");
                         let expression = super::Expression::try_from_xml(&mut xml);
                         println!("parsed apply {:?}", expression);
                     }
+                }
+                Ok(xml::reader::XmlEvent::EndDocument) => {
+                    println!("end of document");
+                    break;
+                }
+                Err(err) => {
+                    println!("err: {:?}", err);
+                    break;
+                }
+                _ => {}
+            }
+        }
+    }
+
+    #[test]
+    pub fn test_update_fn() {
+        use std::fs::File;
+        use std::io::BufReader;
+
+        let file = File::open("data/dataset.sbml").expect("cannot open file");
+        let file = BufReader::new(file);
+
+        let mut xml = xml::reader::EventReader::new(file);
+
+        let mut indent = 0;
+        loop {
+            match xml.next() {
+                Ok(xml::reader::XmlEvent::StartElement { name, .. }) => {
+                    println!("{}<{:?}>", "  ".repeat(indent), name);
+                    indent += 1;
+                    if name.local_name == "transition" {
+                        let update_fn = super::UpdateFn::try_from_xml(&mut xml);
+                        println!("update fn: {:?}", update_fn);
+                        return;
+                    }
+                }
+                Ok(xml::reader::XmlEvent::EndElement { name, .. }) => {
+                    indent -= 1;
+                    println!("{}</{:?} />", "  ".repeat(indent), name);
                 }
                 Ok(xml::reader::XmlEvent::EndDocument) => {
                     println!("end of document");
