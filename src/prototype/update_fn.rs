@@ -73,6 +73,9 @@ impl UpdateFn {
         target_vars_names
             .next()
             .map_or_else(|| Ok(()), |_| Err("expected only one target var but found multiple; todo might want to change this"))?;
+        println!("finished the outputs successfully; now terms");
+
+        expect_opening_of("listOfFunctionTerms", xml)?;
         let (default, terms) = get_default_and_list_of_terms(xml)?;
 
         expect_closure_of("transition", xml)?;
@@ -135,7 +138,53 @@ fn get_target_var_name<T: BufRead>(
 }
 
 fn get_default_and_list_of_terms<T: BufRead>(
-    _xml: &mut EventReader<T>,
+    xml: &mut EventReader<T>,
 ) -> Result<(u16, Vec<(u16, Expression)>), Box<dyn std::error::Error>> {
-    unimplemented!()
+    // firs should be the default
+    let default_element = expect_opening_of("defaultTerm", xml)?;
+    let default_val = default_element
+        .attributes
+        .iter()
+        .find_map(|whole| {
+            if whole.name.local_name == "resultLevel" {
+                if let Ok(num) = whole.value.parse::<u16>() {
+                    Some(num)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .ok_or("expected \"resultLevel\" with numeric argument in defaultTerm but none found")?;
+    expect_closure_of("defaultTerm", xml)?;
+
+    // expect_opening_of("functionTerms", xml)?; // already inside "functionTerms" List; first item was default element
+    println!("here");
+    let values_and_expressions = process_list(
+        "listOfFunctionTerms",
+        "functionTerm",
+        process_function_term_item,
+        xml,
+    )?;
+
+    Ok((default_val, values_and_expressions))
+}
+
+fn process_function_term_item<T: BufRead>(
+    xml: &mut EventReader<T>,
+    _current: StartElementWrapper,
+) -> Result<(u16, Expression), Box<dyn std::error::Error>> {
+    // todo get the value from current instead of hard coded 666
+
+    expect_opening_of("math", xml)?;
+    // try_from_xml expects to have the first apply already opened
+    expect_opening_of("apply", xml)?;
+
+    let exp = Expression::try_from_xml(xml)?;
+
+    expect_closure_of("math", xml)?;
+    expect_closure_of("functionTerm", xml)?;
+
+    Ok((666, exp))
 }
