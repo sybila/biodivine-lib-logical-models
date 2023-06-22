@@ -63,13 +63,23 @@ impl UpdateFn {
 
         // listOfOutputs must be present
         // todo want to generalize this to list of outputs in the future
-        let target_var_name = get_target_var_name(xml)?;
+        // maybe would make sense to use iterators? i do not see too big gain tho
+        let target_vars_names =
+            process_list("listOfOutputs", "output", process_output_var_name_item, xml)?;
+        println!("target vars names {:?}", target_vars_names);
+        let (head, tail) = target_vars_names
+            .split_first()
+            .ok_or("expected target var name, none found")?;
+        tail.is_empty().then_some(()).ok_or(
+            // lol basically throw if not empty
+            "expected only one target var, but found multiple; todo might allow in the future",
+        )?;
 
         expect_opening_of("listOfFunctionTerms", xml)?;
         let (default, terms) = get_default_and_list_of_terms(xml)?;
 
         expect_closure_of("transition", xml)?;
-        Ok(Self::new(input_vars_names, target_var_name, terms, default))
+        Ok(Self::new(input_vars_names, head.into(), terms, default))
     }
 }
 
@@ -89,17 +99,28 @@ fn process_input_var_name_item<T: BufRead>(
         .next()
         .ok_or("expected \"qualitativeSpecies\" arg in input, but none found")?;
 
-    // this is not required; xml-rs handles duplicate attributes with error
-    // qualitative_species.next().map_or_else(
-    //     || Ok(()),
-    //     |_| Err("expected exactly one \"qualitativeSpecies\" arg in input, but multiple found"),
-    // )?;
-
-    println!("expecting closure of input");
-
     expect_closure_of("input", xml)?;
 
-    println!("closure of input gotten");
+    Ok(item)
+}
+
+fn process_output_var_name_item<T: BufRead>(
+    xml: &mut EventReader<T>,
+    current: StartElementWrapper,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let mut qualitative_species = current.attributes.iter().filter_map(|att| {
+        if att.name.local_name == "qualitativeSpecies" {
+            Some(att.value.clone())
+        } else {
+            None
+        }
+    });
+
+    let item = qualitative_species
+        .next()
+        .ok_or("expected \"qualitativeSpecies\" arg in output, but none found")?;
+
+    expect_closure_of("output", xml)?;
 
     Ok(item)
 }
