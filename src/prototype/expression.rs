@@ -176,7 +176,7 @@ pub fn parse_terminal_ops<T: BufRead>(
 
         if let XmlEvent::Characters(content) = xml.next()? {
             // ci = Some(content.parse::<u16>()?);
-            ci = content;
+            ci = content.trim().to_string();
         } else {
             return Err("ci must be followed by characters - the variable name".into());
         }
@@ -233,7 +233,7 @@ fn expect_opening<T: BufRead>(
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CmpOp {
     Eq,
     Neq,
@@ -284,7 +284,7 @@ impl CmpOp {
 pub struct ParseCmpOpError(String);
 
 /// sbml proposition normalized ie in the form of `var op const`
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Proposition {
     pub cmp: CmpOp,
     pub ci: String, // the variable name
