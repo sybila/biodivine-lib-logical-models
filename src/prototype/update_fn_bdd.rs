@@ -2,16 +2,15 @@ use crate::{Expression, SymbolicDomain, UnaryIntegerDomain, UpdateFn};
 
 use std::collections::HashMap;
 
-#[allow(unused_imports)] // todo refactor & remove ignore
-use biodivine_lib_bdd::{
-    Bdd, BddPartialValuation, BddVariable, BddVariableSet, BddVariableSetBuilder,
-};
+use biodivine_lib_bdd::{Bdd, BddValuation, BddVariableSet, BddVariableSetBuilder};
 
 use super::expression::Proposition;
 
 // todo currently do not know how to determine the max value of a variable; hardcoding it for now; should be extracted from the xml/UpdateFn
 const HARD_CODED_MAX_VAR_VALUE: u8 = 2;
 
+/// describes, how single variable is updated
+/// set of UpdateFnBdds is used to describe the dynamics of the whole system
 pub struct UpdateFnBdd {
     pub target_var_name: String,
     pub terms: Vec<(u16, Bdd)>,
@@ -73,6 +72,8 @@ fn bdd_from_expr(
     bdd_variable_set: &mut BddVariableSet,
 ) -> Bdd {
     match expr {
+        // prop_to_bdd is the important thing here;
+        // the rest is just recursion & calling the right bdd methods
         Expression::Terminal(prop) => prop_to_bdd(prop.clone(), symbolic_domains, bdd_variable_set),
         Expression::Not(expr) => {
             let bdd = bdd_from_expr(expr, symbolic_domains, bdd_variable_set);
@@ -98,6 +99,22 @@ fn bdd_from_expr(
             let rhs = bdd_from_expr(rhs, symbolic_domains, bdd_variable_set);
             lhs.imp(&rhs)
         }
+    }
+}
+
+impl UpdateFnBdd {
+    /// for given valuation of input variables, returns the value of the output variable according to the update function
+    /// todo should probably accept valuations of the symbolic variables
+    /// todo so that user is abstracted from having to specify vector of bools
+    /// todo and instead can just specify the values of symbolic variables
+    /// todo for now, i know what is the underlying representation of the symbolic variables
+    /// todo -> good enough for testing
+    pub fn eval_in(&self, valuation: &BddValuation) -> u16 {
+        self.terms
+            .iter()
+            .find(|(_, bdd)| bdd.eval_in(valuation))
+            .map(|(val, _)| *val)
+            .unwrap_or(self.default)
     }
 }
 
@@ -159,9 +176,80 @@ mod tests {
     use crate::{SymbolicDomain, UpdateFnBdd};
 
     #[test]
+    fn test_update_fn_result() {
+        let update_fn: UpdateFnBdd = get_update_fn().into();
+
+        // update_fn.terms.iter().for_each(|(val, bdd)| {
+        //     println!("val: {}, bdd: {:?}", val, bdd);
+        // });
+
+        println!(
+            "@@@@@@@@@@@@@@@@@@@@@@@update fn terms len: {:?}",
+            update_fn.terms.len()
+        );
+
+        // let valuation = BddValuation::new(vec![false, false]);
+
+        // let res = update_fn.terms[0].1.eval_in(&valuation);
+        // println!(
+        //     "res for term at idx 0 with valuation {}: {}",
+        //     valuation, res
+        // );
+        // let res = update_fn.terms[1].1.eval_in(&valuation);
+        // println!(
+        //     "res for term at idx 1 with valuation {}: {}",
+        //     valuation, res
+        // );
+        // let res = update_fn.terms[2].1.eval_in(&valuation);
+        // println!(
+        //     "res for term at idx 2 with valuation {}: {}",
+        //     valuation, res
+        // );
+        // let res = update_fn.terms[3].1.eval_in(&valuation);
+        // println!(
+        //     "res for term at idx 3 with valuation {}: {}",
+        //     valuation, res
+        // );
+
+        // println!(
+        //     "eval for false, false aka 0: {}",
+        //     update_fn.eval_in(&BddValuation::new(vec![false, false]))
+        // );
+        // println!(
+        //     "eval for false, true aka 1: {}",
+        //     update_fn.eval_in(&BddValuation::new(vec![false, true]))
+        // );
+        // println!(
+        //     "eval for true, false aka 2: {}",
+        //     update_fn.eval_in(&BddValuation::new(vec![true, false]))
+        // );
+        // println!(
+        //     "eval for true, true aka 3: {}",
+        //     update_fn.eval_in(&BddValuation::new(vec![true, true]))
+        // );
+
+        let valuation = BddValuation::new(vec![false, false]);
+        let accepted = update_fn.terms[0].1.eval_in(&valuation);
+        println!("accepted for valuation {}?: {}", valuation, accepted);
+
+        let valuation = BddValuation::new(vec![false, true]);
+        let accepted = update_fn.terms[0].1.eval_in(&valuation);
+        println!("accepted for valuation {}?: {}", valuation, accepted);
+
+        let valuation = BddValuation::new(vec![true, false]);
+        let accepted = update_fn.terms[0].1.eval_in(&valuation);
+        println!("accepted for valuation {}?: {}", valuation, accepted);
+
+        let valuation = BddValuation::new(vec![true, true]);
+        let accepted = update_fn.terms[0].1.eval_in(&valuation);
+        println!("accepted for valuation {}?: {}", valuation, accepted);
+
+        // partial should provide me with api to get the vector of bools representing the valuation
+    }
+
+    #[test]
     pub fn test_update_fn() {
         let update_fn = get_update_fn();
-
         println!("update fn: {:?}", update_fn);
 
         let update_fn_bdd: UpdateFnBdd = update_fn.into();

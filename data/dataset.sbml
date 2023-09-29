@@ -308,12 +308,12 @@
         <qual:listOfFunctionTerms>
           <qual:defaultTerm qual:resultLevel="0">
           </qual:defaultTerm>
-          <qual:functionTerm qual:resultLevel="2">
+          <qual:functionTerm qual:resultLevel="1">
             <math xmlns="http://www.w3.org/1998/Math/MathML">
               <apply>
                 <eq />
                 <ci> Mdm2nuc </ci>
-                <cn type="integer"> 0 </cn>
+                <cn type="integer"> 3 </cn>
               </apply>
             </math>
           </qual:functionTerm>
