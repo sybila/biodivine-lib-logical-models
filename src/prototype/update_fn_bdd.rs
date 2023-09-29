@@ -287,27 +287,18 @@ mod tests {
 
         let mut xml = xml::reader::EventReader::new(file);
 
-        let mut indent = 0;
         loop {
             match xml.next() {
                 Ok(xml::reader::XmlEvent::StartElement { name, .. }) => {
-                    println!("{}<{:?}>", "  ".repeat(indent), name);
-                    indent += 1;
                     if name.local_name == "transition" {
                         let update_fn = super::UpdateFn::try_from_xml(&mut xml);
                         return update_fn.unwrap();
                     }
                 }
-                Ok(xml::reader::XmlEvent::EndElement { .. }) => {
-                    indent -= 1;
-                }
-                Ok(xml::reader::XmlEvent::EndDocument) => {
-                    panic!()
-                }
-                Err(_) => {
-                    panic!()
-                }
-                _ => {}
+                Ok(xml::reader::XmlEvent::EndElement { .. }) => continue,
+                Ok(xml::reader::XmlEvent::EndDocument) => panic!(),
+                Err(_) => panic!(),
+                _ => continue,
             }
         }
     }

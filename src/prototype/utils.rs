@@ -110,17 +110,10 @@ pub fn process_list<T: BufRead, Fun, Res>(
 where
     Fun: Fn(&mut EventReader<T>, StartElementWrapper) -> Result<Res, Box<dyn std::error::Error>>,
 {
-    println!(
-        "inside processing list with args: {}, {}",
-        list_name, item_name
-    );
     let mut acc = Vec::<Res>::new();
-
-    // hope this ll work
 
     loop {
         let elem = xml.next();
-        println!("elem: {:?}", elem);
         match elem {
             Ok(XmlEvent::Whitespace(_)) => { /* ignore */ }
             Ok(XmlEvent::StartElement {
@@ -129,7 +122,6 @@ where
                 namespace,
             }) => {
                 if name.local_name == item_name {
-                    println!("processing item {}", item_name);
                     acc.push(processing_fn(
                         xml,
                         StartElementWrapper::new(name, attributes, namespace),

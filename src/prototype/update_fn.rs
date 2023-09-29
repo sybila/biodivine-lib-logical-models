@@ -52,9 +52,7 @@ impl UpdateFn {
 
         // listOfInputs might not be present at all
         let input_vars_names = if some_start_element.name.local_name == "listOfInputs" {
-            println!("list of inputs found; bout to parse it");
             let aux = process_list("listOfInputs", "input", process_input_var_name_item, xml)?;
-            println!("input vars names: {:?}", aux);
             expect_opening_of("listOfOutputs", xml)?; // must be followed by listOfOutputs
             aux
         } else {
@@ -73,7 +71,6 @@ impl UpdateFn {
         target_vars_names
             .next()
             .map_or_else(|| Ok(()), |_| Err("expected only one target var but found multiple; todo might want to change this"))?;
-        println!("finished the outputs successfully; now terms");
 
         expect_opening_of("listOfFunctionTerms", xml)?;
         let (default, terms) = get_default_and_list_of_terms(xml)?;
@@ -148,7 +145,6 @@ fn get_default_and_list_of_terms<T: BufRead>(
     expect_closure_of("defaultTerm", xml)?;
 
     // expect_opening_of("functionTerms", xml)?; // already inside "functionTerms" List; first item was default element
-    println!("here");
     let values_and_expressions = process_list(
         "listOfFunctionTerms",
         "functionTerm",
