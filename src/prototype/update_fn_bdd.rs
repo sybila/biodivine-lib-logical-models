@@ -9,47 +9,60 @@ use biodivine_lib_bdd::{
 
 use super::expression::Proposition;
 
+// todo currently do not know how to determine the max value of a variable; hardcoding it for now; should be extracted from the xml/UpdateFn
+const HARD_CODED_MAX_VAR_VALUE: u8 = 2;
+
 pub struct UpdateFnBdd {
+    pub target_var_name: String,
     pub terms: Vec<(u16, Bdd)>,
     pub named_symbolic_domains: HashMap<String, UnaryIntegerDomain>,
+    // todo might make sense to compile the different term bdds so that n+1th is (not n) && (whatever term)
+    // todo -> that way we could even run the computations parallelly & return the value corresponding to the single true output
+    // todo but that might not make sense; likely computing bits rather than a single value
+    pub default: u16, // the one that is used when no condition is met;
 }
 
 // todo UpdateFn should be made obsolete, it is just an intermediate representation of what should eventually be UpdateFnBdd
 impl From<UpdateFn> for UpdateFnBdd {
     fn from(source: UpdateFn) -> Self {
-        // todo how to get the higest value of a variable? could not be read from the xml/UpdateFn
-        let hardcoded_max_var_value = 2;
-
         let mut bdd_variable_set_builder = BddVariableSetBuilder::new();
 
-        // let mut symbolic_domains = Vec::<UnaryIntegerDomain>::new();
-        let mut named_symbolic_domains = HashMap::<String, UnaryIntegerDomain>::new();
-
-        source.input_vars_names.iter().for_each(|name| {
-            let var = UnaryIntegerDomain::new(
-                &mut bdd_variable_set_builder,
-                name,
-                hardcoded_max_var_value,
-            );
-
-            named_symbolic_domains.insert(name.clone(), var);
-        });
+        let named_symbolic_domains = source
+            .input_vars_names
+            .iter()
+            .map(|name| {
+                (
+                    name.clone(),
+                    UnaryIntegerDomain::new(
+                        &mut bdd_variable_set_builder,
+                        name,
+                        HARD_CODED_MAX_VAR_VALUE,
+                    ),
+                )
+            })
+            .collect();
 
         let mut bdd_variable_set = bdd_variable_set_builder.build();
-        let mut terms = Vec::<(u16, Bdd)>::new();
-        source.terms.iter().for_each(|(val, expr)| {
-            let bdd = bdd_from_expr(
-                expr.to_owned(),
-                &named_symbolic_domains,
-                &mut bdd_variable_set,
-            );
-
-            terms.push((*val, bdd));
-        });
+        let terms = source
+            .terms
+            .iter()
+            .map(|(val, expr)| {
+                (
+                    val.to_owned(),
+                    bdd_from_expr(
+                        expr.to_owned(),
+                        &named_symbolic_domains,
+                        &mut bdd_variable_set,
+                    ),
+                )
+            })
+            .collect();
 
         Self {
+            target_var_name: source.target_var_name,
             terms,
             named_symbolic_domains,
+            default: source.default,
         }
     }
 }
@@ -88,6 +101,7 @@ fn bdd_from_expr(
     }
 }
 
+// todo this should be applied to each term directly while loading the xml; no need to even have the intermediate representation
 fn prop_to_bdd(
     prop: Proposition,
     symbolic_domains: &HashMap<String, UnaryIntegerDomain>,
