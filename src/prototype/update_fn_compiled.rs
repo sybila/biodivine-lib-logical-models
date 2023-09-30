@@ -1,6 +1,8 @@
-use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddValuation, BddVariableSetBuilder};
+use std::collections::HashMap;
 
-use crate::{SymbolicDomain, UpdateFnBdd};
+use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddValuation};
+
+use crate::{SymbolicDomain, UnaryIntegerDomain, UpdateFnBdd};
 
 // todo want to have a trait abstracting functions of this over different domains
 // todo also this should have the domain type as a type parameter
@@ -10,11 +12,16 @@ pub struct UpdateFnCompiled {
     // for this (given) valuation, what is the i-th "bit" of the output?
     // i-th bdd answers this for the i-th bit
     pub bit_answering_bdds: Vec<Bdd>,
+    pub named_symbolic_domains: HashMap<String, UnaryIntegerDomain>,
 }
 
 impl From<UpdateFnBdd> for UpdateFnCompiled {
     fn from(update_fn: UpdateFnBdd) -> Self {
         // todo test they are mutually exclusive -> more motivation to move it into a function
+        // todo there is a possibility to play with the fact that ther might be some terms unreachable
+        // todo  those would be indicated by the first bit_answering_bdd being const false
+        // todo  could use this to uptimize this (but that is lost once we convert it to bit_answering_bdds)
+        // todo  or could use this to give feedback to the user that some cases are unreachable
         let mutually_exclusive_terms = to_mutually_exclusive_and_default(
             update_fn
                 .terms
@@ -86,7 +93,11 @@ impl From<UpdateFnBdd> for UpdateFnCompiled {
 
         let output_max_value = matrix[0].len() as u8; // todo get this more elegantly
 
-        Self::new(output_max_value, bit_answering_bdds)
+        Self::new(
+            output_max_value,
+            bit_answering_bdds,
+            update_fn.named_symbolic_domains,
+        )
     }
 }
 
@@ -116,10 +127,15 @@ fn to_mutually_exclusive_and_default(bdd_succession: Vec<Bdd>) -> Vec<Bdd> {
 
 impl UpdateFnCompiled {
     // intentionaly private; should only be instantiated through From<UpdateFn>
-    fn new(output_max_value: u8, bit_answering_bdds: Vec<Bdd>) -> Self {
+    fn new(
+        output_max_value: u8,
+        bit_answering_bdds: Vec<Bdd>,
+        named_symbolic_domains: HashMap<String, UnaryIntegerDomain>,
+    ) -> Self {
         Self {
             output_max_value,
             bit_answering_bdds,
+            named_symbolic_domains,
         }
     }
 
@@ -137,8 +153,65 @@ impl UpdateFnCompiled {
 
 #[cfg(test)]
 mod tests {
+    use crate::{SymbolicDomain, UpdateFn, UpdateFnBdd, UpdateFnCompiled};
+
     #[test]
     fn test_update_fn_compiled() {
-        todo!()
+        let update_fn = get_update_fn();
+        let bdd_update_fn: UpdateFnBdd = update_fn.into();
+        // todo yeah this should be accessible from compiled as well
+        let mut valuation = bdd_update_fn.get_default_valuation_but_partial();
+        let bdd_update_fn_compiled: UpdateFnCompiled = bdd_update_fn.into();
+
+        let var_domain = bdd_update_fn_compiled
+            .named_symbolic_domains
+            .get("renamed")
+            .unwrap();
+
+        var_domain.encode_bits(&mut valuation, &1);
+        println!("valuation: {:?}", valuation);
+        println!(
+            "result: {:?}",
+            bdd_update_fn_compiled.get_result_bits(&valuation.clone().try_into().unwrap())
+        );
+
+        var_domain.encode_bits(&mut valuation, &2);
+        println!("valuation: {:?}", valuation);
+        println!(
+            "result: {:?}",
+            bdd_update_fn_compiled.get_result_bits(&valuation.clone().try_into().unwrap())
+        );
+
+        var_domain.encode_bits(&mut valuation, &3);
+        println!("valuation: {:?}", valuation);
+        println!(
+            "result: {:?}",
+            bdd_update_fn_compiled.get_result_bits(&valuation.clone().try_into().unwrap())
+        );
+    }
+
+    fn get_update_fn() -> UpdateFn {
+        use std::fs::File;
+        use std::io::BufReader;
+
+        let file = File::open("data/update_fn_test.sbml").expect("cannot open file");
+        let file = BufReader::new(file);
+
+        let mut xml = xml::reader::EventReader::new(file);
+
+        loop {
+            match xml.next() {
+                Ok(xml::reader::XmlEvent::StartElement { name, .. }) => {
+                    if name.local_name == "transition" {
+                        let update_fn = UpdateFn::try_from_xml(&mut xml);
+                        return update_fn.unwrap();
+                    }
+                }
+                Ok(xml::reader::XmlEvent::EndElement { .. }) => continue,
+                Ok(xml::reader::XmlEvent::EndDocument) => panic!(),
+                Err(_) => panic!(),
+                _ => continue,
+            }
+        }
     }
 }

@@ -1,0 +1,56 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" layout:required="false" level="3"
+    qual:required="true" xmlns:layout="http://www.sbml.org/sbml/level3/version1/layout/version1"
+    version="1" xmlns:qual="http://www.sbml.org/sbml/level3/version1/qual/version1">
+    <model metaid="_174907b7-8e1c-47f3-9a50-bb8e4c6ebd0d" id="model_id">
+        <qual:listOfTransitions xmlns:qual="http://www.sbml.org/sbml/level3/version1/qual/version1">
+            <qual:transition qual:id="tr_p53">
+                <qual:listOfInputs>
+                    <qual:input qual:qualitativeSpecies="renamed" qual:transitionEffect="none"
+                        qual:sign="negative" qual:id="tr_p53_in_2" />
+                    <!-- <qual:input qual:qualitativeSpecies="renamed" qual:transitionEffect="none"
+                        qual:sign="negative" qual:id="tr_p53_in_2" />
+                    <qual:input qual:qualitativeSpecies="renamed" qual:transitionEffect="none"
+                        qual:sign="negative" qual:id="tr_p53_in_2" /> -->
+                </qual:listOfInputs>
+                <qual:listOfOutputs>
+                    <qual:output qual:qualitativeSpecies="new_output_name"
+                        qual:transitionEffect="assignmentLevel"
+                        qual:id="tr_p53_out" />
+                </qual:listOfOutputs>
+                <qual:listOfFunctionTerms>
+                    <!-- 255 is the maximum accepted value; limit of u8 -->
+                    <qual:defaultTerm qual:resultLevel="10">
+                    </qual:defaultTerm>
+                    <qual:functionTerm qual:resultLevel="0">
+                        <math xmlns="http://www.w3.org/1998/Math/MathML">
+                            <apply>
+                                <eq />
+                                <ci> renamed </ci>
+                                <cn type="integer"> 0 </cn>
+                            </apply>
+                        </math>
+                    </qual:functionTerm>
+                    <qual:functionTerm qual:resultLevel="1">
+                        <math xmlns="http://www.w3.org/1998/Math/MathML">
+                            <apply>
+                                <eq />
+                                <ci> renamed </ci>
+                                <cn type="integer"> 1 </cn>
+                            </apply>
+                        </math>
+                    </qual:functionTerm>
+                    <qual:functionTerm qual:resultLevel="2">
+                        <math xmlns="http://www.w3.org/1998/Math/MathML">
+                            <apply>
+                                <eq />
+                                <ci> renamed </ci>
+                                <cn type="integer"> 2 </cn>
+                            </apply>
+                        </math>
+                    </qual:functionTerm>
+                </qual:listOfFunctionTerms>
+            </qual:transition>
+        </qual:listOfTransitions>
+    </model>
+</sbml>

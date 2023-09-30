@@ -9,7 +9,7 @@ use biodivine_lib_bdd::{
 use super::expression::Proposition;
 
 // todo currently do not know how to determine the max value of a variable; hardcoding it for now; should be extracted from the xml/UpdateFn
-const HARD_CODED_MAX_VAR_VALUE: u8 = 2;
+const HARD_CODED_MAX_VAR_VALUE: u8 = 10;
 
 /// describes, how single variable is updated
 /// set of UpdateFnBdds is used to describe the dynamics of the whole system
@@ -415,6 +415,7 @@ mod tests {
             match xml.next() {
                 Ok(xml::reader::XmlEvent::StartElement { name, .. }) => {
                     if name.local_name == "transition" {
+                        // println!("transition found: {:?}", lol.clone());
                         let update_fn = super::UpdateFn::try_from_xml(&mut xml);
                         return update_fn.unwrap();
                     }
@@ -431,6 +432,10 @@ mod tests {
     fn test_compiled() {
         let update_fn = get_update_fn();
         let update_fn_bdd: UpdateFnBdd = update_fn.into();
+        println!(
+            "update fn bdd target var name: {:?}",
+            update_fn_bdd.target_var_name
+        );
         let compiled: UpdateFnCompiled = update_fn_bdd.clone().into();
 
         let mut partial = update_fn_bdd.get_default_valuation_but_partial();
