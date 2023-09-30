@@ -1,4 +1,4 @@
-use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddValuation};
+use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddValuation, BddVariableSetBuilder};
 
 use crate::{SymbolicDomain, UpdateFnBdd};
 
@@ -14,21 +14,15 @@ pub struct UpdateFnCompiled {
 
 impl From<UpdateFnBdd> for UpdateFnCompiled {
     fn from(update_fn: UpdateFnBdd) -> Self {
-        let mut prev = &update_fn.bdd_variable_set.mk_true();
-        let mut mutually_exclusive_terms = Vec::<Bdd>::new();
-
-        for (_term_res, term_bdd) in &update_fn.terms {
-            let mutually_exclusive_bdd = term_bdd.and(&prev.not());
-            mutually_exclusive_terms.push(mutually_exclusive_bdd);
-            prev = mutually_exclusive_terms.last().unwrap();
-        }
-
-        mutually_exclusive_terms.push(prev.not()); // default value
-
-        // todo abstract the building of this into a function
-        // todo also make it functionally not this garbage
         // todo test they are mutually exclusive -> more motivation to move it into a function
-        let mutually_exclusive_terms = mutually_exclusive_terms;
+        let mutually_exclusive_terms = to_mutually_exclusive_and_default(
+            update_fn
+                .terms
+                .iter()
+                .map(|(_output, term_bdd)| term_bdd.clone())
+                .collect(),
+        );
+
         println!("mutually_exclusive_terms: {:?}", mutually_exclusive_terms);
 
         let outputs = update_fn
@@ -94,6 +88,30 @@ impl From<UpdateFnBdd> for UpdateFnCompiled {
 
         Self::new(output_max_value, bit_answering_bdds)
     }
+}
+
+/// converts a succession of bdds into a succession of bdds, such that ith bdd in the result
+/// is true for given valuation iff ith bdd in the input is true and all bdds before it are false (for that valuation)
+/// tldr basically succession of guards
+/// adds one more bdd at the end, which is true iff all bdds in the input are false (for given valuation)
+/// todo maybe rewrite this to use fold, but this might be more readable
+fn to_mutually_exclusive_and_default(bdd_succession: Vec<Bdd>) -> Vec<Bdd> {
+    if bdd_succession.is_empty() {
+        panic!("got empty bdd succession"); // this should not happen; only using this here
+    }
+
+    let mut seen = bdd_succession[0].and_not(&bdd_succession[0]); // const false
+    let mut mutually_exclusive_terms = Vec::<Bdd>::new();
+
+    for term_bdd in bdd_succession {
+        let mutually_exclusive_bdd = term_bdd.and(&seen.not());
+        mutually_exclusive_terms.push(mutually_exclusive_bdd);
+        seen = seen.or(&term_bdd);
+    }
+
+    mutually_exclusive_terms.push(seen.not()); // default value
+
+    mutually_exclusive_terms
 }
 
 impl UpdateFnCompiled {
