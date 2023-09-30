@@ -15,3 +15,6 @@ pub use utils::*;
 
 mod update_fn_bdd;
 pub use update_fn_bdd::*;
+
+mod update_fn_compiled;
+pub use update_fn_compiled::*;

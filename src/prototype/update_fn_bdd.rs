@@ -13,14 +13,17 @@ const HARD_CODED_MAX_VAR_VALUE: u8 = 2;
 
 /// describes, how single variable is updated
 /// set of UpdateFnBdds is used to describe the dynamics of the whole system
+#[derive(Clone)]
 pub struct UpdateFnBdd {
     pub target_var_name: String,
-    pub terms: Vec<(u16, Bdd)>,
+    pub terms: Vec<(u8, Bdd)>,
     pub named_symbolic_domains: HashMap<String, UnaryIntegerDomain>,
     // todo might make sense to compile the different term bdds so that n+1th is (not n) && (whatever term)
     // todo -> that way we could even run the computations parallelly & return the value corresponding to the single true output
     // todo but that might not make sense; likely computing bits rather than a single value
-    pub default: u16, // the one that is used when no condition is met;
+    pub default: u8, // the one that is used when no condition is met;
+    pub bdd_variable_set: BddVariableSet,
+    pub result_domain: UnaryIntegerDomain,
 }
 
 // todo UpdateFn should be made obsolete, it is just an intermediate representation of what should eventually be UpdateFnBdd
@@ -59,11 +62,30 @@ impl From<UpdateFn> for UpdateFnBdd {
             })
             .collect();
 
+        let max_output = source
+            .terms
+            .iter()
+            .map(|(val, _)| val)
+            .chain(std::iter::once(&source.default))
+            .max()
+            .unwrap(); // there will always be at least &source.default
+
+        // todo this will likely be shared between all the update fns
+        // todo but for now, this variable must not be in together with the rest of the symbolic domains
+        let result_bdd_variable_set_domain = &mut BddVariableSetBuilder::new();
+        let result_domain = UnaryIntegerDomain::new(
+            result_bdd_variable_set_domain,
+            &source.target_var_name,
+            max_output.to_owned(),
+        );
+
         Self {
             target_var_name: source.target_var_name,
             terms,
             named_symbolic_domains,
             default: source.default,
+            bdd_variable_set,
+            result_domain,
         }
     }
 }
@@ -111,7 +133,7 @@ impl UpdateFnBdd {
     /// todo and instead can just specify the values of symbolic variables
     /// todo for now, i know what is the underlying representation of the symbolic variables
     /// todo -> good enough for testing
-    pub fn eval_in(&self, valuation: &BddValuation) -> u16 {
+    pub fn eval_in(&self, valuation: &BddValuation) -> u8 {
         self.terms
             .iter()
             .find(|(_, bdd)| bdd.eval_in(valuation))
@@ -204,7 +226,7 @@ fn leq(
 mod tests {
     use biodivine_lib_bdd::{BddPartialValuation, BddValuation, BddVariableSetBuilder};
 
-    use crate::{SymbolicDomain, UnaryIntegerDomain, UpdateFnBdd};
+    use crate::{SymbolicDomain, UnaryIntegerDomain, UpdateFnBdd, UpdateFnCompiled};
 
     #[test]
     // yeah more of a playground rather than a test
@@ -403,5 +425,33 @@ mod tests {
                 _ => continue,
             }
         }
+    }
+
+    #[test]
+    fn test_compiled() {
+        let update_fn = get_update_fn();
+        let update_fn_bdd: UpdateFnBdd = update_fn.into();
+        let compiled: UpdateFnCompiled = update_fn_bdd.clone().into();
+
+        let mut partial = update_fn_bdd.get_default_valuation_but_partial();
+
+        let bits = compiled.get_result_bits(&partial.clone().try_into().unwrap());
+        println!("bits with default valuation: {:?}", bits);
+
+        update_fn_bdd
+            .named_symbolic_domains
+            .get("Mdm2nuc")
+            .unwrap()
+            .encode_bits(&mut partial, &1);
+        let bits = compiled.get_result_bits(&partial.clone().try_into().unwrap());
+        println!("bits with valuation of 1: {:?}", bits);
+
+        update_fn_bdd
+            .named_symbolic_domains
+            .get("Mdm2nuc")
+            .unwrap()
+            .encode_bits(&mut partial, &2);
+        let bits = compiled.get_result_bits(&partial.clone().try_into().unwrap());
+        println!("bits with valuation of 2: {:?}", bits);
     }
 }

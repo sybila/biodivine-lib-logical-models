@@ -308,7 +308,7 @@
         <qual:listOfFunctionTerms>
           <qual:defaultTerm qual:resultLevel="6">
           </qual:defaultTerm>
-          <qual:functionTerm qual:resultLevel="7">
+          <qual:functionTerm qual:resultLevel="2">
             <math xmlns="http://www.w3.org/1998/Math/MathML">
               <apply>
                 <eq />

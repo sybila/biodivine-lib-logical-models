@@ -1,4 +1,6 @@
-use crate::{expect_closure_of, expect_opening_of, process_list, StartElementWrapper};
+use crate::{
+    expect_closure_of, expect_opening_of, process_list, StartElementWrapper, UnaryIntegerDomain,
+};
 
 use super::expression::Expression;
 use super::utils::expect_opening;
@@ -16,16 +18,16 @@ pub struct UpdateFn {
     // todo should likely be in bdd repr already;
     // that should be done for the intermediate repr of Expression as well;
     // will do that once i can parse the whole xml
-    pub terms: Vec<(u16, Expression)>,
-    pub default: u16,
+    pub terms: Vec<(u8, Expression)>,
+    pub default: u8,
 }
 
 impl UpdateFn {
     pub fn new(
         input_vars_names: Vec<String>,
         target_var_name: String,
-        terms: Vec<(u16, Expression)>,
-        default: u16,
+        terms: Vec<(u8, Expression)>,
+        default: u8,
     ) -> Self {
         Self {
             input_vars_names,
@@ -136,7 +138,7 @@ fn get_target_var_name<T: BufRead>(
 
 fn get_default_and_list_of_terms<T: BufRead>(
     xml: &mut EventReader<T>,
-) -> Result<(u16, Vec<(u16, Expression)>), Box<dyn std::error::Error>> {
+) -> Result<(u8, Vec<(u8, Expression)>), Box<dyn std::error::Error>> {
     // firs should be the default
     let default_element = expect_opening_of("defaultTerm", xml)?;
     let default_val = result_level_from_attributes(&default_element)
@@ -158,7 +160,7 @@ fn get_default_and_list_of_terms<T: BufRead>(
 fn process_function_term_item<T: BufRead>(
     xml: &mut EventReader<T>,
     current: StartElementWrapper,
-) -> Result<(u16, Expression), Box<dyn std::error::Error>> {
+) -> Result<(u8, Expression), Box<dyn std::error::Error>> {
     let res_lvl = result_level_from_attributes(&current)
         .ok_or("expected \"resultLevel\" with numeric argument in functionTerm but none found")?;
 
@@ -174,10 +176,10 @@ fn process_function_term_item<T: BufRead>(
     Ok((res_lvl, exp))
 }
 
-fn result_level_from_attributes(elem: &StartElementWrapper) -> Option<u16> {
+fn result_level_from_attributes(elem: &StartElementWrapper) -> Option<u8> {
     elem.attributes.iter().find_map(|attr| {
         if attr.name.local_name == "resultLevel" {
-            attr.value.parse::<u16>().ok()
+            attr.value.parse::<u8>().ok()
         } else {
             None
         }
