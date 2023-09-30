@@ -306,14 +306,14 @@
             qual:id="tr_p53_out" />
         </qual:listOfOutputs>
         <qual:listOfFunctionTerms>
-          <qual:defaultTerm qual:resultLevel="0">
+          <qual:defaultTerm qual:resultLevel="6">
           </qual:defaultTerm>
-          <qual:functionTerm qual:resultLevel="1">
+          <qual:functionTerm qual:resultLevel="7">
             <math xmlns="http://www.w3.org/1998/Math/MathML">
               <apply>
                 <eq />
                 <ci> Mdm2nuc </ci>
-                <cn type="integer"> 3 </cn>
+                <cn type="integer"> 0 </cn>
               </apply>
             </math>
           </qual:functionTerm>

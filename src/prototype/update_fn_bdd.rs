@@ -2,7 +2,9 @@ use crate::{Expression, SymbolicDomain, UnaryIntegerDomain, UpdateFn};
 
 use std::collections::HashMap;
 
-use biodivine_lib_bdd::{Bdd, BddValuation, BddVariableSet, BddVariableSetBuilder};
+use biodivine_lib_bdd::{
+    Bdd, BddPartialValuation, BddValuation, BddVariableSet, BddVariableSetBuilder,
+};
 
 use super::expression::Proposition;
 
@@ -116,6 +118,35 @@ impl UpdateFnBdd {
             .map(|(val, _)| *val)
             .unwrap_or(self.default)
     }
+
+    /// returns fully specified valuation representing all the symbolic variables
+    /// being set to 0
+    /// todo maybe useless; get_default_valuation_but_partial is more useful
+    pub fn get_default_valuation(&self) -> BddValuation {
+        self.named_symbolic_domains
+            .values()
+            .fold(BddPartialValuation::empty(), |mut acc, domain| {
+                domain.encode_bits(&mut acc, &0);
+                acc
+            })
+            .try_into()
+            .unwrap()
+    }
+
+    /// returns fully specified valuation representing all the symbolic variables
+    /// being set to 0
+    /// but also this valuation is partial, so that it can be updated later
+    /// since all are set, you can build BddValuation from it at any time and
+    /// evaluate the update function using this
+    pub fn get_default_valuation_but_partial(&self) -> BddPartialValuation {
+        self.named_symbolic_domains.values().fold(
+            BddPartialValuation::empty(),
+            |mut acc, domain| {
+                domain.encode_bits(&mut acc, &0);
+                acc
+            },
+        )
+    }
 }
 
 // todo this should be applied to each term directly while loading the xml; no need to even have the intermediate representation
@@ -171,9 +202,75 @@ fn leq(
 }
 
 mod tests {
-    use biodivine_lib_bdd::{BddPartialValuation, BddValuation};
+    use biodivine_lib_bdd::{BddPartialValuation, BddValuation, BddVariableSetBuilder};
 
-    use crate::{SymbolicDomain, UpdateFnBdd};
+    use crate::{SymbolicDomain, UnaryIntegerDomain, UpdateFnBdd};
+
+    #[test]
+    // yeah more of a playground rather than a test
+    fn test_valuation_update_symbolic() {
+        let update_fn: UpdateFnBdd = get_update_fn().into();
+        let some_bdd = update_fn.terms[0].1.clone();
+        // some_bdd.random_valuation(rng::thread_rng());
+        // some_bdd.random_valuation()
+
+        // todo how do i get a valuation i can manipulate with? feel like the bdd api should provide that; something like
+        // let valuation: &BddValuation = some_bdd.all_false_valuation();
+        // let mut new_valuation = some
+
+        // let var_builder = BddVariableSetBuilder::new(); // todo this obj (finished/built) should be available for each UpdateFnBdd so that you can create new valuations
+
+        let default_valuation = update_fn.get_default_valuation();
+        println!("default valuation: {:?}", default_valuation);
+
+        // some_bdd.eval_in(&default_valuation);
+
+        let res = update_fn.eval_in(&default_valuation);
+        println!("res: {}", res);
+
+        let mut updating_valuation = update_fn.get_default_valuation_but_partial();
+        update_fn
+            .named_symbolic_domains
+            .get("Mdm2nuc")
+            .unwrap()
+            .encode_bits(&mut updating_valuation, &1);
+        println!("valuation updated to 1: {:?}", updating_valuation);
+
+        let res = update_fn.eval_in(&updating_valuation.try_into().unwrap());
+        println!("res with valuation of 1: {}", res);
+
+        let mut updating_valuation = update_fn.get_default_valuation_but_partial();
+        update_fn
+            .named_symbolic_domains
+            .get("Mdm2nuc")
+            .unwrap()
+            .encode_bits(&mut updating_valuation, &2);
+        println!("valuation updated to 2: {:?}", updating_valuation);
+
+        let res = update_fn.eval_in(&updating_valuation.try_into().unwrap());
+        println!("res with valuation of 2: {}", res);
+
+        let mut updating_valuation = update_fn.get_default_valuation_but_partial();
+        update_fn
+            .named_symbolic_domains
+            .get("Mdm2nuc")
+            .unwrap()
+            .encode_bits(&mut updating_valuation, &3);
+        println!("valuation updated to 3: {:?}", updating_valuation);
+
+        let res = update_fn.eval_in(&updating_valuation.try_into().unwrap());
+        println!("res with valuation of 3: {}", res);
+
+        let mut updating_valuation = update_fn.get_default_valuation_but_partial();
+        update_fn
+            .named_symbolic_domains
+            .get("Mdm2nuc")
+            .unwrap()
+            .encode_bits(&mut updating_valuation, &100);
+
+        let res = update_fn.eval_in(&updating_valuation.try_into().unwrap());
+        println!("res with valuation of 100: {}", res);
+    }
 
     #[test]
     fn test_update_fn_result() {
@@ -227,6 +324,11 @@ mod tests {
         //     "eval for true, true aka 3: {}",
         //     update_fn.eval_in(&BddValuation::new(vec![true, true]))
         // );
+
+        let mut builder = BddVariableSetBuilder::new();
+        let sym_val = UnaryIntegerDomain::new(&mut builder, "Mdm2nuc", 2);
+        let vars = builder.build();
+        sym_val.encode_one(&vars, &1);
 
         let valuation = BddValuation::new(vec![false, false]);
         let accepted = update_fn.terms[0].1.eval_in(&valuation);

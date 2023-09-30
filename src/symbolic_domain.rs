@@ -29,6 +29,7 @@ pub trait SymbolicDomain<T>: Clone {
     ///
     /// *Contract:* This method only modifies the symbolic variables from
     /// `Self::symbolic_variables`. No other parts of the `BddPartialValuation` are affected.
+    /// todo: might want to panic if the input is not in the domain; eg if the value is too big - see unary domain
     fn encode_bits(&self, bdd_valuation: &mut BddPartialValuation, value: &T);
 
     /// Decode a value from the provided `BddPartialValuation`.
@@ -182,6 +183,11 @@ impl UnaryIntegerDomain {
 
 impl SymbolicDomain<u8> for UnaryIntegerDomain {
     fn encode_bits(&self, bdd_valuation: &mut BddPartialValuation, value: &u8) {
+        // todo do we want this check here or not?
+        if value > &(self.variables.len() as u8) {
+            panic!("Value is too big for this domain")
+        }
+
         for (i, var) in self.variables.iter().enumerate() {
             bdd_valuation.set_value(*var, i < (*value as usize));
         }
