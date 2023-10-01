@@ -6,7 +6,11 @@
 mod symbolic_domain;
 
 pub use symbolic_domain::{
-    GenericIntegerDomain, GenericStateSpaceDomain, SymbolicDomain, UnaryIntegerDomain,
+    // todo uncomment one those working
+    // GenericIntegerDomain,
+    // GenericStateSpaceDomain,
+    SymbolicDomain,
+    UnaryIntegerDomain,
 };
 
 pub fn add(x: i32, y: i32) -> i32 {

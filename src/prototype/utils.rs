@@ -6,6 +6,8 @@ use xml::{
     reader::{EventReader, XmlEvent},
 };
 
+use crate::UpdateFn;
+
 pub fn expect_opening<T: BufRead>(
     xml: &mut EventReader<T>,
 ) -> Result<StartElementWrapper, Box<dyn std::error::Error>> {
@@ -153,6 +155,33 @@ where
                 )
                 .into())
             }
+        }
+    }
+}
+
+/// get the update fn from "data/update_fn_test.sbml"
+/// used in tests / to play around with the code
+pub fn get_test_update_fn() -> UpdateFn {
+    use std::fs::File;
+    use std::io::BufReader;
+
+    let file = File::open("data/update_fn_test.sbml").expect("cannot open file");
+    let file = BufReader::new(file);
+
+    let mut xml = xml::reader::EventReader::new(file);
+
+    loop {
+        match xml.next() {
+            Ok(xml::reader::XmlEvent::StartElement { name, .. }) => {
+                if name.local_name == "transition" {
+                    let update_fn = UpdateFn::try_from_xml(&mut xml);
+                    return update_fn.unwrap();
+                }
+            }
+            Ok(xml::reader::XmlEvent::EndElement { .. }) => continue,
+            Ok(xml::reader::XmlEvent::EndDocument) => panic!(),
+            Err(_) => panic!(),
+            _ => continue,
         }
     }
 }

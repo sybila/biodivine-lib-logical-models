@@ -8,7 +8,7 @@ use biodivine_lib_bdd::{
 
 use super::expression::Proposition;
 
-// todo currently do not know how to determine the max value of a variable; hardcoding it for now; should be extracted from the xml/UpdateFn
+// todo this should be extracted from the xml/UpdateFn outputs for each of the variable in the system
 const HARD_CODED_MAX_VAR_VALUE: u8 = 10;
 
 /// describes, how single variable is updated
@@ -18,9 +18,6 @@ pub struct UpdateFnBdd {
     pub target_var_name: String,
     pub terms: Vec<(u8, Bdd)>,
     pub named_symbolic_domains: HashMap<String, UnaryIntegerDomain>,
-    // todo might make sense to compile the different term bdds so that n+1th is (not n) && (whatever term)
-    // todo -> that way we could even run the computations parallelly & return the value corresponding to the single true output
-    // todo but that might not make sense; likely computing bits rather than a single value
     pub default: u8, // the one that is used when no condition is met;
     pub bdd_variable_set: BddVariableSet,
     pub result_domain: UnaryIntegerDomain,
@@ -143,20 +140,6 @@ impl UpdateFnBdd {
 
     /// returns fully specified valuation representing all the symbolic variables
     /// being set to 0
-    /// todo maybe useless; get_default_valuation_but_partial is more useful
-    pub fn get_default_valuation(&self) -> BddValuation {
-        self.named_symbolic_domains
-            .values()
-            .fold(BddPartialValuation::empty(), |mut acc, domain| {
-                domain.encode_bits(&mut acc, &0);
-                acc
-            })
-            .try_into()
-            .unwrap()
-    }
-
-    /// returns fully specified valuation representing all the symbolic variables
-    /// being set to 0
     /// but also this valuation is partial, so that it can be updated later
     /// since all are set, you can build BddValuation from it at any time and
     /// evaluate the update function using this
@@ -172,6 +155,7 @@ impl UpdateFnBdd {
 }
 
 // todo this should be applied to each term directly while loading the xml; no need to even have the intermediate representation
+// todo actually it might not be bad idea to keep the intermediate repr for now; debugging
 fn prop_to_bdd(
     prop: Proposition,
     symbolic_domains: &HashMap<String, UnaryIntegerDomain>,
@@ -232,23 +216,6 @@ mod tests {
     // yeah more of a playground rather than a test
     fn test_valuation_update_symbolic() {
         let update_fn: UpdateFnBdd = get_update_fn().into();
-        let some_bdd = update_fn.terms[0].1.clone();
-        // some_bdd.random_valuation(rng::thread_rng());
-        // some_bdd.random_valuation()
-
-        // todo how do i get a valuation i can manipulate with? feel like the bdd api should provide that; something like
-        // let valuation: &BddValuation = some_bdd.all_false_valuation();
-        // let mut new_valuation = some
-
-        // let var_builder = BddVariableSetBuilder::new(); // todo this obj (finished/built) should be available for each UpdateFnBdd so that you can create new valuations
-
-        let default_valuation = update_fn.get_default_valuation();
-        println!("default valuation: {:?}", default_valuation);
-
-        // some_bdd.eval_in(&default_valuation);
-
-        let res = update_fn.eval_in(&default_valuation);
-        println!("res: {}", res);
 
         let mut updating_valuation = update_fn.get_default_valuation_but_partial();
         update_fn
@@ -307,46 +274,6 @@ mod tests {
             update_fn.terms.len()
         );
 
-        // let valuation = BddValuation::new(vec![false, false]);
-
-        // let res = update_fn.terms[0].1.eval_in(&valuation);
-        // println!(
-        //     "res for term at idx 0 with valuation {}: {}",
-        //     valuation, res
-        // );
-        // let res = update_fn.terms[1].1.eval_in(&valuation);
-        // println!(
-        //     "res for term at idx 1 with valuation {}: {}",
-        //     valuation, res
-        // );
-        // let res = update_fn.terms[2].1.eval_in(&valuation);
-        // println!(
-        //     "res for term at idx 2 with valuation {}: {}",
-        //     valuation, res
-        // );
-        // let res = update_fn.terms[3].1.eval_in(&valuation);
-        // println!(
-        //     "res for term at idx 3 with valuation {}: {}",
-        //     valuation, res
-        // );
-
-        // println!(
-        //     "eval for false, false aka 0: {}",
-        //     update_fn.eval_in(&BddValuation::new(vec![false, false]))
-        // );
-        // println!(
-        //     "eval for false, true aka 1: {}",
-        //     update_fn.eval_in(&BddValuation::new(vec![false, true]))
-        // );
-        // println!(
-        //     "eval for true, false aka 2: {}",
-        //     update_fn.eval_in(&BddValuation::new(vec![true, false]))
-        // );
-        // println!(
-        //     "eval for true, true aka 3: {}",
-        //     update_fn.eval_in(&BddValuation::new(vec![true, true]))
-        // );
-
         let mut builder = BddVariableSetBuilder::new();
         let sym_val = UnaryIntegerDomain::new(&mut builder, "Mdm2nuc", 2);
         let vars = builder.build();
@@ -367,8 +294,6 @@ mod tests {
         let valuation = BddValuation::new(vec![true, true]);
         let accepted = update_fn.terms[0].1.eval_in(&valuation);
         println!("accepted for valuation {}?: {}", valuation, accepted);
-
-        // partial should provide me with api to get the vector of bools representing the valuation
     }
 
     #[test]

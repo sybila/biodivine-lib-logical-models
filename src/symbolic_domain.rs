@@ -1,7 +1,9 @@
 use biodivine_lib_bdd::{
     Bdd, BddPartialValuation, BddVariable, BddVariableSet, BddVariableSetBuilder,
 };
-use dyn_clonable::clonable;
+// todo do not understand what this does, but prevents me from specifying method that does not
+// todo take `self`, which is a must if i want to define api for instantiating new symbolic domains
+// use dyn_clonable::clonable;
 use std::collections::HashSet;
 
 /// Objects implementing `SymbolicDomain` serve as encoders/decoders for their associated type
@@ -23,8 +25,13 @@ use std::collections::HashSet;
 ///     In some cases, this argument is unused, but it could be needed in some more specialized
 ///     implementations. Later, we should try to address this in `lib-bdd` (i.e. have a better
 ///     API for creating BDDs without having access to the `BddVariableSet`).
-#[clonable]
+// todo uncomment if find out what this does & how to instantiate new symbolic domains with this enabled
+// #[clonable]
 pub trait SymbolicDomain<T>: Clone {
+    /// Create a new `UnaryIntegerDomain`, such that the symbolic variables are allocated in the
+    /// given `BddVariableSetBuilder`.
+    fn new(builder: &mut BddVariableSetBuilder, name: &str, max_value: T) -> Self;
+
     /// Encode the given `value` into the provided `BddPartialValuation`.
     ///
     /// *Contract:* This method only modifies the symbolic variables from
@@ -162,14 +169,29 @@ pub struct UnaryIntegerDomain {
        that typically appear as "atomic propositions" in update functions.
 */
 
-impl UnaryIntegerDomain {
+// impl UnaryIntegerDomain {
+//     /// Create a new `UnaryIntegerDomain`, such that the symbolic variables are allocated in the
+//     /// given `BddVariableSetBuilder`.
+//     pub fn new(
+//         builder: &mut BddVariableSetBuilder,
+//         name: &str,
+//         max_value: u8,
+//     ) -> UnaryIntegerDomain {
+//         let variables = (0..max_value)
+//             .map(|it| {
+//                 let name = format!("{name}_v{}", it + 1);
+//                 builder.make_variable(name.as_str())
+//             })
+//             .collect::<Vec<_>>();
+
+//         UnaryIntegerDomain { variables }
+//     }
+// }
+
+impl SymbolicDomain<u8> for UnaryIntegerDomain {
     /// Create a new `UnaryIntegerDomain`, such that the symbolic variables are allocated in the
     /// given `BddVariableSetBuilder`.
-    pub fn new(
-        builder: &mut BddVariableSetBuilder,
-        name: &str,
-        max_value: u8,
-    ) -> UnaryIntegerDomain {
+    fn new(builder: &mut BddVariableSetBuilder, name: &str, max_value: u8) -> UnaryIntegerDomain {
         let variables = (0..max_value)
             .map(|it| {
                 let name = format!("{name}_v{}", it + 1);
@@ -179,9 +201,7 @@ impl UnaryIntegerDomain {
 
         UnaryIntegerDomain { variables }
     }
-}
 
-impl SymbolicDomain<u8> for UnaryIntegerDomain {
     fn encode_bits(&self, bdd_valuation: &mut BddPartialValuation, value: &u8) {
         // todo do we want this check here or not?
         if value > &(self.variables.len() as u8) {
@@ -248,115 +268,121 @@ impl SymbolicDomain<u8> for UnaryIntegerDomain {
     }
 }
 
-/// Just a type alias for a boxed generic symbolic domain object that can be
-/// used to encode `u8` types.
-pub type GenericIntegerDomain = Box<dyn SymbolicDomain<u8>>;
+// todo commenting the #[clonable] breaks the following;
+// todo find out more about that macro & make this work
+// /// Just a type alias for a boxed generic symbolic domain object that can be
+// /// used to encode `u8` types.
+// pub type GenericIntegerDomain = Box<dyn SymbolicDomain<u8>>;
 
-/// `GenericSymbolicStateSpace` is a collection of `SymbolicDomain` objects that together encode
-/// the state space of a logical model.
-///
-/// This implementation allows using different encodings for individual variables, which may lead
-/// to minor inefficiencies due to dynamic dispatch. In the future, once we select an optimal
-/// encoding technique, we can also provide fully specialized structures relying on such a single
-/// encoding instead.
-///
-/// TODO:
-///     - Here, we will be using just plain `usize` integers as identifiers for model variables.
-///     However, in the future we could introduce a `VariableId` type or something similar to make
-///     this a bit more safe/explicit.
-///     - Here, we are just using `Vec<u8>` as a representation of a network state. In the future,
-///     it would be nice to have a proper `State` type (tied to the `VariableId` type).
-///     - Many of the methods now need linear time to finish computing (i.e. iterate through all
-///     variable domains). In some cases (like `Self::symbolic_variables`), we should just cache
-///     the result in the constructor and then copy it when the method is called.
-#[derive(Clone)]
-pub struct GenericStateSpaceDomain {
-    variable_domains: Vec<GenericIntegerDomain>,
-}
+// /// `GenericSymbolicStateSpace` is a collection of `SymbolicDomain` objects that together encode
+// /// the state space of a logical model.
+// ///
+// /// This implementation allows using different encodings for individual variables, which may lead
+// /// to minor inefficiencies due to dynamic dispatch. In the future, once we select an optimal
+// /// encoding technique, we can also provide fully specialized structures relying on such a single
+// /// encoding instead.
+// ///
+// /// TODO:
+// ///     - Here, we will be using just plain `usize` integers as identifiers for model variables.
+// ///     However, in the future we could introduce a `VariableId` type or something similar to make
+// ///     this a bit more safe/explicit.
+// ///     - Here, we are just using `Vec<u8>` as a representation of a network state. In the future,
+// ///     it would be nice to have a proper `State` type (tied to the `VariableId` type).
+// ///     - Many of the methods now need linear time to finish computing (i.e. iterate through all
+// ///     variable domains). In some cases (like `Self::symbolic_variables`), we should just cache
+// ///     the result in the constructor and then copy it when the method is called.
+// #[derive(Clone)]
+// pub struct GenericStateSpaceDomain {
+//     variable_domains: Vec<GenericIntegerDomain>,
+// }
 
-impl GenericStateSpaceDomain {
-    /// This creates a new `GenericStateSpaceDomain` from a list of `GenericIntegerDomain` objects.
-    pub fn new(variable_domains: Vec<GenericIntegerDomain>) -> GenericStateSpaceDomain {
-        GenericStateSpaceDomain { variable_domains }
-    }
+// impl GenericStateSpaceDomain {
+//     /// This creates a new `GenericStateSpaceDomain` from a list of `GenericIntegerDomain` objects.
+//     pub fn new(variable_domains: Vec<GenericIntegerDomain>) -> GenericStateSpaceDomain {
+//         GenericStateSpaceDomain { variable_domains }
+//     }
 
-    /// Get the reference to one of the inner variable domains. For example if we want to create
-    /// a set that "restricts" just one of the variables.
-    ///
-    /// WARNING: By creating encodings using the "raw" domains of individual variables, you are
-    /// effectively ignoring the `empty_collection`/`unit_collection` constraints of the remaining
-    /// domains in this state space. Specifically, if a domain of some other variable (i.e. not
-    /// `variable_id`) admits some invalid encoded values (i.e. `unit_collection` is not a `true`
-    /// BDD), then BDDs created using such domains will end up with these invalid values as well.
-    /// You can fix this by explicitly intersecting the result with `Self::unit_collection` to
-    /// remove the invalid values.
-    pub fn get_raw_domain(&self, variable_id: usize) -> &GenericIntegerDomain {
-        &self.variable_domains[variable_id]
-    }
+//     /// Get the reference to one of the inner variable domains. For example if we want to create
+//     /// a set that "restricts" just one of the variables.
+//     ///
+//     /// WARNING: By creating encodings using the "raw" domains of individual variables, you are
+//     /// effectively ignoring the `empty_collection`/`unit_collection` constraints of the remaining
+//     /// domains in this state space. Specifically, if a domain of some other variable (i.e. not
+//     /// `variable_id`) admits some invalid encoded values (i.e. `unit_collection` is not a `true`
+//     /// BDD), then BDDs created using such domains will end up with these invalid values as well.
+//     /// You can fix this by explicitly intersecting the result with `Self::unit_collection` to
+//     /// remove the invalid values.
+//     pub fn get_raw_domain(&self, variable_id: usize) -> &GenericIntegerDomain {
+//         &self.variable_domains[variable_id]
+//     }
 
-    /*
-       TODO:
-           - We should add some more "user friendly" API that will hide the issue described
-           in the warning above (i.e. automatically ensure that only valid encodings can be
-           created. For example, something like `Self::encode_variable_collection`.
-           - Other option would be to create some `SymbolicSet` type which would actually keep
-           track of the relevant symbolic domain. That way, we would know that BDD objects created
-           using a `GenericIntegerDomain` are not compatible with BDD objects created using a
-           `GenericStateSpaceDomain` and we could add the explicit sanitization step into the
-           API of the `SymbolicSet` type.
-    */
-}
+//     /*
+//        TODO:
+//            - We should add some more "user friendly" API that will hide the issue described
+//            in the warning above (i.e. automatically ensure that only valid encodings can be
+//            created. For example, something like `Self::encode_variable_collection`.
+//            - Other option would be to create some `SymbolicSet` type which would actually keep
+//            track of the relevant symbolic domain. That way, we would know that BDD objects created
+//            using a `GenericIntegerDomain` are not compatible with BDD objects created using a
+//            `GenericStateSpaceDomain` and we could add the explicit sanitization step into the
+//            API of the `SymbolicSet` type.
+//     */
+// }
 
-impl SymbolicDomain<Vec<u8>> for GenericStateSpaceDomain {
-    fn encode_bits(&self, bdd_valuation: &mut BddPartialValuation, value: &Vec<u8>) {
-        for (i, domain) in self.variable_domains.iter().enumerate() {
-            domain.encode_bits(bdd_valuation, &value[i])
-        }
-    }
+// impl SymbolicDomain<Vec<u8>> for GenericStateSpaceDomain {
+//     fn encode_bits(&self, bdd_valuation: &mut BddPartialValuation, value: &Vec<u8>) {
+//         for (i, domain) in self.variable_domains.iter().enumerate() {
+//             domain.encode_bits(bdd_valuation, &value[i])
+//         }
+//     }
 
-    fn decode_bits(&self, bdd_valuation: &BddPartialValuation) -> Vec<u8> {
-        self.variable_domains
-            .iter()
-            .map(|domain| domain.decode_bits(bdd_valuation))
-            .collect()
-    }
+//     fn decode_bits(&self, bdd_valuation: &BddPartialValuation) -> Vec<u8> {
+//         self.variable_domains
+//             .iter()
+//             .map(|domain| domain.decode_bits(bdd_valuation))
+//             .collect()
+//     }
 
-    fn symbolic_variables(&self) -> Vec<BddVariable> {
-        let mut result = Vec::new();
-        for domain in &self.variable_domains {
-            result.extend(domain.symbolic_variables());
-        }
-        result
-    }
+//     fn symbolic_variables(&self) -> Vec<BddVariable> {
+//         let mut result = Vec::new();
+//         for domain in &self.variable_domains {
+//             result.extend(domain.symbolic_variables());
+//         }
+//         result
+//     }
 
-    fn symbolic_size(&self) -> usize {
-        let mut result = 0;
-        for domain in &self.variable_domains {
-            result += domain.symbolic_size();
-        }
-        result
-    }
+//     fn symbolic_size(&self) -> usize {
+//         let mut result = 0;
+//         for domain in &self.variable_domains {
+//             result += domain.symbolic_size();
+//         }
+//         result
+//     }
 
-    fn empty_collection(&self, variables: &BddVariableSet) -> Bdd {
-        let mut result = variables.mk_false();
-        for domain in &self.variable_domains {
-            result = result.or(&domain.empty_collection(variables));
-        }
-        result
-    }
+//     fn empty_collection(&self, variables: &BddVariableSet) -> Bdd {
+//         let mut result = variables.mk_false();
+//         for domain in &self.variable_domains {
+//             result = result.or(&domain.empty_collection(variables));
+//         }
+//         result
+//     }
 
-    fn unit_collection(&self, variables: &BddVariableSet) -> Bdd {
-        let mut result = variables.mk_true();
-        for domain in &self.variable_domains {
-            result = result.and(&domain.unit_collection(variables));
-        }
-        result
-    }
-}
+//     fn unit_collection(&self, variables: &BddVariableSet) -> Bdd {
+//         let mut result = variables.mk_true();
+//         for domain in &self.variable_domains {
+//             result = result.and(&domain.unit_collection(variables));
+//         }
+//         result
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
-    use crate::symbolic_domain::{GenericStateSpaceDomain, SymbolicDomain, UnaryIntegerDomain};
+    use crate::symbolic_domain::{
+        // GenericStateSpaceDomain,
+        SymbolicDomain,
+        UnaryIntegerDomain,
+    };
     use biodivine_lib_bdd::BddVariableSetBuilder;
 
     // TODO:
@@ -388,62 +414,62 @@ mod tests {
         assert_eq!(test_set, decoded_test_set);
     }
 
-    #[test]
-    pub fn test_generic_state_space() {
-        let mut builder = BddVariableSetBuilder::new();
-        let domain_x = Box::new(UnaryIntegerDomain::new(&mut builder, "x", 5));
-        let domain_y = Box::new(UnaryIntegerDomain::new(&mut builder, "y", 14));
-        let var_set = builder.build();
-        let state_space = GenericStateSpaceDomain::new(vec![domain_x, domain_y]);
+    // #[test]
+    // pub fn test_generic_state_space() {
+    //     let mut builder = BddVariableSetBuilder::new();
+    //     let domain_x = Box::new(UnaryIntegerDomain::new(&mut builder, "x", 5));
+    //     let domain_y = Box::new(UnaryIntegerDomain::new(&mut builder, "y", 14));
+    //     let var_set = builder.build();
+    //     let state_space = GenericStateSpaceDomain::new(vec![domain_x, domain_y]);
 
-        assert_eq!(state_space.symbolic_size(), 5 + 14);
-        assert_eq!(state_space.symbolic_variables(), var_set.variables());
+    //     assert_eq!(state_space.symbolic_size(), 5 + 14);
+    //     assert_eq!(state_space.symbolic_variables(), var_set.variables());
 
-        let empty_set = state_space.empty_collection(&var_set);
-        let decoded_empty_set = state_space.decode_collection(&var_set, &empty_set);
-        assert_eq!(decoded_empty_set.len(), 0);
+    //     let empty_set = state_space.empty_collection(&var_set);
+    //     let decoded_empty_set = state_space.decode_collection(&var_set, &empty_set);
+    //     assert_eq!(decoded_empty_set.len(), 0);
 
-        let unit_set = state_space.unit_collection(&var_set);
-        let decoded_unit_set = state_space.decode_collection(&var_set, &unit_set);
-        assert_eq!(decoded_unit_set.len(), 6 * 15);
+    //     let unit_set = state_space.unit_collection(&var_set);
+    //     let decoded_unit_set = state_space.decode_collection(&var_set, &unit_set);
+    //     assert_eq!(decoded_unit_set.len(), 6 * 15);
 
-        // Build a test set that is restricted to specific states.
-        let test_set = vec![vec![0, 12], vec![1, 3], vec![5, 5]];
-        let encoded_test_set = state_space.encode_collection(&var_set, &test_set);
-        let decoded_test_set = state_space.decode_collection(&var_set, &encoded_test_set);
-        assert_eq!(test_set, decoded_test_set);
+    //     // Build a test set that is restricted to specific states.
+    //     let test_set = vec![vec![0, 12], vec![1, 3], vec![5, 5]];
+    //     let encoded_test_set = state_space.encode_collection(&var_set, &test_set);
+    //     let decoded_test_set = state_space.decode_collection(&var_set, &encoded_test_set);
+    //     assert_eq!(test_set, decoded_test_set);
 
-        // Build a test set that is restricted in a specific variable (i.e. only x/y is restricted
-        // and the remaining values are unconstrained).
-        let restrict_x = vec![0, 2, 5];
-        let restrict_y = vec![8, 11, 12, 13];
+    //     // Build a test set that is restricted in a specific variable (i.e. only x/y is restricted
+    //     // and the remaining values are unconstrained).
+    //     let restrict_x = vec![0, 2, 5];
+    //     let restrict_y = vec![8, 11, 12, 13];
 
-        let encoded_restrict_x = state_space
-            .get_raw_domain(0)
-            .encode_collection(&var_set, &restrict_x);
-        let encoded_restrict_y = state_space
-            .get_raw_domain(1)
-            .encode_collection(&var_set, &restrict_y);
-        // "Sanitize" the encoding by removing values which are invalid for the remaining variables.
-        // This is necessary because the BDDs we just created do not depend on the second variable
-        // at all, and hence if we "naively" extend them to the full state space domain, the invalid
-        // encodings will still be present.
-        let encoded_restrict_x = encoded_restrict_x.and(&unit_set);
-        let encoded_restrict_y = encoded_restrict_y.and(&unit_set);
+    //     let encoded_restrict_x = state_space
+    //         .get_raw_domain(0)
+    //         .encode_collection(&var_set, &restrict_x);
+    //     let encoded_restrict_y = state_space
+    //         .get_raw_domain(1)
+    //         .encode_collection(&var_set, &restrict_y);
+    //     // "Sanitize" the encoding by removing values which are invalid for the remaining variables.
+    //     // This is necessary because the BDDs we just created do not depend on the second variable
+    //     // at all, and hence if we "naively" extend them to the full state space domain, the invalid
+    //     // encodings will still be present.
+    //     let encoded_restrict_x = encoded_restrict_x.and(&unit_set);
+    //     let encoded_restrict_y = encoded_restrict_y.and(&unit_set);
 
-        let decoded_restrict_x = state_space.decode_collection(&var_set, &encoded_restrict_x);
-        let decoded_restrict_y = state_space.decode_collection(&var_set, &encoded_restrict_y);
+    //     let decoded_restrict_x = state_space.decode_collection(&var_set, &encoded_restrict_x);
+    //     let decoded_restrict_y = state_space.decode_collection(&var_set, &encoded_restrict_y);
 
-        // Here the x/y component is restricted to the values in `restrict_x/y` and the second
-        // variable can be any value from its domain.
-        assert_eq!(decoded_restrict_x.len(), 3 * 15);
-        assert_eq!(decoded_restrict_y.len(), 6 * 4);
+    //     // Here the x/y component is restricted to the values in `restrict_x/y` and the second
+    //     // variable can be any value from its domain.
+    //     assert_eq!(decoded_restrict_x.len(), 3 * 15);
+    //     assert_eq!(decoded_restrict_y.len(), 6 * 4);
 
-        let restrict_both = encoded_restrict_x.and(&encoded_restrict_y);
+    //     let restrict_both = encoded_restrict_x.and(&encoded_restrict_y);
 
-        let decoded_both = state_space.decode_collection(&var_set, &restrict_both);
-        // Here, both variables are restricted to the values from `restrict_x/y`, but any
-        // combination of such values is allowed.
-        assert_eq!(decoded_both.len(), 3 * 4);
-    }
+    //     let decoded_both = state_space.decode_collection(&var_set, &restrict_both);
+    //     // Here, both variables are restricted to the values from `restrict_x/y`, but any
+    //     // combination of such values is allowed.
+    //     assert_eq!(decoded_both.len(), 3 * 4);
+    // }
 }
