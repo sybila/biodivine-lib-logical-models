@@ -1,4 +1,5 @@
-use std::io::BufRead;
+use serde_xml_rs::from_str;
+use std::{io::BufRead, str::FromStr};
 use xml::{
     attribute::OwnedAttribute,
     name::OwnedName,
@@ -161,7 +162,7 @@ where
 
 /// get the update fn from "data/update_fn_test.sbml"
 /// used in tests / to play around with the code
-pub fn get_test_update_fn() -> UpdateFn {
+pub fn get_test_update_fn<T: FromStr>() -> UpdateFn<T> {
     use std::fs::File;
     use std::io::BufReader;
 

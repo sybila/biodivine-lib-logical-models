@@ -4,22 +4,21 @@ use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddValuation};
 
 use crate::{SymbolicDomain, UpdateFnBdd_};
 
-type ValueType = u8;
+// type ValueType = u8;
 
 // todo this notation is kinda weird; D should already carry info about what T is
 // todo for example for UnaryIntegerDomain, T is u8, but i have to specify it like
 // todo UpdateFnCompiled::<UnaryIntegerDomain, u8>::from(update_fn_bdd)
 // pub struct UpdateFnCompiled_<D: SymbolicDomain<T>, T> {
-pub struct UpdateFnCompiled_<D: SymbolicDomain<ValueType>> {
-    // phantom: std::marker::PhantomData<(D, T)>,
-    // pub output_max_value: ValueType, // todo do i need this here? not sufficient just in the compiling method?
+pub struct UpdateFnCompiled_<D: SymbolicDomain<T>, T> {
+    penis: std::marker::PhantomData<T>, // todo do i really do need this here? cause want to extract the result somehow -> should need this type; how am i getting it in the functions?
     pub bit_answering_bdds: Vec<Bdd>,
     pub named_symbolic_domains: HashMap<String, D>,
 }
 
 // todo directly from UpdateFn (not UpdateFnBdd)
-// impl<D: SymbolicDomain<T>, T> From<UpdateFnBdd_<lol idk something>> for UpdateFnCompiled_<D, T> {
-impl<D: SymbolicDomain<ValueType>> From<UpdateFnBdd_<D>> for UpdateFnCompiled_<D> {
+impl<D: SymbolicDomain<u8>> From<UpdateFnBdd_<D>> for UpdateFnCompiled_<D, u8> {
+    // impl<D: SymbolicDomain<ValueType>> From<UpdateFnBdd_<D>> for UpdateFnCompiled_<D> {
     fn from(update_fn_bdd: UpdateFnBdd_<D>) -> Self {
         let mutually_exclusive_terms = to_mutually_exclusive_and_default(
             update_fn_bdd
@@ -51,7 +50,7 @@ impl<D: SymbolicDomain<ValueType>> From<UpdateFnBdd_<D>> for UpdateFnCompiled_<D
             })
             .collect::<Vec<_>>();
 
-        // inspect_outputs_numeric_and_bitwise(outputs, matrix.clone());
+        inspect_outputs_numeric_and_bitwise(outputs, matrix.clone());
 
         let mut bit_answering_bdds = Vec::<Bdd>::new();
         for bit_idx in 0..matrix[0].len() {
@@ -107,10 +106,11 @@ fn to_mutually_exclusive_and_default(bdd_succession: Vec<Bdd>) -> Vec<Bdd> {
     mutually_exclusive_terms
 }
 
-impl<D: SymbolicDomain<ValueType>> UpdateFnCompiled_<D> {
+impl<D: SymbolicDomain<T>, T> UpdateFnCompiled_<D, T> {
     // intentionally private; should only be instantiated through From<UpdateFnBdd_>
     fn new(bit_answering_bdds: Vec<Bdd>, named_symbolic_domains: HashMap<String, D>) -> Self {
         Self {
+            penis: std::marker::PhantomData::<T>,
             bit_answering_bdds,
             named_symbolic_domains,
         }
@@ -229,14 +229,14 @@ mod tests {
     fn test() {
         let update_fn = get_test_update_fn();
         let update_fn_bdd: UpdateFnBdd_<UnaryIntegerDomain> = update_fn.into();
-        let compiled = UpdateFnCompiled_::<UnaryIntegerDomain>::from(update_fn_bdd);
+        let compiled = UpdateFnCompiled_::<UnaryIntegerDomain, u8>::from(update_fn_bdd);
     }
 
     #[test]
     fn test_fake() {
         let update_fn = get_test_update_fn();
         let update_fn_bdd: UpdateFnBdd_<FakeDomain> = update_fn.into();
-        let compiled = UpdateFnCompiled_::<FakeDomain>::from(update_fn_bdd);
+        let compiled = UpdateFnCompiled_::<FakeDomain, u8>::from(update_fn_bdd);
     }
 
     #[test]
@@ -245,7 +245,8 @@ mod tests {
         let bdd_update_fn: UpdateFnBdd_<UnaryIntegerDomain> = update_fn.into();
         // todo yeah this should be accessible from compiled as well
         let mut valuation = bdd_update_fn.get_default_valuation_but_partial();
-        let bdd_update_fn_compiled: UpdateFnCompiled_<UnaryIntegerDomain> = bdd_update_fn.into();
+        let bdd_update_fn_compiled: UpdateFnCompiled_<UnaryIntegerDomain, u8> =
+            bdd_update_fn.into();
 
         let var_domain = bdd_update_fn_compiled
             .named_symbolic_domains

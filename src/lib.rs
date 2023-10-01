@@ -130,7 +130,7 @@ mod tests {
                     println!("start element {:?}", name);
                     if name.local_name == "apply" {
                         println!("parsing apply");
-                        let expression = super::Expression::try_from_xml(&mut xml);
+                        let expression = super::Expression::<u8>::try_from_xml(&mut xml);
                         println!("parsed apply {:?}", expression);
                     }
                 }
@@ -165,7 +165,7 @@ mod tests {
                     indent += 1;
                     if name.local_name == "transition" {
                         println!("parsing transition");
-                        let update_fn = super::UpdateFn::try_from_xml(&mut xml);
+                        let update_fn = super::UpdateFn::<u8>::try_from_xml(&mut xml);
                         println!("update fn: {:?}", update_fn);
                         return;
                     }

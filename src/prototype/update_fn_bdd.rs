@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::RangeBounds};
 
 use biodivine_lib_bdd::{
     Bdd, BddPartialValuation, BddValuation, BddVariableSet, BddVariableSetBuilder,
@@ -13,22 +13,22 @@ const HARD_CODED_MAX_VAR_VALUE: u8 = 10;
 
 // todo this should be abstacted into a geeneric parameter
 // todo but that would require
-type ValueType = u8;
+// type ValueType = u8;
 
 #[derive(Clone)]
-// pub struct UpdateFnBdd_<D: SymbolicDomain<ValueType>, ValueType> {
-pub struct UpdateFnBdd_<D: SymbolicDomain<ValueType>> {
+pub struct UpdateFnBdd_<D: SymbolicDomain<u8>> {
+    // pub struct UpdateFnBdd_<D: SymbolicDomain<ValueType>> {
     pub target_var_name: String,
-    pub terms: Vec<(ValueType, Bdd)>,
+    pub terms: Vec<(u8, Bdd)>,
     pub named_symbolic_domains: std::collections::HashMap<String, D>,
-    pub default: ValueType,
+    pub default: u8,
     pub bdd_variable_set: BddVariableSet,
     pub result_domain: D,
 }
 
 // impl<D: SymbolicDomain<T>, T> From<UpdateFn> for UpdateFnBdd_<D, T> {
-impl<D: SymbolicDomain<ValueType>> From<UpdateFn> for UpdateFnBdd_<D> {
-    fn from(update_fn: UpdateFn) -> Self {
+impl<D: SymbolicDomain<u8>> From<UpdateFn<u8>> for UpdateFnBdd_<D> {
+    fn from(update_fn: UpdateFn<u8>) -> Self {
         let mut bdd_variable_set_builder = BddVariableSetBuilder::new();
 
         let named_symbolic_domains = update_fn
@@ -67,6 +67,7 @@ impl<D: SymbolicDomain<ValueType>> From<UpdateFn> for UpdateFnBdd_<D> {
             .iter()
             .map(|(val, _)| val)
             .chain(std::iter::once(&update_fn.default))
+            // todo not really interested in `max` per se, but in the one requiring larges number of bits
             .max()
             .unwrap(); // there will always be at least &source.default
 
@@ -90,16 +91,18 @@ impl<D: SymbolicDomain<ValueType>> From<UpdateFn> for UpdateFnBdd_<D> {
     }
 }
 
-// fn bdd_from_expr<D: SymbolicDomain<T>, T>(
-fn bdd_from_expr<D: SymbolicDomain<ValueType>>(
-    expr: &Expression,
+fn bdd_from_expr<D: SymbolicDomain<u8>>(
+    // fn bdd_from_expr<D: SymbolicDomain<ValueType>>(
+    expr: &Expression<u8>,
     symbolic_domains: &HashMap<String, D>,
     bdd_variable_set: &mut BddVariableSet,
 ) -> Bdd {
     match expr {
         // prop_to_bdd is the important thing here;
         // the rest is just recursion & calling the right bdd methods
-        Expression::Terminal(prop) => prop_to_bdd(prop.clone(), symbolic_domains, bdd_variable_set),
+        Expression::Terminal(prop) => {
+            prop_to_bdd(prop.to_owned(), symbolic_domains, bdd_variable_set)
+        }
         Expression::Not(expr) => {
             let bdd = bdd_from_expr(expr, symbolic_domains, bdd_variable_set);
             bdd.not()
@@ -129,9 +132,9 @@ fn bdd_from_expr<D: SymbolicDomain<ValueType>>(
 
 // todo this should be applied to each term directly while loading the xml; no need to even have the intermediate representation
 // todo actually it might not be bad idea to keep the intermediate repr for now; debugging
-// fn prop_to_bdd<D: SymbolicDomain<T>, T>(
-fn prop_to_bdd<D: SymbolicDomain<ValueType>>(
-    prop: Proposition,
+fn prop_to_bdd<D: SymbolicDomain<u8>>(
+    // fn prop_to_bdd<D: SymbolicDomain<ValueType>>(
+    prop: Proposition<u8>,
     symbolic_domains: &HashMap<String, D>,
     bdd_variable_set: &mut BddVariableSet,
 ) -> Bdd {
@@ -139,8 +142,8 @@ fn prop_to_bdd<D: SymbolicDomain<ValueType>>(
     let val = prop.cn;
 
     match prop.cmp {
-        super::expression::CmpOp::Eq => var.encode_one(bdd_variable_set, &(val as u8)),
-        super::expression::CmpOp::Neq => var.encode_one(bdd_variable_set, &(val as u8)).not(),
+        super::expression::CmpOp::Eq => var.encode_one(bdd_variable_set, &val),
+        super::expression::CmpOp::Neq => var.encode_one(bdd_variable_set, &val).not(),
         super::expression::CmpOp::Lt => lt(var, bdd_variable_set, val),
         super::expression::CmpOp::Leq => leq(var, bdd_variable_set, val),
         super::expression::CmpOp::Gt => leq(var, bdd_variable_set, val).not(),
@@ -148,39 +151,38 @@ fn prop_to_bdd<D: SymbolicDomain<ValueType>>(
     }
 }
 
-// fn lt<D: SymbolicDomain<T>, T>(
-fn lt<D: SymbolicDomain<ValueType>>(
+fn lt<D: SymbolicDomain<u8>>(
+    // fn lt<D: SymbolicDomain<ValueType>>(
     symbolic_domain: &D,
     bdd_variable_set: &mut BddVariableSet,
-    lower_than_this: u16,
+    lower_than_this: u8,
 ) -> Bdd {
     let mut bdd = symbolic_domain.empty_collection(bdd_variable_set);
 
     (0..lower_than_this).for_each(|i| {
-        let bdd_i = symbolic_domain.encode_one(bdd_variable_set, &(i as ValueType));
+        let bdd_i = symbolic_domain.encode_one(bdd_variable_set, &i);
         bdd = bdd.or(&bdd_i);
     });
 
     bdd
 }
 
-// fn leq<D: SymbolicDomain<T>, T>(
-fn leq<D: SymbolicDomain<ValueType>>(
+fn leq<D: SymbolicDomain<u8>>(
     symbolic_domain: &D,
     bdd_variable_set: &mut BddVariableSet,
-    lower_or_same_as_this: u16,
+    lower_or_same_as_this: u8,
 ) -> Bdd {
     let mut bdd = symbolic_domain.empty_collection(bdd_variable_set);
 
-    (0..(lower_or_same_as_this + 1)).for_each(|i| {
-        let bdd_i = symbolic_domain.encode_one(bdd_variable_set, &(i as ValueType));
+    (0..=lower_or_same_as_this).for_each(|i| {
+        let bdd_i = symbolic_domain.encode_one(bdd_variable_set, &i);
         bdd = bdd.or(&bdd_i);
     });
 
     bdd
 }
 
-impl<D: SymbolicDomain<ValueType>> UpdateFnBdd_<D> {
+impl<D: SymbolicDomain<u8>> UpdateFnBdd_<D> {
     /// for given valuation of input variables, returns the value of the output variable according to the update function
     /// todo should probably accept valuations of the symbolic variables
     /// todo so that user is abstracted from having to specify vector of bools
@@ -194,7 +196,9 @@ impl<D: SymbolicDomain<ValueType>> UpdateFnBdd_<D> {
             .map(|(val, _)| *val)
             .unwrap_or(self.default)
     }
+}
 
+impl<D: SymbolicDomain<u8>> UpdateFnBdd_<D> {
     /// returns fully specified valuation representing all the symbolic variables
     /// being set to 0
     /// but also this valuation is partial, so that it can be updated later

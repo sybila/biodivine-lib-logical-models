@@ -1,15 +1,15 @@
-use std::io::BufRead;
+use std::{io::BufRead, str::FromStr};
 use thiserror::Error;
 use xml::reader::{EventReader, XmlEvent};
 
 #[derive(Debug)]
-pub enum Expression {
-    Terminal(Proposition),
-    Not(Box<Expression>),
-    And(Box<Expression>, Box<Expression>),
-    Or(Box<Expression>, Box<Expression>),
-    Xor(Box<Expression>, Box<Expression>),
-    Implies(Box<Expression>, Box<Expression>),
+pub enum Expression<T> {
+    Terminal(Proposition<T>),
+    Not(Box<Expression<T>>),
+    And(Box<Expression<T>>, Box<Expression<T>>),
+    Or(Box<Expression<T>>, Box<Expression<T>>),
+    Xor(Box<Expression<T>>, Box<Expression<T>>),
+    Implies(Box<Expression<T>>, Box<Expression<T>>),
 }
 
 enum LogicOp {
@@ -43,10 +43,11 @@ impl LogicOp {
     }
 }
 
-impl Expression {
+// todo there should be constraint on the type of T: FromStr
+impl<T: FromStr> Expression<T> {
     // todo consider iterative approach instead of recursive?
-    pub fn try_from_xml<T: BufRead>(
-        xml: &mut EventReader<T>,
+    pub fn try_from_xml<BR: BufRead>(
+        xml: &mut EventReader<BR>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         loop {
             match xml.next() {
@@ -76,20 +77,20 @@ impl Expression {
     }
 }
 
-fn terminal_from_xml(
+fn terminal_from_xml<T: FromStr>(
     op: CmpOp,
     xml: &mut EventReader<impl BufRead>,
-) -> Result<Expression, Box<dyn std::error::Error>> {
+) -> Result<Expression<T>, Box<dyn std::error::Error>> {
     expect_closure_of(&op.its_string(), xml)?; // close the cmp op tag
     let prp = parse_terminal_ops(xml)?;
     expect_closure_of("apply", xml)?;
     Ok(Expression::Terminal(Proposition::new(op, prp)))
 }
 
-fn logical_from_xml<T: BufRead>(
+fn logical_from_xml<T: FromStr, BR: BufRead>(
     op: LogicOp,
-    xml: &mut EventReader<T>,
-) -> Result<Expression, Box<dyn std::error::Error>> {
+    xml: &mut EventReader<BR>,
+) -> Result<Expression<T>, Box<dyn std::error::Error>> {
     expect_closure_of(&op.its_string(), xml)?; // self closing tag must be "closed"
     match op {
         LogicOp::Not => {
@@ -160,16 +161,16 @@ fn expect_closure_of<T: BufRead>(
     }
 }
 
-pub enum TerminalOps {
-    Standard(String, u16),
-    Flipped(u16, String),
+pub enum TerminalOps<T> {
+    Standard(String, T),
+    Flipped(T, String),
 }
 
 /// expects input xml to be in such state that the next two xml nodes are either
 /// ci and then cn, or cn and then ci
-pub fn parse_terminal_ops<T: BufRead>(
-    xml: &mut EventReader<T>,
-) -> Result<TerminalOps, Box<dyn std::error::Error>> {
+pub fn parse_terminal_ops<T: FromStr, BR: BufRead>(
+    xml: &mut EventReader<BR>,
+) -> Result<TerminalOps<T>, Box<dyn std::error::Error>> {
     let elem = expect_opening(xml)?;
     if elem == "ci" {
         let ci;
@@ -185,7 +186,16 @@ pub fn parse_terminal_ops<T: BufRead>(
         expect_opening_of("cn", xml)?;
         let cn;
         if let XmlEvent::Characters(content) = xml.next()? {
-            cn = content.trim().parse::<u16>()?;
+            cn = match content.trim().parse::<T>() {
+                Ok(it) => it,
+                Err(_) => {
+                    return Err(format!(
+                        "could not parse to specified type; got {}",
+                        content.trim().to_string()
+                    )
+                    .into())
+                }
+            }
         } else {
             return Err("cn must be followed by characters - the variable name".into());
         }
@@ -197,7 +207,16 @@ pub fn parse_terminal_ops<T: BufRead>(
     if elem == "cn" {
         let cn;
         if let XmlEvent::Characters(content) = xml.next()? {
-            cn = content.trim().parse::<u16>()?;
+            cn = match content.trim().parse::<T>() {
+                Ok(it) => it,
+                Err(_) => {
+                    return Err(format!(
+                        "could not parse to specified type; got {}",
+                        content.trim().to_string()
+                    )
+                    .into())
+                }
+            }
         } else {
             return Err("cn must be followed by characters - the variable name".into());
         }
@@ -284,17 +303,17 @@ impl CmpOp {
 pub struct ParseCmpOpError(String);
 
 /// sbml proposition normalized ie in the form of `var op const`
-#[derive(Debug, Clone)]
-pub struct Proposition {
+#[derive(Clone, Debug)]
+pub struct Proposition<T> {
     pub cmp: CmpOp,
     pub ci: String, // the variable name
-    pub cn: u16,    // the constant value
+    pub cn: T,      // the constant value
 }
 
-impl Proposition {
+impl<T> Proposition<T> {
     /// if the input terminal operands are flipped, the returning value will flip the operands as well
     /// as the comparison operator in order to normalize the proposition
-    pub fn new(cmp_op: CmpOp, ops: TerminalOps) -> Self {
+    pub fn new(cmp_op: CmpOp, ops: TerminalOps<T>) -> Self {
         match ops {
             TerminalOps::Standard(lhs, rhs) => Self {
                 cmp: cmp_op,

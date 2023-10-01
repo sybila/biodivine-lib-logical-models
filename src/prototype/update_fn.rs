@@ -1,33 +1,31 @@
-use crate::{
-    expect_closure_of, expect_opening_of, process_list, StartElementWrapper, UnaryIntegerDomain,
-};
+use crate::{expect_closure_of, expect_opening_of, process_list, StartElementWrapper};
 
 use super::expression::Expression;
 use super::utils::expect_opening;
-use std::io::BufRead;
-use xml::reader::{EventReader, XmlEvent};
+use std::{io::BufRead, str::FromStr};
+use xml::reader::EventReader;
 
 /// represents collection of tuples of the result values and the associated conditions. there is also the default value.
 /// todo think about how the functions should be evaluated - should we allow the conditions to "overlap" and say that the first one counts?
 /// (would not be hard to implement, just (!all_previous && current); the default would then be analogically (!all_previous && true)).
 /// in that case, the !all_previous should be somehow cached and passed to the next ofc
 #[derive(Debug)]
-pub struct UpdateFn {
+pub struct UpdateFn<T> {
     pub input_vars_names: Vec<String>,
     pub target_var_name: String,
     // todo should likely be in bdd repr already;
     // that should be done for the intermediate repr of Expression as well;
     // will do that once i can parse the whole xml
-    pub terms: Vec<(u8, Expression)>,
-    pub default: u8,
+    pub terms: Vec<(T, Expression<T>)>,
+    pub default: T,
 }
 
-impl UpdateFn {
+impl<T> UpdateFn<T> {
     pub fn new(
         input_vars_names: Vec<String>,
         target_var_name: String,
-        terms: Vec<(u8, Expression)>,
-        default: u8,
+        terms: Vec<(T, Expression<T>)>,
+        default: T,
     ) -> Self {
         Self {
             input_vars_names,
@@ -36,9 +34,11 @@ impl UpdateFn {
             default,
         }
     }
+}
 
-    pub fn try_from_xml<T: BufRead>(
-        xml: &mut EventReader<T>,
+impl<T: FromStr> UpdateFn<T> {
+    pub fn try_from_xml<BR: BufRead>(
+        xml: &mut EventReader<BR>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let some_start_element = expect_opening(xml)?;
         if !matches!(
@@ -82,8 +82,8 @@ impl UpdateFn {
     }
 }
 
-fn process_input_var_name_item<T: BufRead>(
-    xml: &mut EventReader<T>,
+fn process_input_var_name_item<BR: BufRead>(
+    xml: &mut EventReader<BR>,
     current: StartElementWrapper,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let mut qualitative_species = current.attributes.iter().filter_map(|att| {
@@ -103,8 +103,8 @@ fn process_input_var_name_item<T: BufRead>(
     Ok(item)
 }
 
-fn process_output_var_name_item<T: BufRead>(
-    xml: &mut EventReader<T>,
+fn process_output_var_name_item<BR: BufRead>(
+    xml: &mut EventReader<BR>,
     current: StartElementWrapper,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let mut qualitative_species = current.attributes.iter().filter_map(|att| {
@@ -127,8 +127,8 @@ fn process_output_var_name_item<T: BufRead>(
 /// currently only one output for given update function is supported
 /// but // todo; requested to generalize
 /// expects the xml to be at the element `<qual:listOfOutputs>` when this fction called
-fn get_target_var_name<T: BufRead>(
-    _xml: &mut EventReader<T>,
+fn get_target_var_name<BR: BufRead>(
+    _xml: &mut EventReader<BR>,
 ) -> Result<String, Box<dyn std::error::Error>> {
     // let xd = expect_opening_of("output", xml)?;
     // // todo read the thing
@@ -136,9 +136,9 @@ fn get_target_var_name<T: BufRead>(
     unimplemented!();
 }
 
-fn get_default_and_list_of_terms<T: BufRead>(
-    xml: &mut EventReader<T>,
-) -> Result<(u8, Vec<(u8, Expression)>), Box<dyn std::error::Error>> {
+fn get_default_and_list_of_terms<T: FromStr, BR: BufRead>(
+    xml: &mut EventReader<BR>,
+) -> Result<(T, Vec<(T, Expression<T>)>), Box<dyn std::error::Error>> {
     // firs should be the default
     let default_element = expect_opening_of("defaultTerm", xml)?;
     let default_val = result_level_from_attributes(&default_element)
@@ -157,10 +157,10 @@ fn get_default_and_list_of_terms<T: BufRead>(
     Ok((default_val, values_and_expressions))
 }
 
-fn process_function_term_item<T: BufRead>(
-    xml: &mut EventReader<T>,
+fn process_function_term_item<T: FromStr, BR: BufRead>(
+    xml: &mut EventReader<BR>,
     current: StartElementWrapper,
-) -> Result<(u8, Expression), Box<dyn std::error::Error>> {
+) -> Result<(T, Expression<T>), Box<dyn std::error::Error>> {
     let res_lvl = result_level_from_attributes(&current)
         .ok_or("expected \"resultLevel\" with numeric argument in functionTerm but none found")?;
 
@@ -176,10 +176,10 @@ fn process_function_term_item<T: BufRead>(
     Ok((res_lvl, exp))
 }
 
-fn result_level_from_attributes(elem: &StartElementWrapper) -> Option<u8> {
+fn result_level_from_attributes<T: FromStr>(elem: &StartElementWrapper) -> Option<T> {
     elem.attributes.iter().find_map(|attr| {
         if attr.name.local_name == "resultLevel" {
-            attr.value.parse::<u8>().ok()
+            attr.value.parse::<T>().ok()
         } else {
             None
         }
