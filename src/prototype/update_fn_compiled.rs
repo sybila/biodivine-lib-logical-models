@@ -2,50 +2,45 @@ use std::collections::HashMap;
 
 use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddValuation};
 
-use crate::{SymbolicDomain, UnaryIntegerDomain, UpdateFnBdd};
+use crate::{SymbolicDomain, UpdateFnBdd_};
 
-// todo want to have a trait abstracting functions of this over different domains
-// todo also this should have the domain type as a type parameter
-pub struct UpdateFnCompiled {
-    pub output_max_value: u8, // this will be encoded in the length of the bdd vec vvv
-    // will be used to answer the question:
-    // for this (given) valuation, what is the i-th "bit" of the output?
-    // i-th bdd answers this for the i-th bit
+type ValueType = u8;
+
+// todo this notation is kinda weird; D should already carry info about what T is
+// todo for example for UnaryIntegerDomain, T is u8, but i have to specify it like
+// todo UpdateFnCompiled::<UnaryIntegerDomain, u8>::from(update_fn_bdd)
+// pub struct UpdateFnCompiled_<D: SymbolicDomain<T>, T> {
+pub struct UpdateFnCompiled_<D: SymbolicDomain<ValueType>> {
+    // phantom: std::marker::PhantomData<(D, T)>,
+    // pub output_max_value: ValueType, // todo do i need this here? not sufficient just in the compiling method?
     pub bit_answering_bdds: Vec<Bdd>,
-    pub named_symbolic_domains: HashMap<String, UnaryIntegerDomain>,
+    pub named_symbolic_domains: HashMap<String, D>,
 }
 
-impl From<UpdateFnBdd> for UpdateFnCompiled {
-    fn from(update_fn: UpdateFnBdd) -> Self {
-        // todo test they are mutually exclusive -> more motivation to move it into a function
-        // todo there is a possibility to play with the fact that ther might be some terms unreachable
-        // todo  those would be indicated by the first bit_answering_bdd being const false
-        // todo  could use this to uptimize this (but that is lost once we convert it to bit_answering_bdds)
-        // todo  or could use this to give feedback to the user that some cases are unreachable
+// todo directly from UpdateFn (not UpdateFnBdd)
+// impl<D: SymbolicDomain<T>, T> From<UpdateFnBdd_<lol idk something>> for UpdateFnCompiled_<D, T> {
+impl<D: SymbolicDomain<ValueType>> From<UpdateFnBdd_<D>> for UpdateFnCompiled_<D> {
+    fn from(update_fn_bdd: UpdateFnBdd_<D>) -> Self {
         let mutually_exclusive_terms = to_mutually_exclusive_and_default(
-            update_fn
+            update_fn_bdd
                 .terms
                 .iter()
                 .map(|(_output, term_bdd)| term_bdd.clone())
                 .collect(),
         );
 
-        println!("mutually_exclusive_terms: {:?}", mutually_exclusive_terms);
-
-        let outputs = update_fn
+        let outputs = update_fn_bdd
             .terms
             .iter()
-            .map(|(output, _)| *output)
-            .chain(std::iter::once(update_fn.default))
+            .map(|(output, _term_bdd)| *output)
+            .chain(std::iter::once(update_fn_bdd.default)) // the output for the last, default term
             .collect::<Vec<_>>();
-
-        println!("outputs: {:?}", outputs);
 
         let matrix = outputs
             .iter()
             .map(|numeric_output| {
                 let mut bit_storage = BddPartialValuation::empty();
-                update_fn
+                update_fn_bdd
                     .result_domain
                     .encode_bits(&mut bit_storage, numeric_output);
                 bit_storage
@@ -56,49 +51,36 @@ impl From<UpdateFnBdd> for UpdateFnCompiled {
             })
             .collect::<Vec<_>>();
 
-        println!("matrix: {:?}", matrix);
+        // inspect_outputs_numeric_and_bitwise(outputs, matrix.clone());
 
         let mut bit_answering_bdds = Vec::<Bdd>::new();
         for bit_idx in 0..matrix[0].len() {
-            let mut bit_answering_bdd = update_fn.bdd_variable_set.mk_false();
+            let mut bit_answering_bdd = update_fn_bdd.bdd_variable_set.mk_false();
             for row_idx in 0..matrix.len() {
                 if matrix[row_idx][bit_idx] {
                     bit_answering_bdd = bit_answering_bdd.or(&mutually_exclusive_terms[row_idx]);
                 }
             }
 
-            let dot = bit_answering_bdd.to_dot_string(&update_fn.bdd_variable_set, false);
-            println!("dot of index {}: {}", bit_idx, dot);
-
             bit_answering_bdds.push(bit_answering_bdd);
         }
 
-        println!("bit_answering_bdds: {:?}", bit_answering_bdds);
-
-        bit_answering_bdds
-            .iter()
-            .enumerate()
-            .for_each(|(idx, bdd)| {
-                println!("bdd at index {}: {}", idx, bdd);
-            });
-
-        matrix.iter().for_each(|row| {
-            println!(
-                "row: {:?}",
-                row.iter()
-                    .map(|bit| if *bit { 1 } else { 0 })
-                    .collect::<Vec<_>>()
-            );
-        });
-
-        let output_max_value = matrix[0].len() as u8; // todo get this more elegantly
-
-        Self::new(
-            output_max_value,
-            bit_answering_bdds,
-            update_fn.named_symbolic_domains,
-        )
+        Self::new(bit_answering_bdds, update_fn_bdd.named_symbolic_domains)
     }
+}
+
+// fn inspect_outputs_numeric_and_bitwise(numeric_and_bitwise: Vec<(u8, Vec<bool>)>) {}
+fn inspect_outputs_numeric_and_bitwise(numeric_outputs: Vec<u8>, bit_outputs: Vec<Vec<bool>>) {
+    if numeric_outputs.len() != bit_outputs.len() {
+        panic!("lengths of numeric and bit outputs do not match");
+    }
+
+    numeric_outputs
+        .iter()
+        .zip(bit_outputs)
+        .for_each(|(num, bits)| {
+            println!("{}: {:?}", num, bits);
+        });
 }
 
 /// converts a succession of bdds into a succession of bdds, such that ith bdd in the result
@@ -125,15 +107,10 @@ fn to_mutually_exclusive_and_default(bdd_succession: Vec<Bdd>) -> Vec<Bdd> {
     mutually_exclusive_terms
 }
 
-impl UpdateFnCompiled {
-    // intentionaly private; should only be instantiated through From<UpdateFn>
-    fn new(
-        output_max_value: u8,
-        bit_answering_bdds: Vec<Bdd>,
-        named_symbolic_domains: HashMap<String, UnaryIntegerDomain>,
-    ) -> Self {
+impl<D: SymbolicDomain<ValueType>> UpdateFnCompiled_<D> {
+    // intentionally private; should only be instantiated through From<UpdateFnBdd_>
+    fn new(bit_answering_bdds: Vec<Bdd>, named_symbolic_domains: HashMap<String, D>) -> Self {
         Self {
-            output_max_value,
             bit_answering_bdds,
             named_symbolic_domains,
         }
@@ -153,15 +130,122 @@ impl UpdateFnCompiled {
 
 #[cfg(test)]
 mod tests {
-    use crate::{SymbolicDomain, UpdateFn, UpdateFnBdd, UpdateFnCompiled};
+    use biodivine_lib_bdd::{BddPartialValuation, BddVariableSetBuilder};
+
+    use crate::{
+        get_test_update_fn, prototype::update_fn_compiled::UpdateFnCompiled_, SymbolicDomain,
+        UnaryIntegerDomain, UpdateFnBdd_,
+    };
+
+    #[derive(Clone)]
+    struct FakeDomain;
+    impl SymbolicDomain<u8> for FakeDomain {
+        fn new(
+            builder: &mut biodivine_lib_bdd::BddVariableSetBuilder,
+            name: &str,
+            max_value: u8,
+        ) -> Self {
+            let variables = (0..max_value)
+                .map(|it| {
+                    let name = format!("{name}_v{}", it + 1);
+                    builder.make_variable(name.as_str())
+                })
+                .collect::<Vec<_>>();
+
+            Self // now see why it is called fake
+        }
+
+        fn decode_bits(&self, _bdd_valuation: &biodivine_lib_bdd::BddPartialValuation) -> u8 {
+            todo!()
+        }
+
+        fn decode_collection(
+            &self,
+            _variables: &biodivine_lib_bdd::BddVariableSet,
+            _collection: &biodivine_lib_bdd::Bdd,
+        ) -> Vec<u8> {
+            todo!()
+        }
+
+        fn decode_one(
+            &self,
+            _variables: &biodivine_lib_bdd::BddVariableSet,
+            _value: &biodivine_lib_bdd::Bdd,
+        ) -> u8 {
+            todo!()
+        }
+
+        fn empty_collection(
+            &self,
+            _variables: &biodivine_lib_bdd::BddVariableSet,
+        ) -> biodivine_lib_bdd::Bdd {
+            todo!()
+        }
+
+        fn encode_bits(
+            &self,
+            _bdd_valuation: &mut biodivine_lib_bdd::BddPartialValuation,
+            _value: &u8,
+        ) {
+            let bdd_variable = BddVariableSetBuilder::new().make_variable("lol");
+            _bdd_valuation.set_value(bdd_variable, false);
+        }
+
+        fn encode_collection(
+            &self,
+            _variables: &biodivine_lib_bdd::BddVariableSet,
+            _collection: &[u8],
+        ) -> biodivine_lib_bdd::Bdd {
+            todo!()
+        }
+
+        fn encode_one(
+            &self,
+            _variables: &biodivine_lib_bdd::BddVariableSet,
+            value: &u8,
+        ) -> biodivine_lib_bdd::Bdd {
+            let mut valuation = BddPartialValuation::empty();
+            self.encode_bits(&mut valuation, value);
+            _variables.mk_conjunctive_clause(&valuation)
+        }
+
+        fn symbolic_size(&self) -> usize {
+            todo!()
+        }
+
+        fn symbolic_variables(&self) -> Vec<biodivine_lib_bdd::BddVariable> {
+            todo!()
+        }
+
+        fn unit_collection(
+            &self,
+            _variables: &biodivine_lib_bdd::BddVariableSet,
+        ) -> biodivine_lib_bdd::Bdd {
+            todo!()
+        }
+    }
+
+    #[test]
+    fn test() {
+        let update_fn = get_test_update_fn();
+        let update_fn_bdd: UpdateFnBdd_<UnaryIntegerDomain> = update_fn.into();
+        let compiled = UpdateFnCompiled_::<UnaryIntegerDomain>::from(update_fn_bdd);
+    }
+
+    #[test]
+    fn test_fake() {
+        let update_fn = get_test_update_fn();
+        let update_fn_bdd: UpdateFnBdd_<FakeDomain> = update_fn.into();
+        let compiled = UpdateFnCompiled_::<FakeDomain>::from(update_fn_bdd);
+    }
 
     #[test]
     fn test_update_fn_compiled() {
-        let update_fn = get_update_fn();
-        let bdd_update_fn: UpdateFnBdd = update_fn.into();
+        let update_fn = get_test_update_fn();
+        let bdd_update_fn: UpdateFnBdd_<UnaryIntegerDomain> = update_fn.into();
         // todo yeah this should be accessible from compiled as well
         let mut valuation = bdd_update_fn.get_default_valuation_but_partial();
-        let bdd_update_fn_compiled: UpdateFnCompiled = bdd_update_fn.into();
+        let bdd_update_fn_compiled: UpdateFnCompiled_<UnaryIntegerDomain> = bdd_update_fn.into();
 
         let var_domain = bdd_update_fn_compiled
             .named_symbolic_domains
@@ -188,30 +272,5 @@ mod tests {
             "result: {:?}",
             bdd_update_fn_compiled.get_result_bits(&valuation.clone().try_into().unwrap())
         );
-    }
-
-    fn get_update_fn() -> UpdateFn {
-        use std::fs::File;
-        use std::io::BufReader;
-
-        let file = File::open("data/update_fn_test.sbml").expect("cannot open file");
-        let file = BufReader::new(file);
-
-        let mut xml = xml::reader::EventReader::new(file);
-
-        loop {
-            match xml.next() {
-                Ok(xml::reader::XmlEvent::StartElement { name, .. }) => {
-                    if name.local_name == "transition" {
-                        let update_fn = UpdateFn::try_from_xml(&mut xml);
-                        return update_fn.unwrap();
-                    }
-                }
-                Ok(xml::reader::XmlEvent::EndElement { .. }) => continue,
-                Ok(xml::reader::XmlEvent::EndDocument) => panic!(),
-                Err(_) => panic!(),
-                _ => continue,
-            }
-        }
     }
 }

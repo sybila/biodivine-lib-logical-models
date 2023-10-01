@@ -1,40 +1,43 @@
-use crate::{Expression, SymbolicDomain, UnaryIntegerDomain, UpdateFn};
-
 use std::collections::HashMap;
 
 use biodivine_lib_bdd::{
     Bdd, BddPartialValuation, BddValuation, BddVariableSet, BddVariableSetBuilder,
 };
 
+use crate::{Expression, SymbolicDomain, UpdateFn};
+
 use super::expression::Proposition;
 
 // todo this should be extracted from the xml/UpdateFn outputs for each of the variable in the system
 const HARD_CODED_MAX_VAR_VALUE: u8 = 10;
 
-/// describes, how single variable is updated
-/// set of UpdateFnBdds is used to describe the dynamics of the whole system
+// todo this should be abstacted into a geeneric parameter
+// todo but that would require
+type ValueType = u8;
+
 #[derive(Clone)]
-pub struct UpdateFnBdd {
+// pub struct UpdateFnBdd_<D: SymbolicDomain<ValueType>, ValueType> {
+pub struct UpdateFnBdd_<D: SymbolicDomain<ValueType>> {
     pub target_var_name: String,
-    pub terms: Vec<(u8, Bdd)>,
-    pub named_symbolic_domains: HashMap<String, UnaryIntegerDomain>,
-    pub default: u8, // the one that is used when no condition is met;
+    pub terms: Vec<(ValueType, Bdd)>,
+    pub named_symbolic_domains: std::collections::HashMap<String, D>,
+    pub default: ValueType,
     pub bdd_variable_set: BddVariableSet,
-    pub result_domain: UnaryIntegerDomain,
+    pub result_domain: D,
 }
 
-// todo UpdateFn should be made obsolete, it is just an intermediate representation of what should eventually be UpdateFnBdd
-impl From<UpdateFn> for UpdateFnBdd {
-    fn from(source: UpdateFn) -> Self {
+// impl<D: SymbolicDomain<T>, T> From<UpdateFn> for UpdateFnBdd_<D, T> {
+impl<D: SymbolicDomain<ValueType>> From<UpdateFn> for UpdateFnBdd_<D> {
+    fn from(update_fn: UpdateFn) -> Self {
         let mut bdd_variable_set_builder = BddVariableSetBuilder::new();
 
-        let named_symbolic_domains = source
+        let named_symbolic_domains = update_fn
             .input_vars_names
             .iter()
             .map(|name| {
                 (
                     name.clone(),
-                    UnaryIntegerDomain::new(
+                    D::new(
                         &mut bdd_variable_set_builder,
                         name,
                         HARD_CODED_MAX_VAR_VALUE,
@@ -44,7 +47,7 @@ impl From<UpdateFn> for UpdateFnBdd {
             .collect();
 
         let mut bdd_variable_set = bdd_variable_set_builder.build();
-        let terms = source
+        let terms = update_fn
             .terms
             .iter()
             .map(|(val, expr)| {
@@ -59,37 +62,38 @@ impl From<UpdateFn> for UpdateFnBdd {
             })
             .collect();
 
-        let max_output = source
+        let max_output = update_fn
             .terms
             .iter()
             .map(|(val, _)| val)
-            .chain(std::iter::once(&source.default))
+            .chain(std::iter::once(&update_fn.default))
             .max()
             .unwrap(); // there will always be at least &source.default
 
         // todo this will likely be shared between all the update fns
         // todo but for now, this variable must not be in together with the rest of the symbolic domains
         let result_bdd_variable_set_domain = &mut BddVariableSetBuilder::new();
-        let result_domain = UnaryIntegerDomain::new(
+        let result_domain = D::new(
             result_bdd_variable_set_domain,
-            &source.target_var_name,
+            &update_fn.target_var_name,
             max_output.to_owned(),
         );
 
         Self {
-            target_var_name: source.target_var_name,
+            target_var_name: update_fn.target_var_name,
             terms,
             named_symbolic_domains,
-            default: source.default,
+            default: update_fn.default,
             bdd_variable_set,
             result_domain,
         }
     }
 }
 
-fn bdd_from_expr(
+// fn bdd_from_expr<D: SymbolicDomain<T>, T>(
+fn bdd_from_expr<D: SymbolicDomain<ValueType>>(
     expr: &Expression,
-    symbolic_domains: &HashMap<String, UnaryIntegerDomain>,
+    symbolic_domains: &HashMap<String, D>,
     bdd_variable_set: &mut BddVariableSet,
 ) -> Bdd {
     match expr {
@@ -123,7 +127,60 @@ fn bdd_from_expr(
     }
 }
 
-impl UpdateFnBdd {
+// todo this should be applied to each term directly while loading the xml; no need to even have the intermediate representation
+// todo actually it might not be bad idea to keep the intermediate repr for now; debugging
+// fn prop_to_bdd<D: SymbolicDomain<T>, T>(
+fn prop_to_bdd<D: SymbolicDomain<ValueType>>(
+    prop: Proposition,
+    symbolic_domains: &HashMap<String, D>,
+    bdd_variable_set: &mut BddVariableSet,
+) -> Bdd {
+    let var = symbolic_domains.get(&prop.ci).unwrap();
+    let val = prop.cn;
+
+    match prop.cmp {
+        super::expression::CmpOp::Eq => var.encode_one(bdd_variable_set, &(val as u8)),
+        super::expression::CmpOp::Neq => var.encode_one(bdd_variable_set, &(val as u8)).not(),
+        super::expression::CmpOp::Lt => lt(var, bdd_variable_set, val),
+        super::expression::CmpOp::Leq => leq(var, bdd_variable_set, val),
+        super::expression::CmpOp::Gt => leq(var, bdd_variable_set, val).not(),
+        super::expression::CmpOp::Geq => lt(var, bdd_variable_set, val).not(),
+    }
+}
+
+// fn lt<D: SymbolicDomain<T>, T>(
+fn lt<D: SymbolicDomain<ValueType>>(
+    symbolic_domain: &D,
+    bdd_variable_set: &mut BddVariableSet,
+    lower_than_this: u16,
+) -> Bdd {
+    let mut bdd = symbolic_domain.empty_collection(bdd_variable_set);
+
+    (0..lower_than_this).for_each(|i| {
+        let bdd_i = symbolic_domain.encode_one(bdd_variable_set, &(i as ValueType));
+        bdd = bdd.or(&bdd_i);
+    });
+
+    bdd
+}
+
+// fn leq<D: SymbolicDomain<T>, T>(
+fn leq<D: SymbolicDomain<ValueType>>(
+    symbolic_domain: &D,
+    bdd_variable_set: &mut BddVariableSet,
+    lower_or_same_as_this: u16,
+) -> Bdd {
+    let mut bdd = symbolic_domain.empty_collection(bdd_variable_set);
+
+    (0..(lower_or_same_as_this + 1)).for_each(|i| {
+        let bdd_i = symbolic_domain.encode_one(bdd_variable_set, &(i as ValueType));
+        bdd = bdd.or(&bdd_i);
+    });
+
+    bdd
+}
+
+impl<D: SymbolicDomain<ValueType>> UpdateFnBdd_<D> {
     /// for given valuation of input variables, returns the value of the output variable according to the update function
     /// todo should probably accept valuations of the symbolic variables
     /// todo so that user is abstracted from having to specify vector of bools
@@ -151,237 +208,5 @@ impl UpdateFnBdd {
                 acc
             },
         )
-    }
-}
-
-// todo this should be applied to each term directly while loading the xml; no need to even have the intermediate representation
-// todo actually it might not be bad idea to keep the intermediate repr for now; debugging
-fn prop_to_bdd(
-    prop: Proposition,
-    symbolic_domains: &HashMap<String, UnaryIntegerDomain>,
-    bdd_variable_set: &mut BddVariableSet,
-) -> Bdd {
-    println!("prop ci: <{:?}>", prop.ci);
-    println!("domains keys: {:?}", symbolic_domains.keys());
-
-    let var = symbolic_domains.get(&prop.ci).unwrap();
-    let val = prop.cn;
-
-    match prop.cmp {
-        super::expression::CmpOp::Eq => var.encode_one(bdd_variable_set, &(val as u8)),
-        super::expression::CmpOp::Neq => var.encode_one(bdd_variable_set, &(val as u8)).not(),
-        super::expression::CmpOp::Lt => lt(var, bdd_variable_set, val),
-        super::expression::CmpOp::Leq => leq(var, bdd_variable_set, val),
-        super::expression::CmpOp::Gt => leq(var, bdd_variable_set, val).not(),
-        super::expression::CmpOp::Geq => lt(var, bdd_variable_set, val).not(),
-    }
-}
-
-fn lt(
-    symbolic_domain: &UnaryIntegerDomain,
-    bdd_variable_set: &mut BddVariableSet,
-    lower_than_this: u16,
-) -> Bdd {
-    let mut bdd = symbolic_domain.empty_collection(bdd_variable_set);
-
-    (0..lower_than_this).for_each(|i| {
-        let bdd_i = symbolic_domain.encode_one(bdd_variable_set, &(i as u8));
-        bdd = bdd.or(&bdd_i);
-    });
-
-    bdd
-}
-
-fn leq(
-    symbolic_domain: &UnaryIntegerDomain,
-    bdd_variable_set: &mut BddVariableSet,
-    lower_or_same_as_this: u16,
-) -> Bdd {
-    let mut bdd = symbolic_domain.empty_collection(bdd_variable_set);
-
-    (0..(lower_or_same_as_this + 1)).for_each(|i| {
-        let bdd_i = symbolic_domain.encode_one(bdd_variable_set, &(i as u8));
-        bdd = bdd.or(&bdd_i);
-    });
-
-    bdd
-}
-
-mod tests {
-    use biodivine_lib_bdd::{BddPartialValuation, BddValuation, BddVariableSetBuilder};
-
-    use crate::{SymbolicDomain, UnaryIntegerDomain, UpdateFnBdd, UpdateFnCompiled};
-
-    #[test]
-    // yeah more of a playground rather than a test
-    fn test_valuation_update_symbolic() {
-        let update_fn: UpdateFnBdd = get_update_fn().into();
-
-        let mut updating_valuation = update_fn.get_default_valuation_but_partial();
-        update_fn
-            .named_symbolic_domains
-            .get("Mdm2nuc")
-            .unwrap()
-            .encode_bits(&mut updating_valuation, &1);
-        println!("valuation updated to 1: {:?}", updating_valuation);
-
-        let res = update_fn.eval_in(&updating_valuation.try_into().unwrap());
-        println!("res with valuation of 1: {}", res);
-
-        let mut updating_valuation = update_fn.get_default_valuation_but_partial();
-        update_fn
-            .named_symbolic_domains
-            .get("Mdm2nuc")
-            .unwrap()
-            .encode_bits(&mut updating_valuation, &2);
-        println!("valuation updated to 2: {:?}", updating_valuation);
-
-        let res = update_fn.eval_in(&updating_valuation.try_into().unwrap());
-        println!("res with valuation of 2: {}", res);
-
-        let mut updating_valuation = update_fn.get_default_valuation_but_partial();
-        update_fn
-            .named_symbolic_domains
-            .get("Mdm2nuc")
-            .unwrap()
-            .encode_bits(&mut updating_valuation, &3);
-        println!("valuation updated to 3: {:?}", updating_valuation);
-
-        let res = update_fn.eval_in(&updating_valuation.try_into().unwrap());
-        println!("res with valuation of 3: {}", res);
-
-        let mut updating_valuation = update_fn.get_default_valuation_but_partial();
-        update_fn
-            .named_symbolic_domains
-            .get("Mdm2nuc")
-            .unwrap()
-            .encode_bits(&mut updating_valuation, &100);
-
-        let res = update_fn.eval_in(&updating_valuation.try_into().unwrap());
-        println!("res with valuation of 100: {}", res);
-    }
-
-    #[test]
-    fn test_update_fn_result() {
-        let update_fn: UpdateFnBdd = get_update_fn().into();
-
-        // update_fn.terms.iter().for_each(|(val, bdd)| {
-        //     println!("val: {}, bdd: {:?}", val, bdd);
-        // });
-
-        println!(
-            "@@@@@@@@@@@@@@@@@@@@@@@update fn terms len: {:?}",
-            update_fn.terms.len()
-        );
-
-        let mut builder = BddVariableSetBuilder::new();
-        let sym_val = UnaryIntegerDomain::new(&mut builder, "Mdm2nuc", 2);
-        let vars = builder.build();
-        sym_val.encode_one(&vars, &1);
-
-        let valuation = BddValuation::new(vec![false, false]);
-        let accepted = update_fn.terms[0].1.eval_in(&valuation);
-        println!("accepted for valuation {}?: {}", valuation, accepted);
-
-        let valuation = BddValuation::new(vec![false, true]);
-        let accepted = update_fn.terms[0].1.eval_in(&valuation);
-        println!("accepted for valuation {}?: {}", valuation, accepted);
-
-        let valuation = BddValuation::new(vec![true, false]);
-        let accepted = update_fn.terms[0].1.eval_in(&valuation);
-        println!("accepted for valuation {}?: {}", valuation, accepted);
-
-        let valuation = BddValuation::new(vec![true, true]);
-        let accepted = update_fn.terms[0].1.eval_in(&valuation);
-        println!("accepted for valuation {}?: {}", valuation, accepted);
-    }
-
-    #[test]
-    pub fn test_update_fn() {
-        let update_fn = get_update_fn();
-        println!("update fn: {:?}", update_fn);
-
-        let update_fn_bdd: UpdateFnBdd = update_fn.into();
-
-        let domain = update_fn_bdd.named_symbolic_domains.get("Mdm2nuc").unwrap();
-
-        let mut valuation = BddPartialValuation::empty();
-
-        domain.encode_bits(&mut valuation, &1);
-
-        let bdd = update_fn_bdd.terms[0].1.clone();
-
-        println!(
-            "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@var is represented by {:?} in bdd",
-            domain.symbolic_variables()
-        );
-
-        let actual_valuation = BddValuation::new({
-            let mut vec = vec![false; domain.symbolic_variables().len()];
-            vec[0] = true;
-            vec
-        });
-
-        let bdd_res = bdd.eval_in(&actual_valuation);
-
-        println!("bdd res: {:?}", bdd_res);
-    }
-
-    fn get_update_fn() -> super::UpdateFn {
-        use std::fs::File;
-        use std::io::BufReader;
-
-        let file = File::open("data/dataset.sbml").expect("cannot open file");
-        let file = BufReader::new(file);
-
-        let mut xml = xml::reader::EventReader::new(file);
-
-        loop {
-            match xml.next() {
-                Ok(xml::reader::XmlEvent::StartElement { name, .. }) => {
-                    if name.local_name == "transition" {
-                        // println!("transition found: {:?}", lol.clone());
-                        let update_fn = super::UpdateFn::try_from_xml(&mut xml);
-                        return update_fn.unwrap();
-                    }
-                }
-                Ok(xml::reader::XmlEvent::EndElement { .. }) => continue,
-                Ok(xml::reader::XmlEvent::EndDocument) => panic!(),
-                Err(_) => panic!(),
-                _ => continue,
-            }
-        }
-    }
-
-    #[test]
-    fn test_compiled() {
-        let update_fn = get_update_fn();
-        let update_fn_bdd: UpdateFnBdd = update_fn.into();
-        println!(
-            "update fn bdd target var name: {:?}",
-            update_fn_bdd.target_var_name
-        );
-        let compiled: UpdateFnCompiled = update_fn_bdd.clone().into();
-
-        let mut partial = update_fn_bdd.get_default_valuation_but_partial();
-
-        let bits = compiled.get_result_bits(&partial.clone().try_into().unwrap());
-        println!("bits with default valuation: {:?}", bits);
-
-        update_fn_bdd
-            .named_symbolic_domains
-            .get("Mdm2nuc")
-            .unwrap()
-            .encode_bits(&mut partial, &1);
-        let bits = compiled.get_result_bits(&partial.clone().try_into().unwrap());
-        println!("bits with valuation of 1: {:?}", bits);
-
-        update_fn_bdd
-            .named_symbolic_domains
-            .get("Mdm2nuc")
-            .unwrap()
-            .encode_bits(&mut partial, &2);
-        let bits = compiled.get_result_bits(&partial.clone().try_into().unwrap());
-        println!("bits with valuation of 2: {:?}", bits);
     }
 }
