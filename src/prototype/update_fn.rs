@@ -124,9 +124,11 @@ fn process_output_var_name_item<XR: XmlReader<BR>, BR: BufRead>(
     Ok(item)
 }
 
+type Out<T> = (T, Vec<(T, Expression<T>)>);
+
 fn get_default_and_list_of_terms<T: FromStr, XR: XmlReader<BR>, BR: BufRead>(
     xml: &mut XR,
-) -> Result<(T, Vec<(T, Expression<T>)>), Box<dyn std::error::Error>> {
+) -> Result<Out<T>, Box<dyn std::error::Error>> {
     // firs should be the default
     let default_element = expect_opening_of("defaultTerm", xml)?;
     let default_val = result_level_from_attributes(&default_element)

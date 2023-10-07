@@ -109,7 +109,6 @@ impl SystemUpdateFn<UnaryIntegerDomain, u8> {
     }
 }
 
-#[allow(dead_code)]
 /// expects the xml reader to be at the start of the <listOfTransitions> element
 fn load_all_update_fns<XR: XmlReader<BR>, BR: BufRead>(
     xml: &mut XR,

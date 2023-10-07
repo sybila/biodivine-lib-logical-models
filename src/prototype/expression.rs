@@ -213,7 +213,7 @@ pub fn parse_terminal_ops<T: FromStr, XR: XmlReader<BR>, BR: BufRead>(
                 Err(_) => {
                     return Err(format!(
                         "could not parse to specified type; got {}",
-                        content.trim().to_string()
+                        content.trim()
                     )
                     .into())
                 }
@@ -234,7 +234,7 @@ pub fn parse_terminal_ops<T: FromStr, XR: XmlReader<BR>, BR: BufRead>(
                 Err(_) => {
                     return Err(format!(
                         "could not parse to specified type; got {}",
-                        content.trim().to_string()
+                        content.trim()
                     )
                     .into())
                 }
