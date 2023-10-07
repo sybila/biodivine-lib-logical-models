@@ -57,6 +57,9 @@ pub trait SymbolicDomain<T>: Clone {
     /// Furthermore, Note that not all valuations of the returned variables must encode valid
     /// values of type `T`. The actual set of all valid encoded values can be obtained
     /// through `Self::unit_collection`.
+    // todo also enforce that order of the returned BddVariables corresponds to the order of how
+    // todo  the bits are encoded into valuation in Self::encode_bits
+    // todo  right?
     fn symbolic_variables(&self) -> Vec<BddVariable>;
 
     /// Returns the number of symbolic variables used in the encoding of this symbolic domain.

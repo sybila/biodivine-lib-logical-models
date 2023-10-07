@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddValuation};
+use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddValuation, BddVariable};
 
 use crate::{SymbolicDomain, UpdateFnBdd};
 
@@ -12,7 +12,7 @@ use crate::{SymbolicDomain, UpdateFnBdd};
 /// describes, how **single** variable from the system is updated based on the valuation of the system
 pub struct VariableUpdateFnCompiled<D: SymbolicDomain<T>, T> {
     penis: std::marker::PhantomData<T>,
-    pub bit_answering_bdds: Vec<Bdd>,
+    pub bit_answering_bdds: Vec<(Bdd, BddVariable)>,
     pub named_symbolic_domains: HashMap<String, D>,
 }
 
@@ -33,6 +33,8 @@ impl<D: SymbolicDomain<u8>> From<UpdateFnBdd<D>> for VariableUpdateFnCompiled<D,
             .map(|(output, _term_bdd)| *output)
             .chain(std::iter::once(update_fn_bdd.default)) // the output for the last, default term
             .collect::<Vec<_>>();
+
+        let xd = update_fn_bdd.result_domain.symbolic_variables();
 
         let matrix = outputs
             .iter()
@@ -63,6 +65,11 @@ impl<D: SymbolicDomain<u8>> From<UpdateFnBdd<D>> for VariableUpdateFnCompiled<D,
 
             bit_answering_bdds.push(bit_answering_bdd);
         }
+
+        let bit_answering_bdds = bit_answering_bdds
+            .into_iter()
+            .zip(update_fn_bdd.result_domain.symbolic_variables())
+            .collect::<Vec<_>>();
 
         Self::new(bit_answering_bdds, update_fn_bdd.named_symbolic_domains)
     }
@@ -107,7 +114,10 @@ fn to_mutually_exclusive_and_default(bdd_succession: Vec<Bdd>) -> Vec<Bdd> {
 
 impl<D: SymbolicDomain<T>, T> VariableUpdateFnCompiled<D, T> {
     // intentionally private; should only be instantiated through From<UpdateFnBdd_>
-    fn new(bit_answering_bdds: Vec<Bdd>, named_symbolic_domains: HashMap<String, D>) -> Self {
+    fn new(
+        bit_answering_bdds: Vec<(Bdd, BddVariable)>,
+        named_symbolic_domains: HashMap<String, D>,
+    ) -> Self {
         Self {
             penis: std::marker::PhantomData::<T>,
             bit_answering_bdds,
@@ -115,14 +125,10 @@ impl<D: SymbolicDomain<T>, T> VariableUpdateFnCompiled<D, T> {
         }
     }
 
-    pub fn get_result_ith_bit(&self, bit_idx: usize, valuation: &BddValuation) -> bool {
-        self.bit_answering_bdds[bit_idx].eval_in(valuation)
-    }
-
-    pub fn get_result_bits(&self, valuation: &BddValuation) -> Vec<bool> {
+    pub fn get_result_bits(&self, valuation: &BddValuation) -> Vec<(bool, BddVariable)> {
         self.bit_answering_bdds
             .iter()
-            .map(|bdd| bdd.eval_in(valuation))
+            .map(|(bdd, variable)| (bdd.eval_in(valuation), variable.to_owned()))
             .collect()
     }
 }

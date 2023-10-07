@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, io::BufRead};
 
-use biodivine_lib_bdd::{BddPartialValuation, BddValuation, BddVariableSetBuilder};
+use biodivine_lib_bdd::{BddPartialValuation, BddValuation, BddVariable, BddVariableSetBuilder};
 use xml::EventReader;
 
 use crate::{
@@ -74,15 +74,37 @@ impl SystemUpdateFn<UnaryIntegerDomain, u8> {
     }
 
     /// panics if this system does not contain variable of `sym_var_name` name
-    pub fn get_result_bits_of_variable(
+    pub fn get_result_bits(
         &self,
         sym_var_name: &str,
         valuation: &BddValuation,
-    ) -> Vec<bool> {
+    ) -> Vec<(bool, BddVariable)> {
         self.update_fns
             .get(sym_var_name)
             .unwrap()
             .get_result_bits(valuation)
+    }
+
+    pub fn get_successor_under_given_variable_update_fn(
+        &self,
+        variable_name: &str,
+        valuation: &BddValuation,
+    ) -> BddValuation {
+        let bits = self.get_result_bits(variable_name, valuation);
+        let mut new_valuation = valuation.clone();
+
+        bits.into_iter().for_each(|(bool, var)| {
+            new_valuation.set_value(var, bool);
+        });
+
+        new_valuation
+    }
+
+    pub fn get_successors(&self, valuation: &BddValuation) -> Vec<BddValuation> {
+        self.named_symbolic_domains
+            .keys()
+            .map(|var_name| self.get_successor_under_given_variable_update_fn(var_name, valuation))
+            .collect()
     }
 }
 
@@ -175,12 +197,20 @@ mod tests {
             .named_symbolic_domains
             .get("renamed")
             .unwrap();
-        domain_renamed.encode_bits(&mut valuation, &1);
+        domain_renamed.encode_bits(&mut valuation, &6);
 
-        let res = system_update_fn
-            .get_result_bits_of_variable("renamed", &valuation.clone().try_into().unwrap());
+        let res =
+            system_update_fn.get_result_bits("renamed", &valuation.clone().try_into().unwrap());
+
+        let mut new_valuation = valuation.clone();
+        res.into_iter().for_each(|(bool, var)| {
+            new_valuation.set_value(var, bool);
+        });
 
         println!("valuation: {:?}", valuation);
-        println!("result: {:?}", res);
+        println!("new_valuation: {:?}", new_valuation);
+
+        let successors = system_update_fn.get_successors(&valuation.clone().try_into().unwrap());
+        println!("successors: {:?}", successors);
     }
 }
