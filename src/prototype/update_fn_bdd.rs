@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::RangeBounds};
+use std::collections::HashMap;
 
 use biodivine_lib_bdd::{
     Bdd, BddPartialValuation, BddValuation, BddVariableSet, BddVariableSetBuilder,

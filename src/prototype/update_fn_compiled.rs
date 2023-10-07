@@ -34,8 +34,6 @@ impl<D: SymbolicDomain<u8>> From<UpdateFnBdd<D>> for VariableUpdateFnCompiled<D,
             .chain(std::iter::once(update_fn_bdd.default)) // the output for the last, default term
             .collect::<Vec<_>>();
 
-        let xd = update_fn_bdd.result_domain.symbolic_variables();
-
         let matrix = outputs
             .iter()
             .map(|numeric_output| {

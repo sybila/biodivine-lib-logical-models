@@ -1,9 +1,10 @@
+#![allow(dead_code)]
+
 // todo how to work with the "variables" that are not mentioned in the listOfTransitions?
 
 use std::{collections::HashMap, io::BufRead};
 
 use biodivine_lib_bdd::{BddPartialValuation, BddValuation, BddVariable, BddVariableSetBuilder};
-use xml::EventReader;
 
 use crate::{
     SymbolicDomain, UnaryIntegerDomain, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled, XmlReader,

@@ -3,7 +3,6 @@ use crate::{expect_closure_of, expect_opening_of, process_list, StartElementWrap
 use super::expression::Expression;
 use super::utils::expect_opening;
 use std::{io::BufRead, str::FromStr};
-use xml::reader::EventReader;
 
 /// represents collection of tuples of the result values and the associated conditions. there is also the default value.
 /// todo think about how the functions should be evaluated - should we allow the conditions to "overlap" and say that the first one counts?
