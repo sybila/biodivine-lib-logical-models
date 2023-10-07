@@ -4,7 +4,7 @@ use std::{collections::HashMap, io::BufRead};
 
 use xml::EventReader;
 
-use crate::{UnaryIntegerDomain, UpdateFn, VariableUpdateFnCompiled};
+use crate::{UnaryIntegerDomain, UpdateFn, VariableUpdateFnCompiled, XmlReader};
 
 struct SystemUpdateFn {
     pub update_fns: HashMap<String, VariableUpdateFnCompiled<UnaryIntegerDomain, u8>>,
@@ -12,8 +12,8 @@ struct SystemUpdateFn {
 
 impl SystemUpdateFn {
     /// expects the xml reader to be at the start of the <listOfTransitions> element
-    pub fn try_from_xml<BR: BufRead>(
-        _xml: &mut EventReader<BR>,
+    pub fn try_from_xml<XR: XmlReader<BR>, BR: BufRead>(
+        _xml: &mut XR,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let var_names_and_upd_fns = load_all_update_fns(_xml)?;
         println!("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
@@ -30,8 +30,8 @@ impl SystemUpdateFn {
 
 #[allow(dead_code)]
 /// expects the xml reader to be at the start of the <listOfTransitions> element
-fn load_all_update_fns<BR: BufRead>(
-    xml: &mut EventReader<BR>,
+fn load_all_update_fns<XR: XmlReader<BR>, BR: BufRead>(
+    xml: &mut XR,
     // todo generic
 ) -> Result<HashMap<String, UpdateFn<u8>>, Box<dyn std::error::Error>> {
     Ok(crate::process_list(
@@ -85,13 +85,16 @@ fn compile_update_fns(
 
 #[cfg(test)]
 mod tests {
+    use crate::LoudReader;
+
     #[test]
     fn test() {
         let file = std::fs::File::open("data/dataset.sbml").expect("cannot open file");
         let br = std::io::BufReader::new(file);
-        let mut xml = xml::reader::EventReader::new(br);
+        let event_reader = xml::reader::EventReader::new(br);
+        let mut loud = LoudReader::new(event_reader);
 
-        crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find start of list");
-        let _system_update_fn = super::SystemUpdateFn::try_from_xml(&mut xml).unwrap();
+        crate::find_start_of(&mut loud, "listOfTransitions").expect("cannot find start of list");
+        let _system_update_fn = super::SystemUpdateFn::try_from_xml(&mut loud).unwrap();
     }
 }

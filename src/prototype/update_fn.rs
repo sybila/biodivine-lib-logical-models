@@ -1,4 +1,4 @@
-use crate::{expect_closure_of, expect_opening_of, process_list, StartElementWrapper};
+use crate::{expect_closure_of, expect_opening_of, process_list, StartElementWrapper, XmlReader};
 
 use super::expression::Expression;
 use super::utils::expect_opening;
@@ -38,8 +38,8 @@ impl<T> UpdateFn<T> {
 
 /// expects the xml reader to be at the start of the <transition> element
 impl<T: FromStr> UpdateFn<T> {
-    pub fn try_from_xml<BR: BufRead>(
-        xml: &mut EventReader<BR>,
+    pub fn try_from_xml<XR: XmlReader<BR>, BR: BufRead>(
+        xml: &mut XR,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let some_start_element = expect_opening(xml)?;
         if !matches!(
@@ -53,7 +53,7 @@ impl<T: FromStr> UpdateFn<T> {
             .into());
         }
 
-        // listOfInputs might not be present at all
+        // // listOfInputs might not be present at all
         let input_vars_names = if some_start_element.name.local_name == "listOfInputs" {
             let aux = process_list("listOfInputs", "input", process_input_var_name_item, xml)?;
             expect_opening_of("listOfOutputs", xml)?; // must be followed by listOfOutputs
@@ -83,8 +83,8 @@ impl<T: FromStr> UpdateFn<T> {
     }
 }
 
-fn process_input_var_name_item<BR: BufRead>(
-    xml: &mut EventReader<BR>,
+fn process_input_var_name_item<XR: XmlReader<BR>, BR: BufRead>(
+    xml: &mut XR,
     current: StartElementWrapper,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let mut qualitative_species = current.attributes.iter().filter_map(|att| {
@@ -104,8 +104,8 @@ fn process_input_var_name_item<BR: BufRead>(
     Ok(item)
 }
 
-fn process_output_var_name_item<BR: BufRead>(
-    xml: &mut EventReader<BR>,
+fn process_output_var_name_item<XR: XmlReader<BR>, BR: BufRead>(
+    xml: &mut XR,
     current: StartElementWrapper,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let mut qualitative_species = current.attributes.iter().filter_map(|att| {
@@ -137,8 +137,8 @@ fn get_target_var_name<BR: BufRead>(
     unimplemented!();
 }
 
-fn get_default_and_list_of_terms<T: FromStr, BR: BufRead>(
-    xml: &mut EventReader<BR>,
+fn get_default_and_list_of_terms<T: FromStr, XR: XmlReader<BR>, BR: BufRead>(
+    xml: &mut XR,
 ) -> Result<(T, Vec<(T, Expression<T>)>), Box<dyn std::error::Error>> {
     // firs should be the default
     let default_element = expect_opening_of("defaultTerm", xml)?;
@@ -155,11 +155,30 @@ fn get_default_and_list_of_terms<T: FromStr, BR: BufRead>(
         xml,
     )?;
 
+    // let xd = other_process_list(
+    //     "listOfFunctionTerms",
+    //     "functionTerm",
+    //     process_function_term_item,
+    //     xml,
+    // );
+
     Ok((default_val, values_and_expressions))
 }
 
-fn process_function_term_item<T: FromStr, BR: BufRead>(
-    xml: &mut EventReader<BR>,
+// fn process_list<XR: XmlReader<BR>, BR: BufRead, Fun, Res>(
+//     list_name: &str,
+//     item_name: &str,
+//     processing_fn: Fun,
+//     xml: &mut XR,
+// ) -> Result<Vec<Res>, Box<dyn std::error::Error>>
+// where
+//     Fun: Fn(&mut XR, StartElementWrapper) -> Result<Res, Box<dyn std::error::Error>>,
+// {
+//     unimplemented!();
+// }
+
+fn process_function_term_item<T: FromStr, XR: XmlReader<BR>, BR: BufRead>(
+    xml: &mut XR,
     current: StartElementWrapper,
 ) -> Result<(T, Expression<T>), Box<dyn std::error::Error>> {
     let res_lvl = result_level_from_attributes(&current)

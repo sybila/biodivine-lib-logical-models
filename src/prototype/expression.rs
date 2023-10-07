@@ -1,6 +1,8 @@
 use std::{io::BufRead, str::FromStr};
 use thiserror::Error;
-use xml::reader::{EventReader, XmlEvent};
+use xml::reader::XmlEvent;
+
+use crate::{expect_closure_of, expect_opening, expect_opening_of, XmlReader};
 
 #[derive(Debug)]
 pub enum Expression<T> {
@@ -46,8 +48,8 @@ impl LogicOp {
 // todo there should be constraint on the type of T: FromStr
 impl<T: FromStr> Expression<T> {
     // todo consider iterative approach instead of recursive?
-    pub fn try_from_xml<BR: BufRead>(
-        xml: &mut EventReader<BR>,
+    pub fn try_from_xml<XR: XmlReader<BR>, BR: BufRead>(
+        xml: &mut XR,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         loop {
             match xml.next() {
@@ -77,9 +79,9 @@ impl<T: FromStr> Expression<T> {
     }
 }
 
-fn terminal_from_xml<T: FromStr>(
+fn terminal_from_xml<T: FromStr, XR: XmlReader<BR>, BR: BufRead>(
     op: CmpOp,
-    xml: &mut EventReader<impl BufRead>,
+    xml: &mut XR,
 ) -> Result<Expression<T>, Box<dyn std::error::Error>> {
     expect_closure_of(&op.its_string(), xml)?; // close the cmp op tag
     let prp = parse_terminal_ops(xml)?;
@@ -87,11 +89,12 @@ fn terminal_from_xml<T: FromStr>(
     Ok(Expression::Terminal(Proposition::new(op, prp)))
 }
 
-fn logical_from_xml<T: FromStr, BR: BufRead>(
+fn logical_from_xml<T: FromStr, XR: XmlReader<BR>, BR: BufRead>(
     op: LogicOp,
-    xml: &mut EventReader<BR>,
+    xml: &mut XR,
 ) -> Result<Expression<T>, Box<dyn std::error::Error>> {
-    expect_closure_of(&op.its_string(), xml)?; // self closing tag must be "closed"
+    // expect_closure_of(&op.its_string(), xml)?; // self closing tag must be "closed"
+    expect_closure_of(&op.its_string(), xml)?;
     match op {
         LogicOp::Not => {
             expect_opening_of("apply", xml)?;
@@ -119,48 +122,6 @@ fn logical_from_xml<T: FromStr, BR: BufRead>(
     }
 }
 
-fn expect_opening_of<T: BufRead>(
-    expected: &str,
-    xml: &mut EventReader<T>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    loop {
-        match xml.next() {
-            Ok(XmlEvent::Whitespace(_)) => { /* whitespace is the reason we want to loop */ }
-            Ok(XmlEvent::StartElement { name, .. }) => {
-                return if name.local_name == expected {
-                    Ok(())
-                } else {
-                    Err(format!(
-                        "expected opening element {}, got {}",
-                        expected, name.local_name
-                    )
-                    .into())
-                }
-            }
-            any => return Err(format!("expected opening of {}, got {:?}", expected, any).into()),
-        }
-    }
-}
-
-fn expect_closure_of<T: BufRead>(
-    expected: &str,
-    xml: &mut EventReader<T>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    loop {
-        match xml.next() {
-            Ok(XmlEvent::Whitespace(_)) => { /* whitespace is the reason we want to loop */ }
-            Ok(XmlEvent::EndElement { name, .. }) => {
-                return if name.local_name == expected {
-                    Ok(())
-                } else {
-                    Err(format!("expected closing of {}, got {}", expected, name.local_name).into())
-                }
-            }
-            any => return Err(format!("expected closing of {}, got {:?}", expected, any).into()),
-        }
-    }
-}
-
 pub enum TerminalOps<T> {
     Standard(String, T),
     Flipped(T, String),
@@ -168,10 +129,10 @@ pub enum TerminalOps<T> {
 
 /// expects input xml to be in such state that the next two xml nodes are either
 /// ci and then cn, or cn and then ci
-pub fn parse_terminal_ops<T: FromStr, BR: BufRead>(
-    xml: &mut EventReader<BR>,
+pub fn parse_terminal_ops<T: FromStr, XR: XmlReader<BR>, BR: BufRead>(
+    xml: &mut XR,
 ) -> Result<TerminalOps<T>, Box<dyn std::error::Error>> {
-    let elem = expect_opening(xml)?;
+    let elem = expect_opening(xml)?.name.local_name;
     if elem == "ci" {
         let ci;
 
@@ -235,21 +196,6 @@ pub fn parse_terminal_ops<T: FromStr, BR: BufRead>(
     }
 
     Err("expected ci or cn".into())
-}
-
-/// get the name of the opening tag
-/// if the next event is not a start element, returns an error
-/// if the next event is a start element, returns its name
-fn expect_opening<T: BufRead>(
-    xml: &mut EventReader<T>,
-) -> Result<String, Box<dyn std::error::Error>> {
-    loop {
-        match xml.next() {
-            Ok(XmlEvent::Whitespace(_)) => { /* whitespace is the reason we want to loop */ }
-            Ok(XmlEvent::StartElement { name, .. }) => return Ok(name.local_name),
-            any => return Err(format!("expected an opening, got {:?}", any).into()),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]

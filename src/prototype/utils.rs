@@ -1,4 +1,3 @@
-use serde_xml_rs::from_str;
 use std::{io::BufRead, str::FromStr};
 use xml::{
     attribute::OwnedAttribute,
@@ -9,8 +8,8 @@ use xml::{
 
 use crate::UpdateFn;
 
-pub fn expect_opening<T: BufRead>(
-    xml: &mut EventReader<T>,
+pub fn expect_opening<XR: XmlReader<BR>, BR: BufRead>(
+    xml: &mut XR,
 ) -> Result<StartElementWrapper, Box<dyn std::error::Error>> {
     loop {
         match xml.next() {
@@ -25,9 +24,9 @@ pub fn expect_opening<T: BufRead>(
     }
 }
 
-pub fn expect_opening_of<T: BufRead>(
+pub fn expect_opening_of<XR: XmlReader<BR>, BR: BufRead>(
     expected: &str,
-    xml: &mut EventReader<T>,
+    xml: &mut XR,
 ) -> Result<StartElementWrapper, Box<dyn std::error::Error>> {
     loop {
         match xml.next() {
@@ -73,9 +72,9 @@ impl StartElementWrapper {
 }
 
 /// todo maybe add return value as the whole end tag; so far no usecase
-pub fn expect_closure_of<T: BufRead>(
+pub fn expect_closure_of<XR: XmlReader<BR>, BR: BufRead>(
     expected: &str,
-    xml: &mut EventReader<T>,
+    xml: &mut XR,
 ) -> Result<(), Box<dyn std::error::Error>> {
     loop {
         match xml.next() {
@@ -104,14 +103,14 @@ pub fn expect_closure_of<T: BufRead>(
 /// containing all the processed items is returned (items in the correct order ofc)
 /// since some functions for processing of items require access to the opening event of the item,
 /// that shall be provided as the second argument to the `processing_fn`
-pub fn process_list<T: BufRead, Fun, Res>(
+pub fn process_list<XR: XmlReader<BR>, BR: BufRead, Fun, Res>(
     list_name: &str,
     item_name: &str,
     processing_fn: Fun,
-    xml: &mut EventReader<T>,
+    xml: &mut XR,
 ) -> Result<Vec<Res>, Box<dyn std::error::Error>>
 where
-    Fun: Fn(&mut EventReader<T>, StartElementWrapper) -> Result<Res, Box<dyn std::error::Error>>,
+    Fun: Fn(&mut XR, StartElementWrapper) -> Result<Res, Box<dyn std::error::Error>>,
 {
     let mut acc = Vec::<Res>::new();
 
@@ -192,8 +191,8 @@ pub fn get_test_update_fn<T: FromStr>() -> UpdateFn<T> {
 
 /// iterates through the xml until it finds the first opening tag with the given name
 /// (specifically, opening_element.name.local_name == expected_name)
-pub fn find_start_of<BR: BufRead>(
-    xml: &mut EventReader<BR>,
+pub fn find_start_of<XR: XmlReader<BR>, BR: BufRead>(
+    xml: &mut XR,
     expected_name: &str,
 ) -> Result<(), String> {
     loop {
@@ -207,6 +206,71 @@ pub fn find_start_of<BR: BufRead>(
             Ok(xml::reader::XmlEvent::EndDocument) => return Err("end of document".to_string()),
             Err(e) => return Err(format!("error: {:?}", e)),
             _ => continue, // should be uninteresting
+        }
+    }
+}
+
+pub trait XmlReader<BR: BufRead> {
+    fn next(&mut self) -> Result<XmlEvent, String>;
+}
+
+impl<BR: BufRead> XmlReader<BR> for EventReader<BR> {
+    fn next(&mut self) -> Result<XmlEvent, String> {
+        match self.next() {
+            Ok(e) => Ok(e),
+            Err(e) => Err(format!("error: {:?}", e)),
+        }
+    }
+}
+
+pub struct LoudReader<BR: BufRead> {
+    xml: EventReader<BR>,
+    curr_indent: usize,
+}
+
+impl<BR: BufRead> LoudReader<BR> {
+    pub fn new(xml: EventReader<BR>) -> Self {
+        Self {
+            xml,
+            curr_indent: 0,
+        }
+    }
+}
+
+impl<BR: BufRead> XmlReader<BR> for LoudReader<BR> {
+    fn next(&mut self) -> Result<XmlEvent, String> {
+        match self.xml.next() {
+            Ok(e) => {
+                match e.clone() {
+                    XmlEvent::StartElement {
+                        name,
+                        // attributes,
+                        // namespace,
+                        ..
+                    } => {
+                        println!(
+                            "{}<{:?}>",
+                            (0..self.curr_indent).map(|_| ' ').collect::<String>(),
+                            name
+                        );
+
+                        self.curr_indent += 2;
+                    }
+                    XmlEvent::EndElement { name, .. } => {
+                        println!(
+                            "{}</{:?}>",
+                            (0..self.curr_indent).map(|_| ' ').collect::<String>(),
+                            name
+                        );
+
+                        self.curr_indent -= 2;
+                    }
+                    _ => {}
+                }
+                // println!("xddd next: {:?}", e);
+                Ok(e)
+            }
+            Err(e) => Err(format!("error: {:?}", e)),
         }
     }
 }
