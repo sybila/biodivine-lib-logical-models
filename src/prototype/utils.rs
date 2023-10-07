@@ -117,6 +117,9 @@ where
 
     loop {
         let elem = xml.next();
+
+        println!("elem: {:?}", elem);
+
         match elem {
             Ok(XmlEvent::Whitespace(_)) => { /* ignore */ }
             Ok(XmlEvent::StartElement {
@@ -183,6 +186,27 @@ pub fn get_test_update_fn<T: FromStr>() -> UpdateFn<T> {
             Ok(xml::reader::XmlEvent::EndDocument) => panic!(),
             Err(_) => panic!(),
             _ => continue,
+        }
+    }
+}
+
+/// iterates through the xml until it finds the first opening tag with the given name
+/// (specifically, opening_element.name.local_name == expected_name)
+pub fn find_start_of<BR: BufRead>(
+    xml: &mut EventReader<BR>,
+    expected_name: &str,
+) -> Result<(), String> {
+    loop {
+        match xml.next() {
+            Ok(xml::reader::XmlEvent::StartElement { name: n, .. })
+                if n.local_name == expected_name =>
+            {
+                return Ok(());
+            }
+            Ok(xml::reader::XmlEvent::EndElement { .. }) => continue,
+            Ok(xml::reader::XmlEvent::EndDocument) => return Err("end of document".to_string()),
+            Err(e) => return Err(format!("error: {:?}", e)),
+            _ => continue, // should be uninteresting
         }
     }
 }

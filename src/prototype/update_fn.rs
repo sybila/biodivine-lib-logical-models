@@ -36,6 +36,7 @@ impl<T> UpdateFn<T> {
     }
 }
 
+/// expects the xml reader to be at the start of the <transition> element
 impl<T: FromStr> UpdateFn<T> {
     pub fn try_from_xml<BR: BufRead>(
         xml: &mut EventReader<BR>,
