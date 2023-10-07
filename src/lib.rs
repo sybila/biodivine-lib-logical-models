@@ -43,7 +43,7 @@ mod tests {
         //     <cn type="integer">6</cn>
         // </apply>
         // "#;
-        let sane = r#"
+        let _sane = r#"
               <apply>
                 <or />
                 <apply>
