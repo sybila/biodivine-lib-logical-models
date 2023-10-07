@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, io::BufRead};
 
-use biodivine_lib_bdd::BddVariableSetBuilder;
+use biodivine_lib_bdd::{BddPartialValuation, BddValuation, BddVariableSetBuilder};
 use xml::EventReader;
 
 use crate::{
@@ -13,9 +13,10 @@ struct SystemUpdateFn<D: SymbolicDomain<T>, T> {
     penis: std::marker::PhantomData<D>,
     penis_the_second: std::marker::PhantomData<T>,
     pub update_fns: HashMap<String, VariableUpdateFnCompiled<UnaryIntegerDomain, u8>>,
+    pub named_symbolic_domains: HashMap<String, D>,
 }
 
-impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
+impl SystemUpdateFn<UnaryIntegerDomain, u8> {
     /// expects the xml reader to be at the start of the <listOfTransitions> element
     pub fn try_from_xml<XR: XmlReader<BR>, BR: BufRead>(
         xml: &mut XR,
@@ -23,6 +24,9 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
         let var_names_and_upd_fns = load_all_update_fns(xml)?;
         let ctx = vars_and_their_max_values(&var_names_and_upd_fns);
 
+        // todo currently, we have no way of adding those variables, that do not have their VariableUpdateFn
+        // todo  (ie their qual:transition in the xml) into the named_symbolic_domains, even tho they migh
+        // todo  be used as inputs to some functions, causing panic
         let mut bdd_variable_set_builder = BddVariableSetBuilder::new();
         let named_symbolic_domains = ctx
             .into_iter()
@@ -54,7 +58,31 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
             update_fns,
             penis: std::marker::PhantomData,
             penis_the_second: std::marker::PhantomData,
+            named_symbolic_domains,
         })
+    }
+
+    /// returns valuation inicialized so that all the symbolic values are = 0
+    pub fn get_default_partial_valuation(&self) -> BddPartialValuation {
+        self.named_symbolic_domains.values().fold(
+            BddPartialValuation::empty(),
+            |mut acc, domain| {
+                domain.encode_bits(&mut acc, &0);
+                acc
+            },
+        )
+    }
+
+    /// panics if this system does not contain variable of `sym_var_name` name
+    pub fn get_result_bits_of_variable(
+        &self,
+        sym_var_name: &str,
+        valuation: &BddValuation,
+    ) -> Vec<bool> {
+        self.update_fns
+            .get(sym_var_name)
+            .unwrap()
+            .get_result_bits(valuation)
     }
 }
 
@@ -105,17 +133,9 @@ fn vars_and_their_max_values(
         .collect()
 }
 
-// todo also maybe just zip the two maps together
-fn compile_update_fns(
-    _var_names_and_upd_fns: &HashMap<String, UpdateFn<u8>>,
-    _ctx: &HashMap<String, u8>,
-) -> HashMap<String, Vec<u8>> {
-    todo!()
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::UnaryIntegerDomain;
+    use crate::{SymbolicDomain, UnaryIntegerDomain};
 
     use super::SystemUpdateFn;
 
@@ -128,7 +148,39 @@ mod tests {
         let mut reader = crate::LoudReader::new(reader); // uncomment to see how xml is loaded
 
         crate::find_start_of(&mut reader, "listOfTransitions").expect("cannot find start of list");
-        let _system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
+        let system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
             super::SystemUpdateFn::try_from_xml(&mut reader).unwrap();
+
+        let mut valuation = system_update_fn.get_default_partial_valuation();
+        let some_domain = system_update_fn
+            .named_symbolic_domains
+            .get("todo some existing name")
+            .unwrap();
+
+        some_domain.encode_bits(&mut valuation, &1);
+    }
+
+    #[test]
+    fn test_on_test_data() {
+        let mut reader = xml::reader::EventReader::new(std::io::BufReader::new(
+            std::fs::File::open("data/update_fn_test.sbml").unwrap(),
+        ));
+
+        crate::find_start_of(&mut reader, "listOfTransitions").expect("cannot find start of list");
+        let system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
+            super::SystemUpdateFn::try_from_xml(&mut reader).unwrap();
+
+        let mut valuation = system_update_fn.get_default_partial_valuation();
+        let domain_renamed = system_update_fn
+            .named_symbolic_domains
+            .get("renamed")
+            .unwrap();
+        domain_renamed.encode_bits(&mut valuation, &1);
+
+        let res = system_update_fn
+            .get_result_bits_of_variable("renamed", &valuation.clone().try_into().unwrap());
+
+        println!("valuation: {:?}", valuation);
+        println!("result: {:?}", res);
     }
 }

@@ -161,7 +161,19 @@ fn prop_to_bdd<D: SymbolicDomain<u8>>(
     symbolic_domains: &HashMap<String, D>,
     bdd_variable_set: &BddVariableSet,
 ) -> Bdd {
-    let var = symbolic_domains.get(&prop.ci).unwrap();
+    // let var = symbolic_domains.get(&prop.ci).unwrap();
+
+    let var = match symbolic_domains.get(&prop.ci) {
+        None => {
+            panic!(
+                "looking for {:?} but only {:?} present",
+                prop.ci,
+                symbolic_domains.keys().collect::<Vec<_>>()
+            );
+        }
+        Some(var) => var,
+    };
+
     let val = prop.cn;
 
     match prop.cmp {
