@@ -46,18 +46,14 @@ impl<D: SymbolicDomain<u8>> From<UpdateFn<u8>> for UpdateFnBdd<D> {
             })
             .collect();
 
-        let mut bdd_variable_set = bdd_variable_set_builder.build();
+        let bdd_variable_set = bdd_variable_set_builder.build();
         let terms = update_fn
             .terms
             .iter()
             .map(|(val, expr)| {
                 (
                     val.to_owned(),
-                    bdd_from_expr(
-                        expr.to_owned(),
-                        &named_symbolic_domains,
-                        &mut bdd_variable_set,
-                    ),
+                    bdd_from_expr(expr.to_owned(), &named_symbolic_domains, &bdd_variable_set),
                 )
             })
             .collect();
@@ -91,11 +87,42 @@ impl<D: SymbolicDomain<u8>> From<UpdateFn<u8>> for UpdateFnBdd<D> {
     }
 }
 
+impl<D: SymbolicDomain<u8>> UpdateFnBdd<D> {
+    pub fn from_update_fn(
+        update_fn: UpdateFn<u8>,
+        bdd_variable_set: &BddVariableSet,
+        named_symbolic_domains: &HashMap<String, D>,
+    ) -> Self {
+        let terms = update_fn
+            .terms
+            .iter()
+            .map(|(val, expr)| {
+                (
+                    val.to_owned(),
+                    bdd_from_expr(expr.to_owned(), named_symbolic_domains, bdd_variable_set),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        Self {
+            target_var_name: update_fn.target_var_name.clone(),
+            terms,
+            named_symbolic_domains: named_symbolic_domains.clone(),
+            default: update_fn.default,
+            bdd_variable_set: bdd_variable_set.clone(),
+            result_domain: named_symbolic_domains
+                .get(&update_fn.target_var_name)
+                .unwrap()
+                .clone(),
+        }
+    }
+}
+
 fn bdd_from_expr<D: SymbolicDomain<u8>>(
     // fn bdd_from_expr<D: SymbolicDomain<ValueType>>(
     expr: &Expression<u8>,
     symbolic_domains: &HashMap<String, D>,
-    bdd_variable_set: &mut BddVariableSet,
+    bdd_variable_set: &BddVariableSet,
 ) -> Bdd {
     match expr {
         // prop_to_bdd is the important thing here;
@@ -132,7 +159,7 @@ fn prop_to_bdd<D: SymbolicDomain<u8>>(
     // fn prop_to_bdd<D: SymbolicDomain<ValueType>>(
     prop: Proposition<u8>,
     symbolic_domains: &HashMap<String, D>,
-    bdd_variable_set: &mut BddVariableSet,
+    bdd_variable_set: &BddVariableSet,
 ) -> Bdd {
     let var = symbolic_domains.get(&prop.ci).unwrap();
     let val = prop.cn;
@@ -150,7 +177,7 @@ fn prop_to_bdd<D: SymbolicDomain<u8>>(
 fn lt<D: SymbolicDomain<u8>>(
     // fn lt<D: SymbolicDomain<ValueType>>(
     symbolic_domain: &D,
-    bdd_variable_set: &mut BddVariableSet,
+    bdd_variable_set: &BddVariableSet,
     lower_than_this: u8,
 ) -> Bdd {
     let mut bdd = symbolic_domain.empty_collection(bdd_variable_set);
@@ -165,7 +192,7 @@ fn lt<D: SymbolicDomain<u8>>(
 
 fn leq<D: SymbolicDomain<u8>>(
     symbolic_domain: &D,
-    bdd_variable_set: &mut BddVariableSet,
+    bdd_variable_set: &BddVariableSet,
     lower_or_same_as_this: u8,
 ) -> Bdd {
     let mut bdd = symbolic_domain.empty_collection(bdd_variable_set);
