@@ -125,18 +125,6 @@ fn process_output_var_name_item<XR: XmlReader<BR>, BR: BufRead>(
     Ok(item)
 }
 
-/// currently only one output for given update function is supported
-/// but // todo; requested to generalize
-/// expects the xml to be at the element `<qual:listOfOutputs>` when this fction called
-fn get_target_var_name<BR: BufRead>(
-    _xml: &mut EventReader<BR>,
-) -> Result<String, Box<dyn std::error::Error>> {
-    // let xd = expect_opening_of("output", xml)?;
-    // // todo read the thing
-    // let lol = expect_closure_of("output", xml)?;
-    unimplemented!();
-}
-
 fn get_default_and_list_of_terms<T: FromStr, XR: XmlReader<BR>, BR: BufRead>(
     xml: &mut XR,
 ) -> Result<(T, Vec<(T, Expression<T>)>), Box<dyn std::error::Error>> {
@@ -155,27 +143,8 @@ fn get_default_and_list_of_terms<T: FromStr, XR: XmlReader<BR>, BR: BufRead>(
         xml,
     )?;
 
-    // let xd = other_process_list(
-    //     "listOfFunctionTerms",
-    //     "functionTerm",
-    //     process_function_term_item,
-    //     xml,
-    // );
-
     Ok((default_val, values_and_expressions))
 }
-
-// fn process_list<XR: XmlReader<BR>, BR: BufRead, Fun, Res>(
-//     list_name: &str,
-//     item_name: &str,
-//     processing_fn: Fun,
-//     xml: &mut XR,
-// ) -> Result<Vec<Res>, Box<dyn std::error::Error>>
-// where
-//     Fun: Fn(&mut XR, StartElementWrapper) -> Result<Res, Box<dyn std::error::Error>>,
-// {
-//     unimplemented!();
-// }
 
 fn process_function_term_item<T: FromStr, XR: XmlReader<BR>, BR: BufRead>(
     xml: &mut XR,
