@@ -2,24 +2,23 @@ use std::collections::HashMap;
 
 use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddValuation};
 
-use crate::{SymbolicDomain, UpdateFnBdd_};
+use crate::{SymbolicDomain, UpdateFnBdd};
 
 // type ValueType = u8;
 
 // todo this notation is kinda weird; D should already carry info about what T is
 // todo for example for UnaryIntegerDomain, T is u8, but i have to specify it like
 // todo UpdateFnCompiled::<UnaryIntegerDomain, u8>::from(update_fn_bdd)
-// pub struct UpdateFnCompiled_<D: SymbolicDomain<T>, T> {
-pub struct UpdateFnCompiled_<D: SymbolicDomain<T>, T> {
-    penis: std::marker::PhantomData<T>, // todo do i really do need this here? cause want to extract the result somehow -> should need this type; how am i getting it in the functions?
+/// describes, how **single** variable from the system is updated based on the valuation of the system
+pub struct VariableUpdateFnCompiled<D: SymbolicDomain<T>, T> {
+    penis: std::marker::PhantomData<T>,
     pub bit_answering_bdds: Vec<Bdd>,
     pub named_symbolic_domains: HashMap<String, D>,
 }
 
 // todo directly from UpdateFn (not UpdateFnBdd)
-impl<D: SymbolicDomain<u8>> From<UpdateFnBdd_<D>> for UpdateFnCompiled_<D, u8> {
-    // impl<D: SymbolicDomain<ValueType>> From<UpdateFnBdd_<D>> for UpdateFnCompiled_<D> {
-    fn from(update_fn_bdd: UpdateFnBdd_<D>) -> Self {
+impl<D: SymbolicDomain<u8>> From<UpdateFnBdd<D>> for VariableUpdateFnCompiled<D, u8> {
+    fn from(update_fn_bdd: UpdateFnBdd<D>) -> Self {
         let mutually_exclusive_terms = to_mutually_exclusive_and_default(
             update_fn_bdd
                 .terms
@@ -50,7 +49,8 @@ impl<D: SymbolicDomain<u8>> From<UpdateFnBdd_<D>> for UpdateFnCompiled_<D, u8> {
             })
             .collect::<Vec<_>>();
 
-        inspect_outputs_numeric_and_bitwise(outputs, matrix.clone());
+        // debug printing
+        // _inspect_outputs_numeric_and_bitwise(outputs, matrix.clone());
 
         let mut bit_answering_bdds = Vec::<Bdd>::new();
         for bit_idx in 0..matrix[0].len() {
@@ -68,8 +68,7 @@ impl<D: SymbolicDomain<u8>> From<UpdateFnBdd_<D>> for UpdateFnCompiled_<D, u8> {
     }
 }
 
-// fn inspect_outputs_numeric_and_bitwise(numeric_and_bitwise: Vec<(u8, Vec<bool>)>) {}
-fn inspect_outputs_numeric_and_bitwise(numeric_outputs: Vec<u8>, bit_outputs: Vec<Vec<bool>>) {
+fn _inspect_outputs_numeric_and_bitwise(numeric_outputs: Vec<u8>, bit_outputs: Vec<Vec<bool>>) {
     if numeric_outputs.len() != bit_outputs.len() {
         panic!("lengths of numeric and bit outputs do not match");
     }
@@ -106,7 +105,7 @@ fn to_mutually_exclusive_and_default(bdd_succession: Vec<Bdd>) -> Vec<Bdd> {
     mutually_exclusive_terms
 }
 
-impl<D: SymbolicDomain<T>, T> UpdateFnCompiled_<D, T> {
+impl<D: SymbolicDomain<T>, T> VariableUpdateFnCompiled<D, T> {
     // intentionally private; should only be instantiated through From<UpdateFnBdd_>
     fn new(bit_answering_bdds: Vec<Bdd>, named_symbolic_domains: HashMap<String, D>) -> Self {
         Self {
@@ -133,8 +132,8 @@ mod tests {
     use biodivine_lib_bdd::{BddPartialValuation, BddVariableSetBuilder};
 
     use crate::{
-        get_test_update_fn, prototype::update_fn_compiled::UpdateFnCompiled_, SymbolicDomain,
-        UnaryIntegerDomain, UpdateFnBdd_,
+        get_test_update_fn, prototype::update_fn_compiled::VariableUpdateFnCompiled,
+        SymbolicDomain, UnaryIntegerDomain, UpdateFnBdd,
     };
 
     #[derive(Clone)]
@@ -145,7 +144,7 @@ mod tests {
             name: &str,
             max_value: u8,
         ) -> Self {
-            let variables = (0..max_value)
+            let _ = (0..max_value)
                 .map(|it| {
                     let name = format!("{name}_v{}", it + 1);
                     builder.make_variable(name.as_str())
@@ -228,24 +227,24 @@ mod tests {
     #[test]
     fn test() {
         let update_fn = get_test_update_fn();
-        let update_fn_bdd: UpdateFnBdd_<UnaryIntegerDomain> = update_fn.into();
-        let compiled = UpdateFnCompiled_::<UnaryIntegerDomain, u8>::from(update_fn_bdd);
+        let update_fn_bdd: UpdateFnBdd<UnaryIntegerDomain> = update_fn.into();
+        let _compiled = VariableUpdateFnCompiled::<UnaryIntegerDomain, u8>::from(update_fn_bdd);
     }
 
     #[test]
     fn test_fake() {
         let update_fn = get_test_update_fn();
-        let update_fn_bdd: UpdateFnBdd_<FakeDomain> = update_fn.into();
-        let compiled = UpdateFnCompiled_::<FakeDomain, u8>::from(update_fn_bdd);
+        let update_fn_bdd: UpdateFnBdd<FakeDomain> = update_fn.into();
+        let _compiled = VariableUpdateFnCompiled::<FakeDomain, u8>::from(update_fn_bdd);
     }
 
     #[test]
     fn test_update_fn_compiled() {
         let update_fn = get_test_update_fn();
-        let bdd_update_fn: UpdateFnBdd_<UnaryIntegerDomain> = update_fn.into();
+        let bdd_update_fn: UpdateFnBdd<UnaryIntegerDomain> = update_fn.into();
         // todo yeah this should be accessible from compiled as well
         let mut valuation = bdd_update_fn.get_default_valuation_but_partial();
-        let bdd_update_fn_compiled: UpdateFnCompiled_<UnaryIntegerDomain, u8> =
+        let bdd_update_fn_compiled: VariableUpdateFnCompiled<UnaryIntegerDomain, u8> =
             bdd_update_fn.into();
 
         let var_domain = bdd_update_fn_compiled

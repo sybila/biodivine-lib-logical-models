@@ -16,7 +16,7 @@ const HARD_CODED_MAX_VAR_VALUE: u8 = 10;
 // type ValueType = u8;
 
 #[derive(Clone)]
-pub struct UpdateFnBdd_<D: SymbolicDomain<u8>> {
+pub struct UpdateFnBdd<D: SymbolicDomain<u8>> {
     // pub struct UpdateFnBdd_<D: SymbolicDomain<ValueType>> {
     pub target_var_name: String,
     pub terms: Vec<(u8, Bdd)>,
@@ -27,7 +27,7 @@ pub struct UpdateFnBdd_<D: SymbolicDomain<u8>> {
 }
 
 // impl<D: SymbolicDomain<T>, T> From<UpdateFn> for UpdateFnBdd_<D, T> {
-impl<D: SymbolicDomain<u8>> From<UpdateFn<u8>> for UpdateFnBdd_<D> {
+impl<D: SymbolicDomain<u8>> From<UpdateFn<u8>> for UpdateFnBdd<D> {
     fn from(update_fn: UpdateFn<u8>) -> Self {
         let mut bdd_variable_set_builder = BddVariableSetBuilder::new();
 
@@ -182,7 +182,7 @@ fn leq<D: SymbolicDomain<u8>>(
     bdd
 }
 
-impl<D: SymbolicDomain<u8>> UpdateFnBdd_<D> {
+impl<D: SymbolicDomain<u8>> UpdateFnBdd<D> {
     /// for given valuation of input variables, returns the value of the output variable according to the update function
     /// todo should probably accept valuations of the symbolic variables
     /// todo so that user is abstracted from having to specify vector of bools
@@ -198,7 +198,7 @@ impl<D: SymbolicDomain<u8>> UpdateFnBdd_<D> {
     }
 }
 
-impl<D: SymbolicDomain<u8>> UpdateFnBdd_<D> {
+impl<D: SymbolicDomain<u8>> UpdateFnBdd<D> {
     /// returns fully specified valuation representing all the symbolic variables
     /// being set to 0
     /// but also this valuation is partial, so that it can be updated later
