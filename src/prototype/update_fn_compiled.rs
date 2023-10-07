@@ -137,7 +137,7 @@ mod tests {
 
     use crate::{
         get_test_update_fn, prototype::update_fn_compiled::VariableUpdateFnCompiled,
-        SymbolicDomain, UnaryIntegerDomain, UpdateFnBdd,
+        symbolic_domain::PetriNetIntegerDomain, SymbolicDomain, UnaryIntegerDomain, UpdateFnBdd,
     };
 
     #[derive(Clone)]
@@ -250,28 +250,58 @@ mod tests {
         let mut valuation = bdd_update_fn.get_default_valuation_but_partial();
         let bdd_update_fn_compiled: VariableUpdateFnCompiled<UnaryIntegerDomain, u8> =
             bdd_update_fn.into();
+        // todo yeah this does not work; must improve generics
+        // let bdd_update_fn_compiled: VariableUpdateFnCompiled<PetriNetIntegerDomain, u8> =
+        //     bdd_update_fn.into();
 
         let var_domain = bdd_update_fn_compiled
             .named_symbolic_domains
             .get("renamed")
             .unwrap();
 
-        var_domain.encode_bits(&mut valuation, &1);
-        println!("valuation: {:?}", valuation);
+        let valuation_value = 0;
+        var_domain.encode_bits(&mut valuation, &valuation_value);
+        println!("valuation: {:?}", valuation_value);
         println!(
             "result: {:?}",
             bdd_update_fn_compiled.get_result_bits(&valuation.clone().try_into().unwrap())
         );
 
-        var_domain.encode_bits(&mut valuation, &2);
-        println!("valuation: {:?}", valuation);
+        let valuation_value = 1;
+        var_domain.encode_bits(&mut valuation, &valuation_value);
+        println!("valuation: {:?}", valuation_value);
         println!(
             "result: {:?}",
             bdd_update_fn_compiled.get_result_bits(&valuation.clone().try_into().unwrap())
         );
 
-        var_domain.encode_bits(&mut valuation, &3);
-        println!("valuation: {:?}", valuation);
+        let valuation_value = 2;
+        var_domain.encode_bits(&mut valuation, &valuation_value);
+        println!("valuation: {:?}", valuation_value);
+        println!(
+            "result: {:?}",
+            bdd_update_fn_compiled.get_result_bits(&valuation.clone().try_into().unwrap())
+        );
+
+        let valuation_value = 3;
+        var_domain.encode_bits(&mut valuation, &valuation_value);
+        println!("valuation: {:?}", valuation_value);
+        println!(
+            "result: {:?}",
+            bdd_update_fn_compiled.get_result_bits(&valuation.clone().try_into().unwrap())
+        );
+
+        let valuation_value = 4;
+        var_domain.encode_bits(&mut valuation, &valuation_value);
+        println!("valuation: {:?}", valuation_value);
+        println!(
+            "result: {:?}",
+            bdd_update_fn_compiled.get_result_bits(&valuation.clone().try_into().unwrap())
+        );
+
+        let valuation_value = 5;
+        var_domain.encode_bits(&mut valuation, &valuation_value);
+        println!("valuation: {:?}", valuation_value);
         println!(
             "result: {:?}",
             bdd_update_fn_compiled.get_result_bits(&valuation.clone().try_into().unwrap())

@@ -63,6 +63,7 @@ pub trait SymbolicDomain<T>: Clone {
     fn symbolic_variables(&self) -> Vec<BddVariable>;
 
     /// Returns the number of symbolic variables used in the encoding of this symbolic domain.
+    /// todo is this useful for the caller? should keep this exposed? not impl detail?
     fn symbolic_size(&self) -> usize;
 
     /// Create a `Bdd` which represents the empty set of encoded values.
@@ -268,6 +269,92 @@ impl SymbolicDomain<u8> for UnaryIntegerDomain {
             true_set = true_set.and(&k_implies_k_minus_one);
         }
         true_set
+    }
+}
+
+/// to encode n values, we use n+1 bdd variables internally
+/// we represent symbolic value of i as having the i-th variable set to true
+/// and all the rest
+#[derive(Clone, Debug)]
+pub struct PetriNetIntegerDomain {
+    variables: Vec<BddVariable>,
+}
+
+impl SymbolicDomain<u8> for PetriNetIntegerDomain {
+    fn new(builder: &mut BddVariableSetBuilder, name: &str, max_value: u8) -> Self {
+        let variables = (0..=max_value) // notice the inclusiveness; eg bool encoded using two variables
+            .map(|it| {
+                let name = format!("{name}_v{}", it + 1);
+                builder.make_variable(name.as_str())
+            })
+            .collect::<Vec<_>>();
+
+        Self { variables }
+    }
+
+    fn encode_bits(&self, bdd_valuation: &mut BddPartialValuation, value: &u8) {
+        // todo do we want this check here or not?
+        if value > &(self.variables.len() as u8) {
+            panic!(
+                "Value is too big for this domain; value: {}, domain size: {}",
+                value,
+                self.variables.len()
+            )
+        }
+
+        for (i, var) in self.variables.iter().enumerate() {
+            bdd_valuation.set_value(*var, i == (*value as usize));
+        }
+    }
+
+    fn decode_bits(&self, bdd_valuation: &BddPartialValuation) -> u8 {
+        // todo maybe check the validity of the encoding
+        //  even not-panicking does not mean encoding ok
+        //  eg if all set to true, will return 0 but is invalid
+        self.variables
+            .iter()
+            .enumerate()
+            .find_map(|(idx, var)| {
+                if bdd_valuation.get_value(*var).unwrap() {
+                    Some(idx as u8)
+                } else {
+                    None
+                }
+            })
+            .expect("no variable set means invalid encoding")
+    }
+
+    fn symbolic_variables(&self) -> Vec<BddVariable> {
+        self.variables.clone()
+    }
+
+    fn symbolic_size(&self) -> usize {
+        self.variables.len()
+    }
+
+    fn empty_collection(&self, variables: &BddVariableSet) -> Bdd {
+        variables.mk_false()
+    }
+
+    fn unit_collection(&self, variables: &BddVariableSet) -> Bdd {
+        // i do not think there is some similar clever way to do this, as there was in Unary
+        let mut allowed = variables.mk_false();
+
+        for i in 0..self.variables.len() {
+            let mut allowed_i = variables.mk_var(self.variables[i]);
+
+            for j in 0..=self.variables.len() {
+                if j == i {
+                    continue;
+                }
+
+                allowed_i = allowed_i.and(&variables.mk_var(self.variables[j]).not());
+            }
+
+            allowed = allowed.or(&allowed_i);
+        }
+
+        allowed
     }
 }
 
