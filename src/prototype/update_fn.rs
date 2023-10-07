@@ -53,7 +53,7 @@ impl<T: FromStr> UpdateFn<T> {
             .into());
         }
 
-        // // listOfInputs might not be present at all
+        // listOfInputs might not be present at all
         let input_vars_names = if some_start_element.name.local_name == "listOfInputs" {
             let aux = process_list("listOfInputs", "input", process_input_var_name_item, xml)?;
             expect_opening_of("listOfOutputs", xml)?; // must be followed by listOfOutputs

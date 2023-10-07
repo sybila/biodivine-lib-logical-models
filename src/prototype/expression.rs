@@ -8,8 +8,10 @@ use crate::{expect_closure_of, expect_opening, expect_opening_of, XmlReader};
 pub enum Expression<T> {
     Terminal(Proposition<T>),
     Not(Box<Expression<T>>),
-    And(Box<Expression<T>>, Box<Expression<T>>),
-    Or(Box<Expression<T>>, Box<Expression<T>>),
+    // And(Box<Expression<T>>, Box<Expression<T>>),
+    // Or(Box<Expression<T>>, Box<Expression<T>>),
+    And(Vec<Expression<T>>), // cnf
+    Or(Vec<Expression<T>>),  // dnf
     Xor(Box<Expression<T>>, Box<Expression<T>>),
     Implies(Box<Expression<T>>, Box<Expression<T>>),
 }
@@ -102,21 +104,80 @@ fn logical_from_xml<T: FromStr, XR: XmlReader<BR>, BR: BufRead>(
             expect_closure_of("apply", xml)?; // close *this* apply tag ie the one wrapping the op
             Ok(Expression::Not(Box::new(inner)))
         }
-        LogicOp::And | LogicOp::Or | LogicOp::Xor | LogicOp::Implies => {
+        LogicOp::Xor => {
             expect_opening_of("apply", xml)?;
             let inner_lhs = Expression::try_from_xml(xml)?;
             expect_opening_of("apply", xml)?;
             let inner_rhs = Expression::try_from_xml(xml)?;
             expect_closure_of("apply", xml)?; // close *this* apply tag ie the one wrapping the op
-            match op {
-                LogicOp::And => Ok(Expression::And(Box::new(inner_lhs), Box::new(inner_rhs))),
-                LogicOp::Or => Ok(Expression::Or(Box::new(inner_lhs), Box::new(inner_rhs))),
-                LogicOp::Xor => Ok(Expression::Xor(Box::new(inner_lhs), Box::new(inner_rhs))),
-                LogicOp::Implies => Ok(Expression::Implies(
-                    Box::new(inner_lhs),
-                    Box::new(inner_rhs),
-                )),
-                _ => unreachable!(), // because of the not
+            Ok(Expression::Xor(Box::new(inner_lhs), Box::new(inner_rhs)))
+        }
+        LogicOp::Implies => {
+            expect_opening_of("apply", xml)?;
+            let inner_lhs = Expression::try_from_xml(xml)?;
+            expect_opening_of("apply", xml)?;
+            let inner_rhs = Expression::try_from_xml(xml)?;
+            expect_closure_of("apply", xml)?; // close *this* apply tag ie the one wrapping the op
+            Ok(Expression::Implies(
+                Box::new(inner_lhs),
+                Box::new(inner_rhs),
+            ))
+        }
+        LogicOp::And => {
+            let cnf_items = get_cnf_or_dnf_items::<T, XR, BR>(xml)?;
+            Ok(Expression::And(cnf_items))
+        }
+        LogicOp::Or => {
+            let dnf_items = get_cnf_or_dnf_items::<T, XR, BR>(xml)?;
+            Ok(Expression::Or(dnf_items))
+        }
+    }
+}
+
+// this could be probably done using process_list, but scuffed so better new fn
+/// expects the xml reader to be set so that calling `next()` should encounter
+/// either opening of `apply` (encountering the first element), or end of
+/// `apply` (signaling the end of the cnf/dnf arguments (so empty cnf/dnf))
+fn get_cnf_or_dnf_items<T: FromStr, XR: XmlReader<BR>, BR: BufRead>(
+    xml: &mut XR,
+) -> Result<Vec<Expression<T>>, Box<dyn std::error::Error>> {
+    let mut acc = Vec::<Expression<T>>::new();
+
+    loop {
+        match xml.next() {
+            Ok(XmlEvent::Whitespace(_)) => { /* ignore */ }
+            Ok(XmlEvent::StartElement { name, .. }) => {
+                if name.local_name == "apply" {
+                    acc.push(Expression::try_from_xml(xml)?);
+                    continue;
+                }
+
+                return Err(format!(
+                    "expected opening of indented apply or closing of this cnf/dnf apply, got opening of {}",
+                    name.local_name
+                )
+                .into());
+            }
+            Ok(XmlEvent::EndElement { name, .. }) => {
+                if name.local_name == "apply" {
+                    return Ok(acc);
+                }
+
+                return Err(format!(
+                    "expected opening of indented apply or closing of this cnf/dnf apply, got closing of {}",
+                    name.local_name
+                )
+                .into());
+            }
+            Ok(XmlEvent::EndDocument) => {
+                return Err("unexpected end of document".into());
+            }
+            other => {
+                return Err(format!(
+                    "expected either opening of indented apply or closing of this cnf/dnf apply, got {:?}",
+                    other
+                )
+                .into());
             }
         }
     }

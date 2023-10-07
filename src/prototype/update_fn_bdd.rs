@@ -107,16 +107,12 @@ fn bdd_from_expr<D: SymbolicDomain<u8>>(
             let bdd = bdd_from_expr(expr, symbolic_domains, bdd_variable_set);
             bdd.not()
         }
-        Expression::And(lhs, rhs) => {
-            let lhs = bdd_from_expr(lhs, symbolic_domains, bdd_variable_set);
-            let rhs = bdd_from_expr(rhs, symbolic_domains, bdd_variable_set);
-            lhs.and(&rhs)
-        }
-        Expression::Or(lhs, rhs) => {
-            let lhs = bdd_from_expr(lhs, symbolic_domains, bdd_variable_set);
-            let rhs = bdd_from_expr(rhs, symbolic_domains, bdd_variable_set);
-            lhs.or(&rhs)
-        }
+        Expression::And(clauses) => clauses.iter().fold(bdd_variable_set.mk_true(), |acc, it| {
+            acc.and(&bdd_from_expr(it, symbolic_domains, bdd_variable_set))
+        }),
+        Expression::Or(clauses) => clauses.iter().fold(bdd_variable_set.mk_false(), |acc, it| {
+            acc.or(&bdd_from_expr(it, symbolic_domains, bdd_variable_set))
+        }),
         Expression::Xor(lhs, rhs) => {
             let lhs = bdd_from_expr(lhs, symbolic_domains, bdd_variable_set);
             let rhs = bdd_from_expr(rhs, symbolic_domains, bdd_variable_set);

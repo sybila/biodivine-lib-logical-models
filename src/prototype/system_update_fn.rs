@@ -16,7 +16,6 @@ impl SystemUpdateFn {
         _xml: &mut XR,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let var_names_and_upd_fns = load_all_update_fns(_xml)?;
-        println!("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
         let ctx = vars_and_their_max_values(&var_names_and_upd_fns);
 
         var_names_and_upd_fns.iter().for_each(|(var_name, upd_fn)| {
@@ -91,10 +90,10 @@ mod tests {
     fn test() {
         let file = std::fs::File::open("data/dataset.sbml").expect("cannot open file");
         let br = std::io::BufReader::new(file);
-        let event_reader = xml::reader::EventReader::new(br);
-        let mut loud = LoudReader::new(event_reader);
+        let mut reader = xml::reader::EventReader::new(br);
+        // let mut reader = LoudReader::new(reader); // uncomment to see how xml is loaded
 
-        crate::find_start_of(&mut loud, "listOfTransitions").expect("cannot find start of list");
-        let _system_update_fn = super::SystemUpdateFn::try_from_xml(&mut loud).unwrap();
+        crate::find_start_of(&mut reader, "listOfTransitions").expect("cannot find start of list");
+        let _system_update_fn = super::SystemUpdateFn::try_from_xml(&mut reader).unwrap();
     }
 }

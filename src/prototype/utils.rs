@@ -117,8 +117,6 @@ where
     loop {
         let elem = xml.next();
 
-        println!("elem: {:?}", elem);
-
         match elem {
             Ok(XmlEvent::Whitespace(_)) => { /* ignore */ }
             Ok(XmlEvent::StartElement {
