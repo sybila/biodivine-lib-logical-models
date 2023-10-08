@@ -57,9 +57,9 @@ pub trait SymbolicDomain<T>: Clone {
     /// Furthermore, Note that not all valuations of the returned variables must encode valid
     /// values of type `T`. The actual set of all valid encoded values can be obtained
     /// through `Self::unit_collection`.
-    // todo also enforce that order of the returned BddVariables corresponds to the order of how
-    // todo  the bits are encoded into valuation in Self::encode_bits
-    // todo  right?
+    /// todo also enforce that order of the returned BddVariables corresponds to the order of how
+    /// todo  the bits are encoded into valuation in Self::encode_bits
+    /// todo  right?
     fn symbolic_variables(&self) -> Vec<BddVariable>;
 
     /// Returns the number of symbolic variables used in the encoding of this symbolic domain.
@@ -355,6 +355,104 @@ impl SymbolicDomain<u8> for PetriNetIntegerDomain {
         }
 
         allowed
+    }
+}
+
+/// uses regular binary encoding to represent values, allowing log2(n) size of the representation
+#[derive(Clone, Debug)]
+#[allow(dead_code)] // todo remove
+pub struct BinaryIntegerDomain<T> {
+    variables: Vec<BddVariable>,
+    /// max value necessary; cannot be reconstructed from the variables count alone
+    max_value: T,
+}
+
+impl SymbolicDomain<u8> for BinaryIntegerDomain<u8> {
+    fn new(builder: &mut BddVariableSetBuilder, name: &str, max_value: u8) -> Self {
+        let bit_count = 8 - max_value.leading_zeros();
+
+        let variables = (0..bit_count)
+            .map(|it| {
+                let name = format!("{name}_v{}", it + 1);
+                builder.make_variable(name.as_str())
+            })
+            .collect();
+
+        Self {
+            variables,
+            max_value,
+        }
+    }
+
+    fn encode_bits(&self, bdd_valuation: &mut BddPartialValuation, value: &u8) {
+        // todo do we want this check here or not?
+        if value > &(self.max_value as u8) {
+            panic!(
+                "Value is too big for this domain; value: {}, domain size: {}",
+                value,
+                self.variables.len()
+            )
+        }
+
+        // todo lil or big endian? (this way, the first variable is the least significant bit)
+        self.variables
+            .iter()
+            .enumerate()
+            .for_each(|(idx, var)| bdd_valuation.set_value(var.clone(), (value & (1 << idx)) != 0))
+    }
+
+    fn decode_bits(&self, bdd_valuation: &BddPartialValuation) -> u8 {
+        let res = self
+            .variables
+            .iter()
+            .enumerate()
+            .fold(0, |acc, (idx, var)| {
+                let bit = if bdd_valuation.get_value(*var).unwrap() {
+                    1
+                } else {
+                    0
+                };
+
+                acc | (bit << idx)
+            });
+
+        if res > self.max_value {
+            panic!(
+                "invalid encoding; should not contain value greater than {}, but contains {}",
+                self.max_value, res
+            )
+        }
+
+        res
+    }
+
+    fn symbolic_variables(&self) -> Vec<BddVariable> {
+        self.variables.clone()
+    }
+
+    fn symbolic_size(&self) -> usize {
+        self.variables.len()
+    }
+
+    fn empty_collection(&self, variables: &BddVariableSet) -> Bdd {
+        variables.mk_false()
+    }
+
+    fn unit_collection(&self, variables: &BddVariableSet) -> Bdd {
+        let mut allowed_values = variables.mk_false();
+        for allowed_value_numeric in 0..self.max_value {
+            let mut allowed_value = variables.mk_true();
+            for (idx, var) in self.variables.iter().enumerate() {
+                if (allowed_value_numeric & (1 << idx)) == 0 {
+                    allowed_value = allowed_value.and(&variables.mk_var(*var).not());
+                } else {
+                    allowed_value = allowed_value.and(&variables.mk_var(*var));
+                }
+            }
+            allowed_values = allowed_values.or(&allowed_value);
+        }
+
+        allowed_values
     }
 }
 

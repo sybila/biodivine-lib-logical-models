@@ -20,7 +20,7 @@
                 </qual:listOfOutputs>
                 <qual:listOfFunctionTerms>
                     <!-- 255 is the maximum accepted value; limit of u8 -->
-                    <qual:defaultTerm qual:resultLevel="10">
+                    <qual:defaultTerm qual:resultLevel="7">
                     </qual:defaultTerm>
                     <qual:functionTerm qual:resultLevel="0">
                         <math xmlns="http://www.w3.org/1998/Math/MathML">
