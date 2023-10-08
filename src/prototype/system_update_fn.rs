@@ -6,19 +6,17 @@ use std::{collections::HashMap, io::BufRead};
 
 use biodivine_lib_bdd::{BddPartialValuation, BddValuation, BddVariable, BddVariableSetBuilder};
 
-use crate::{
-    SymbolicDomain, UnaryIntegerDomain, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled, XmlReader,
-};
+use crate::{SymbolicDomain, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled, XmlReader};
 
 #[derive(Debug)]
 struct SystemUpdateFn<D: SymbolicDomain<T>, T> {
     penis: std::marker::PhantomData<D>,
     penis_the_second: std::marker::PhantomData<T>,
-    pub update_fns: HashMap<String, VariableUpdateFnCompiled<UnaryIntegerDomain, u8>>,
+    pub update_fns: HashMap<String, VariableUpdateFnCompiled<D, T>>,
     pub named_symbolic_domains: HashMap<String, D>,
 }
 
-impl SystemUpdateFn<UnaryIntegerDomain, u8> {
+impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
     /// expects the xml reader to be at the start of the <listOfTransitions> element
     pub fn try_from_xml<XR: XmlReader<BR>, BR: BufRead>(
         xml: &mut XR,
@@ -35,11 +33,7 @@ impl SystemUpdateFn<UnaryIntegerDomain, u8> {
             .map(|(name, max_value)| {
                 (
                     name.clone(),
-                    UnaryIntegerDomain::new(
-                        &mut bdd_variable_set_builder,
-                        &name,
-                        max_value.to_owned(),
-                    ),
+                    D::new(&mut bdd_variable_set_builder, &name, max_value.to_owned()),
                 )
             })
             .collect::<HashMap<_, _>>();
@@ -207,7 +201,10 @@ fn get_max_val_of_var_in_all_transitions_including_their_own(
 
 #[cfg(test)]
 mod tests {
-    use crate::{SymbolicDomain, UnaryIntegerDomain};
+    use crate::{
+        symbolic_domain::{BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain},
+        SymbolicDomain, UnaryIntegerDomain,
+    };
 
     use super::SystemUpdateFn;
 
@@ -241,7 +238,7 @@ mod tests {
 
         crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find start of list");
 
-        let system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
+        let system_update_fn: SystemUpdateFn<PetriNetIntegerDomain, u8> =
             super::SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load system update fn");
 
         println!("system_update_fn: {:?}", system_update_fn);
