@@ -245,14 +245,11 @@ mod tests {
     #[test]
     fn test_update_fn_compiled() {
         let update_fn = get_test_update_fn();
-        let bdd_update_fn: UpdateFnBdd<UnaryIntegerDomain> = update_fn.into();
+        let bdd_update_fn: UpdateFnBdd<PetriNetIntegerDomain> = update_fn.into();
         // todo yeah this should be accessible from compiled as well
         let mut valuation = bdd_update_fn.get_default_valuation_but_partial();
-        let bdd_update_fn_compiled: VariableUpdateFnCompiled<UnaryIntegerDomain, u8> =
+        let bdd_update_fn_compiled: VariableUpdateFnCompiled<PetriNetIntegerDomain, u8> =
             bdd_update_fn.into();
-        // todo yeah this does not work; must improve generics
-        // let bdd_update_fn_compiled: VariableUpdateFnCompiled<PetriNetIntegerDomain, u8> =
-        //     bdd_update_fn.into();
 
         let var_domain = bdd_update_fn_compiled
             .named_symbolic_domains
