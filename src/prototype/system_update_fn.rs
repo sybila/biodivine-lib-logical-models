@@ -10,6 +10,7 @@ use crate::{
     SymbolicDomain, UnaryIntegerDomain, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled, XmlReader,
 };
 
+#[derive(Debug)]
 struct SystemUpdateFn<D: SymbolicDomain<T>, T> {
     penis: std::marker::PhantomData<D>,
     penis_the_second: std::marker::PhantomData<T>,
@@ -68,6 +69,7 @@ impl SystemUpdateFn<UnaryIntegerDomain, u8> {
         self.named_symbolic_domains.values().fold(
             BddPartialValuation::empty(),
             |mut acc, domain| {
+                println!("line 72");
                 domain.encode_bits(&mut acc, &0);
                 acc
             },
@@ -137,22 +139,70 @@ fn load_all_update_fns<XR: XmlReader<BR>, BR: BufRead>(
 fn vars_and_their_max_values(
     vars_and_their_upd_fns: &HashMap<String, UpdateFn<u8>>,
 ) -> HashMap<String, u8> {
+    // todo this will be sufficient once there is a guarantee that the variables
+    // todo  are not used (in comparasions) with values larger than their max_value
+    // todo  (where max_value is determined by the transition function of that variable)
+    // vars_and_their_upd_fns
+    //     .iter()
+    //     .map(|(var_name, upd_fn)| {
+    //         (
+    //             var_name.clone(),
+    //             upd_fn
+    //                 .terms
+    //                 .iter()
+    //                 .map(|(val, _)| val)
+    //                 .chain(std::iter::once(&upd_fn.default))
+    //                 .max() // todo this is not enough
+    //                 .unwrap()
+    //                 .to_owned(),
+    //         )
+    //     })
+    //     .collect()
+
     vars_and_their_upd_fns
         .iter()
-        .map(|(var_name, upd_fn)| {
+        .map(|(var_name, _update_fn)| {
             (
                 var_name.clone(),
-                upd_fn
-                    .terms
-                    .iter()
-                    .map(|(val, _)| val)
-                    .chain(std::iter::once(&upd_fn.default))
-                    .max()
-                    .unwrap()
-                    .to_owned(),
+                get_max_val_of_var_in_all_transitions_including_their_own(
+                    var_name,
+                    vars_and_their_upd_fns,
+                ),
             )
         })
         .collect()
+}
+
+fn get_max_val_of_var_in_all_transitions_including_their_own(
+    var_name: &str,
+    update_fns: &HashMap<String, UpdateFn<u8>>,
+) -> u8 {
+    let max_in_its_update_fn = update_fns
+        .get(var_name)
+        .unwrap()
+        .terms
+        .iter()
+        .map(|(val, _)| val)
+        .chain(std::iter::once(&update_fns.get(var_name).unwrap().default))
+        .max() // todo this is not enough
+        .unwrap()
+        .to_owned();
+
+    let max_in_terms = update_fns
+        .values()
+        .filter_map(|update_fn| {
+            update_fn
+                .terms
+                .iter()
+                .filter_map(|term| term.1.highest_value_used_with_variable(var_name))
+                .max()
+        })
+        .max();
+
+    match max_in_terms {
+        None => max_in_its_update_fn,
+        Some(max_in_terms) => std::cmp::max(max_in_its_update_fn, max_in_terms),
+    }
 }
 
 #[cfg(test)]
@@ -179,7 +229,22 @@ mod tests {
             .get("todo some existing name")
             .unwrap();
 
+        println!("line 184");
         some_domain.encode_bits(&mut valuation, &1);
+    }
+
+    #[test]
+    fn test_bigger() {
+        let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+            std::fs::File::open("data/bigger.sbml").unwrap(),
+        ));
+
+        crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find start of list");
+
+        let system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
+            super::SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load system update fn");
+
+        println!("system_update_fn: {:?}", system_update_fn);
     }
 
     #[test]
@@ -197,6 +262,7 @@ mod tests {
             .named_symbolic_domains
             .get("renamed")
             .unwrap();
+        println!("line 217");
         domain_renamed.encode_bits(&mut valuation, &6);
 
         let res =

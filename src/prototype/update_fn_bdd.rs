@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Debug};
 
 use biodivine_lib_bdd::{
     Bdd, BddPartialValuation, BddValuation, BddVariableSet, BddVariableSetBuilder,
@@ -24,6 +24,14 @@ pub struct UpdateFnBdd<D: SymbolicDomain<u8>> {
     pub default: u8,
     pub bdd_variable_set: BddVariableSet,
     pub result_domain: D,
+}
+
+impl<D: SymbolicDomain<u8>> Debug for UpdateFnBdd<D> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UpdateFnBdd")
+            .field("target_var_name", &self.target_var_name)
+            .finish()
+    }
 }
 
 // impl<D: SymbolicDomain<T>, T> From<UpdateFn> for UpdateFnBdd_<D, T> {
@@ -177,7 +185,10 @@ fn prop_to_bdd<D: SymbolicDomain<u8>>(
     let val = prop.cn;
 
     match prop.cmp {
-        super::expression::CmpOp::Eq => var.encode_one(bdd_variable_set, &val),
+        super::expression::CmpOp::Eq => {
+            println!("prop ci {:?} of proposition {:?}", prop.ci, prop);
+            var.encode_one(bdd_variable_set, &val)
+        }
         super::expression::CmpOp::Neq => var.encode_one(bdd_variable_set, &val).not(),
         super::expression::CmpOp::Lt => lt(var, bdd_variable_set, val),
         super::expression::CmpOp::Leq => leq(var, bdd_variable_set, val),

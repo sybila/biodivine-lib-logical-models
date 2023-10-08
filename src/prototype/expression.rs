@@ -16,6 +16,37 @@ pub enum Expression<T> {
     Implies(Box<Expression<T>>, Box<Expression<T>>),
 }
 
+impl<T: Ord + Clone> Expression<T> {
+    pub fn highest_value_used_with_variable(&self, variable_name: &str) -> Option<T> {
+        match self {
+            Expression::Terminal(prop) => {
+                if prop.ci == variable_name {
+                    Some(prop.cn.clone())
+                } else {
+                    None
+                }
+            }
+            Expression::Not(inner) => inner.highest_value_used_with_variable(variable_name),
+            Expression::And(inner) => inner
+                .iter()
+                .filter_map(|expr| expr.highest_value_used_with_variable(variable_name))
+                .max(),
+            Expression::Or(inner) => inner
+                .iter()
+                .filter_map(|expr| expr.highest_value_used_with_variable(variable_name))
+                .max(),
+            Expression::Xor(lhs, rhs) => [lhs, rhs]
+                .iter()
+                .filter_map(|expr| expr.highest_value_used_with_variable(variable_name))
+                .max(),
+            Expression::Implies(lhs, rhs) => [lhs, rhs]
+                .iter()
+                .filter_map(|expr| expr.highest_value_used_with_variable(variable_name))
+                .max(),
+        }
+    }
+}
+
 enum LogicOp {
     Not,
     And,

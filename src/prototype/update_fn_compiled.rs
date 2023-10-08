@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddValuation, BddVariable};
+use biodivine_lib_bdd::{
+    Bdd, BddPartialValuation, BddValuation, BddVariable, BddVariableSet, BddVariableSetBuilder,
+};
 
 use crate::{SymbolicDomain, UpdateFnBdd};
 
@@ -10,6 +12,7 @@ use crate::{SymbolicDomain, UpdateFnBdd};
 // todo for example for UnaryIntegerDomain, T is u8, but i have to specify it like
 // todo UpdateFnCompiled::<UnaryIntegerDomain, u8>::from(update_fn_bdd)
 /// describes, how **single** variable from the system is updated based on the valuation of the system
+#[derive(Debug)]
 pub struct VariableUpdateFnCompiled<D: SymbolicDomain<T>, T> {
     penis: std::marker::PhantomData<T>,
     pub bit_answering_bdds: Vec<(Bdd, BddVariable)>,
@@ -19,12 +22,17 @@ pub struct VariableUpdateFnCompiled<D: SymbolicDomain<T>, T> {
 // todo directly from UpdateFn (not UpdateFnBdd)
 impl<D: SymbolicDomain<u8>> From<UpdateFnBdd<D>> for VariableUpdateFnCompiled<D, u8> {
     fn from(update_fn_bdd: UpdateFnBdd<D>) -> Self {
+        println!("getting debug");
+        println!("update fn bdd: {:?}", update_fn_bdd);
+        println!("got debug");
+
         let mutually_exclusive_terms = to_mutually_exclusive_and_default(
             update_fn_bdd
                 .terms
                 .iter()
                 .map(|(_output, term_bdd)| term_bdd.clone())
                 .collect(),
+            update_fn_bdd.bdd_variable_set.mk_false(),
         );
 
         let outputs = update_fn_bdd
@@ -91,12 +99,16 @@ fn _inspect_outputs_numeric_and_bitwise(numeric_outputs: Vec<u8>, bit_outputs: V
 /// tldr basically succession of guards
 /// adds one more bdd at the end, which is true iff all bdds in the input are false (for given valuation)
 /// todo maybe rewrite this to use fold, but this might be more readable
-fn to_mutually_exclusive_and_default(bdd_succession: Vec<Bdd>) -> Vec<Bdd> {
+fn to_mutually_exclusive_and_default(
+    bdd_succession: Vec<Bdd>,
+    associated_const_false: Bdd,
+) -> Vec<Bdd> {
     if bdd_succession.is_empty() {
-        panic!("got empty bdd succession"); // this should not happen; only using this here
+        return vec![associated_const_false.not()]; // the default value then -> const true
     }
 
-    let mut seen = bdd_succession[0].and_not(&bdd_succession[0]); // const false
+    // let mut seen = bdd_succession[0].and_not(&bdd_succession[0]); // const false
+    let mut seen = associated_const_false;
     let mut mutually_exclusive_terms = Vec::<Bdd>::new();
 
     for term_bdd in bdd_succession {

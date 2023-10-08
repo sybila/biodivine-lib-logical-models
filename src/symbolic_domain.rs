@@ -209,8 +209,16 @@ impl SymbolicDomain<u8> for UnaryIntegerDomain {
     fn encode_bits(&self, bdd_valuation: &mut BddPartialValuation, value: &u8) {
         // todo do we want this check here or not?
         if value > &(self.variables.len() as u8) {
+            let vars = self
+                .variables
+                .iter()
+                .map(|var| format!("{:?}", var))
+                .collect::<Vec<_>>()
+                .join(", ");
+
             panic!(
-                "Value is too big for this domain; value: {}, domain size: {}",
+                "Value is too big for domain {}; value: {}, domain size: {}",
+                vars,
                 value,
                 self.variables.len()
             )
