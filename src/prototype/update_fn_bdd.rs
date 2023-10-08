@@ -185,10 +185,7 @@ fn prop_to_bdd<D: SymbolicDomain<u8>>(
     let val = prop.cn;
 
     match prop.cmp {
-        super::expression::CmpOp::Eq => {
-            println!("prop ci {:?} of proposition {:?}", prop.ci, prop);
-            var.encode_one(bdd_variable_set, &val)
-        }
+        super::expression::CmpOp::Eq => var.encode_one(bdd_variable_set, &val),
         super::expression::CmpOp::Neq => var.encode_one(bdd_variable_set, &val).not(),
         super::expression::CmpOp::Lt => lt(var, bdd_variable_set, val),
         super::expression::CmpOp::Leq => leq(var, bdd_variable_set, val),

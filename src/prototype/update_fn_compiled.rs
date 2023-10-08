@@ -22,10 +22,6 @@ pub struct VariableUpdateFnCompiled<D: SymbolicDomain<T>, T> {
 // todo directly from UpdateFn (not UpdateFnBdd)
 impl<D: SymbolicDomain<u8>> From<UpdateFnBdd<D>> for VariableUpdateFnCompiled<D, u8> {
     fn from(update_fn_bdd: UpdateFnBdd<D>) -> Self {
-        println!("getting debug");
-        println!("update fn bdd: {:?}", update_fn_bdd);
-        println!("got debug");
-
         let mutually_exclusive_terms = to_mutually_exclusive_and_default(
             update_fn_bdd
                 .terms

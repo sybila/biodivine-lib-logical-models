@@ -206,6 +206,11 @@ mod tests {
         SymbolicDomain, UnaryIntegerDomain,
     };
 
+    // use std:io::{BufRead, BufReader}
+
+    use std::io::BufRead;
+    use std::io::BufReader;
+
     use super::SystemUpdateFn;
 
     #[test]
@@ -238,10 +243,50 @@ mod tests {
 
         crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find start of list");
 
-        let system_update_fn: SystemUpdateFn<PetriNetIntegerDomain, u8> =
+        let system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
             super::SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load system update fn");
 
         println!("system_update_fn: {:?}", system_update_fn);
+
+        let mut valuation = system_update_fn.get_default_partial_valuation();
+        let domain = system_update_fn.named_symbolic_domains.get("ORI").unwrap();
+        domain.encode_bits(&mut valuation, &1);
+
+        let succs = system_update_fn.get_successors(&valuation.try_into().unwrap());
+        println!("succs: {:?}", succs);
+    }
+
+    #[test]
+    fn test_all_bigger() {
+        std::fs::read_dir("data/large")
+            .expect("could not read dir")
+            .for_each(|dirent| {
+                println!("dirent = {:?}", dirent);
+                let dirent = dirent.expect("could not read file");
+
+                let xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                    std::fs::File::open(dirent.path()).unwrap(),
+                ));
+
+                let mut counting = crate::CountingReader::new(xml);
+
+                crate::find_start_of(&mut counting, "listOfTransitions")
+                    .expect("could not find list");
+
+                let start = counting.curr_line;
+
+                let _system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
+                    super::SystemUpdateFn::try_from_xml(&mut counting)
+                        .expect("cannot load system update fn");
+
+                println!("file size = {:?}", counting.curr_line);
+                println!(
+                    "just the transitions list = {:?}",
+                    counting.curr_line - start
+                );
+
+                // println!("system_update_fn: {:?}", system_update_fn);
+            })
     }
 
     #[test]

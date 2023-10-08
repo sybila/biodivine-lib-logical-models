@@ -272,3 +272,40 @@ impl<BR: BufRead> XmlReader<BR> for LoudReader<BR> {
         }
     }
 }
+
+pub struct CountingReader<BR: BufRead> {
+    xml: EventReader<BR>,
+    pub curr_line: usize,
+}
+
+impl<BR: BufRead> CountingReader<BR> {
+    pub fn new(xml: EventReader<BR>) -> Self {
+        Self { xml, curr_line: 0 }
+    }
+}
+
+impl<BR: BufRead> XmlReader<BR> for CountingReader<BR> {
+    fn next(&mut self) -> Result<XmlEvent, String> {
+        match self.xml.next() {
+            Ok(e) => {
+                match e.clone() {
+                    XmlEvent::StartElement {
+                        name,
+                        // attributes,
+                        // namespace,
+                        ..
+                    } => {
+                        self.curr_line += 1;
+                    }
+                    XmlEvent::EndElement { name, .. } => {
+                        self.curr_line += 1;
+                    }
+                    _ => {}
+                }
+                // println!("xddd next: {:?}", e);
+                Ok(e)
+            }
+            Err(e) => Err(format!("error: {:?}", e)),
+        }
+    }
+}
