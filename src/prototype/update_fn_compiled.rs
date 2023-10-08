@@ -138,7 +138,7 @@ mod tests {
     use crate::{
         get_test_update_fn,
         prototype::update_fn_compiled::VariableUpdateFnCompiled,
-        symbolic_domain::{BinaryIntegerDomain, PetriNetIntegerDomain},
+        symbolic_domain::{BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain},
         SymbolicDomain, UnaryIntegerDomain, UpdateFnBdd,
     };
 
@@ -247,10 +247,10 @@ mod tests {
     #[test]
     fn test_update_fn_compiled() {
         let update_fn = get_test_update_fn();
-        let bdd_update_fn: UpdateFnBdd<BinaryIntegerDomain<u8>> = update_fn.into();
+        let bdd_update_fn: UpdateFnBdd<GrayCodeIntegerDomain<u8>> = update_fn.into();
         // todo yeah this should be accessible from compiled as well
         let mut valuation = bdd_update_fn.get_default_valuation_but_partial();
-        let bdd_update_fn_compiled: VariableUpdateFnCompiled<BinaryIntegerDomain<u8>, u8> =
+        let bdd_update_fn_compiled: VariableUpdateFnCompiled<GrayCodeIntegerDomain<u8>, u8> =
             bdd_update_fn.into();
 
         let var_domain = bdd_update_fn_compiled

@@ -386,7 +386,7 @@ impl SymbolicDomain<u8> for BinaryIntegerDomain<u8> {
 
     fn encode_bits(&self, bdd_valuation: &mut BddPartialValuation, value: &u8) {
         // todo do we want this check here or not?
-        if value > &(self.max_value as u8) {
+        if value > &self.max_value {
             panic!(
                 "Value is too big for this domain; value: {}, domain size: {}",
                 value,
@@ -395,10 +395,9 @@ impl SymbolicDomain<u8> for BinaryIntegerDomain<u8> {
         }
 
         // todo lil or big endian? (this way, the first variable is the least significant bit)
-        self.variables
-            .iter()
-            .enumerate()
-            .for_each(|(idx, var)| bdd_valuation.set_value(var.clone(), (value & (1 << idx)) != 0))
+        self.variables.iter().enumerate().for_each(|(idx, var)| {
+            bdd_valuation.set_value(var.to_owned(), (value & (1 << idx)) != 0)
+        })
     }
 
     fn decode_bits(&self, bdd_valuation: &BddPartialValuation) -> u8 {
@@ -441,15 +440,130 @@ impl SymbolicDomain<u8> for BinaryIntegerDomain<u8> {
     fn unit_collection(&self, variables: &BddVariableSet) -> Bdd {
         let mut allowed_values = variables.mk_false();
         for allowed_value_numeric in 0..self.max_value {
-            let mut allowed_value = variables.mk_true();
+            let mut allowed_value_bdd = variables.mk_true();
             for (idx, var) in self.variables.iter().enumerate() {
                 if (allowed_value_numeric & (1 << idx)) == 0 {
-                    allowed_value = allowed_value.and(&variables.mk_var(*var).not());
+                    allowed_value_bdd = allowed_value_bdd.and(&variables.mk_var(*var).not());
                 } else {
-                    allowed_value = allowed_value.and(&variables.mk_var(*var));
+                    allowed_value_bdd = allowed_value_bdd.and(&variables.mk_var(*var));
                 }
             }
-            allowed_values = allowed_values.or(&allowed_value);
+            allowed_values = allowed_values.or(&allowed_value_bdd);
+        }
+
+        allowed_values
+    }
+}
+
+/// uses gray code encoding to represent values, allowing log2(n) size of the representation
+#[derive(Clone, Debug)]
+pub struct GrayCodeIntegerDomain<T> {
+    variables: Vec<BddVariable>,
+    /// max value necessary; cannot be reconstructed from the variables count alone
+    max_value: T,
+}
+
+fn binary_to_gray_code(n: u8) -> u8 {
+    n ^ (n >> 1)
+}
+
+fn gray_code_to_binary(n: u8) -> u8 {
+    let mut n = n;
+    let mut mask = n >> 1;
+    while mask != 0 {
+        n ^= mask;
+        mask >>= 1;
+    }
+    n
+}
+
+impl SymbolicDomain<u8> for GrayCodeIntegerDomain<u8> {
+    // same as in BinaryIntegerDomain
+    fn new(builder: &mut BddVariableSetBuilder, name: &str, max_value: u8) -> Self {
+        let bit_count = 8 - max_value.leading_zeros();
+
+        let variables = (0..bit_count)
+            .map(|it| {
+                let name = format!("{name}_v{}", it + 1);
+                builder.make_variable(name.as_str())
+            })
+            .collect();
+
+        Self {
+            variables,
+            max_value,
+        }
+    }
+
+    fn encode_bits(&self, bdd_valuation: &mut BddPartialValuation, value: &u8) {
+        // todo do we want this check here or not?
+        if value > &self.max_value {
+            panic!(
+                "Value is too big for this domain; value: {}, domain size: {}",
+                value,
+                self.variables.len()
+            )
+        }
+
+        let gray_value = binary_to_gray_code(*value);
+        self.variables.iter().enumerate().for_each(|(idx, var)| {
+            bdd_valuation.set_value(var.to_owned(), (gray_value & (1 << idx)) != 0)
+        })
+    }
+
+    fn decode_bits(&self, bdd_valuation: &BddPartialValuation) -> u8 {
+        let gray = self
+            .variables
+            .iter()
+            .enumerate()
+            .fold(0, |acc, (idx, var)| {
+                let bit = if bdd_valuation.get_value(*var).unwrap() {
+                    1
+                } else {
+                    0
+                };
+
+                acc | (bit << idx)
+            });
+
+        let res = gray_code_to_binary(gray);
+        if res > self.max_value {
+            panic!(
+                "invalid encoding; should not contain value greater than {}, but contains {}",
+                self.max_value, res
+            )
+        }
+
+        res
+    }
+
+    fn symbolic_variables(&self) -> Vec<BddVariable> {
+        self.variables.clone()
+    }
+
+    fn symbolic_size(&self) -> usize {
+        self.variables.len()
+    }
+
+    fn empty_collection(&self, variables: &BddVariableSet) -> Bdd {
+        variables.mk_false()
+    }
+
+    fn unit_collection(&self, variables: &BddVariableSet) -> Bdd {
+        let mut allowed_values = variables.mk_false();
+        for allowed_value_numeric_binary in 0..self.max_value {
+            let allowed_value_numeric_gray = binary_to_gray_code(allowed_value_numeric_binary);
+            let mut allowed_value_bdd_gray = variables.mk_true();
+            for (idx, var) in self.variables.iter().enumerate() {
+                allowed_value_bdd_gray =
+                    allowed_value_bdd_gray.and(&if (allowed_value_numeric_gray & (1 << idx)) == 0 {
+                        variables.mk_var(*var).not()
+                    } else {
+                        variables.mk_var(*var)
+                    })
+            }
+
+            allowed_values = allowed_values.or(&allowed_value_bdd_gray);
         }
 
         allowed_values
