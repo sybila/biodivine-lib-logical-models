@@ -167,6 +167,9 @@ fn vars_and_their_max_values(
         .collect()
 }
 
+// todo this should be rewritten so that first, the maximum of all the variables is computed
+// todo (which can be done in O(n) with respect to the count of transitions using hashmap<var_name, max_so_far>)
+// todo and only then will the results be used
 fn get_max_val_of_var_in_all_transitions_including_their_own(
     var_name: &str,
     update_fns: &HashMap<String, UpdateFn<u8>>,
@@ -258,35 +261,37 @@ mod tests {
 
     #[test]
     fn test_all_bigger() {
-        std::fs::read_dir("data/large")
-            .expect("could not read dir")
-            .for_each(|dirent| {
-                println!("dirent = {:?}", dirent);
-                let dirent = dirent.expect("could not read file");
+        for _ in 0..10 {
+            std::fs::read_dir("data/large")
+                .expect("could not read dir")
+                .for_each(|dirent| {
+                    println!("dirent = {:?}", dirent);
+                    let dirent = dirent.expect("could not read file");
 
-                let xml = xml::reader::EventReader::new(std::io::BufReader::new(
-                    std::fs::File::open(dirent.path()).unwrap(),
-                ));
+                    let xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                        std::fs::File::open(dirent.path()).unwrap(),
+                    ));
 
-                let mut counting = crate::CountingReader::new(xml);
+                    let mut counting = crate::CountingReader::new(xml);
 
-                crate::find_start_of(&mut counting, "listOfTransitions")
-                    .expect("could not find list");
+                    crate::find_start_of(&mut counting, "listOfTransitions")
+                        .expect("could not find list");
 
-                let start = counting.curr_line;
+                    let start = counting.curr_line;
 
-                let _system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
-                    super::SystemUpdateFn::try_from_xml(&mut counting)
-                        .expect("cannot load system update fn");
+                    let _system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
+                        super::SystemUpdateFn::try_from_xml(&mut counting)
+                            .expect("cannot load system update fn");
 
-                println!("file size = {:?}", counting.curr_line);
-                println!(
-                    "just the transitions list = {:?}",
-                    counting.curr_line - start
-                );
+                    println!("file size = {:?}", counting.curr_line);
+                    println!(
+                        "just the transitions list = {:?}",
+                        counting.curr_line - start
+                    );
 
-                // println!("system_update_fn: {:?}", system_update_fn);
-            })
+                    // println!("system_update_fn: {:?}", system_update_fn);
+                })
+        }
     }
 
     #[test]
