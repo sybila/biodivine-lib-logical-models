@@ -8,9 +8,6 @@ use crate::{Expression, SymbolicDomain, UpdateFn};
 
 use super::expression::Proposition;
 
-// todo this should be extracted from the xml/UpdateFn outputs for each of the variable in the system
-const HARD_CODED_MAX_VAR_VALUE: u8 = 10;
-
 // todo this should be abstacted into a geeneric parameter
 // todo but that would require
 // type ValueType = u8;
@@ -31,67 +28,6 @@ impl<D: SymbolicDomain<u8>> Debug for UpdateFnBdd<D> {
         f.debug_struct("UpdateFnBdd")
             .field("target_var_name", &self.target_var_name)
             .finish()
-    }
-}
-
-// impl<D: SymbolicDomain<T>, T> From<UpdateFn> for UpdateFnBdd_<D, T> {
-impl<D: SymbolicDomain<u8>> From<UpdateFn<u8>> for UpdateFnBdd<D> {
-    fn from(update_fn: UpdateFn<u8>) -> Self {
-        let mut bdd_variable_set_builder = BddVariableSetBuilder::new();
-
-        let named_symbolic_domains = update_fn
-            .input_vars_names
-            .iter()
-            .map(|name| {
-                (
-                    name.clone(),
-                    D::new(
-                        &mut bdd_variable_set_builder,
-                        name,
-                        HARD_CODED_MAX_VAR_VALUE,
-                    ),
-                )
-            })
-            .collect();
-
-        let bdd_variable_set = bdd_variable_set_builder.build();
-        let terms = update_fn
-            .terms
-            .iter()
-            .map(|(val, expr)| {
-                (
-                    val.to_owned(),
-                    bdd_from_expr(expr.to_owned(), &named_symbolic_domains, &bdd_variable_set),
-                )
-            })
-            .collect();
-
-        let max_output = update_fn
-            .terms
-            .iter()
-            .map(|(val, _)| val)
-            .chain(std::iter::once(&update_fn.default))
-            // todo not really interested in `max` per se, but in the one requiring larges number of bits
-            .max()
-            .unwrap(); // there will always be at least &source.default
-
-        // todo this will likely be shared between all the update fns
-        // todo but for now, this variable must not be in together with the rest of the symbolic domains
-        let result_bdd_variable_set_domain = &mut BddVariableSetBuilder::new();
-        let result_domain = D::new(
-            result_bdd_variable_set_domain,
-            &update_fn.target_var_name,
-            max_output.to_owned(),
-        );
-
-        Self {
-            target_var_name: update_fn.target_var_name,
-            terms,
-            named_symbolic_domains,
-            default: update_fn.default,
-            bdd_variable_set,
-            result_domain,
-        }
     }
 }
 
