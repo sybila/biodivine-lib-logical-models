@@ -396,9 +396,8 @@ impl SymbolicDomain<u8> for BinaryIntegerDomain<u8> {
         // todo do we want this check here or not?
         if value > &self.max_value {
             panic!(
-                "Value is too big for this domain; value: {}, domain size: {}",
-                value,
-                self.variables.len()
+                "Value is too big for this domain; value: {}, domain can only hold values in range [0, {}] (inlusive)",
+                value, self.max_value
             )
         }
 

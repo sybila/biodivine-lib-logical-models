@@ -1,4 +1,4 @@
-use std::{io::BufRead, str::FromStr};
+use std::{fmt::Debug, io::BufRead, str::FromStr};
 use thiserror::Error;
 use xml::reader::XmlEvent;
 
@@ -42,6 +42,80 @@ impl<T: Ord + Clone> Expression<T> {
             Expression::Implies(lhs, rhs) => [lhs, rhs]
                 .iter()
                 .filter_map(|expr| expr.highest_value_used_with_variable(variable_name))
+                .max(),
+        }
+    }
+}
+
+impl<T: Ord + Clone + Debug> Expression<T> {
+    /// function works entirely the same as `highest_value_used_with_variable` but provides debug prints
+    /// displaying all the propositions that compare the variable with higher values than its domain is
+    pub fn highest_value_used_with_variable_detect_higher_than_exected(
+        &self,
+        variable_name: &str,
+        expected_highest: T,
+    ) -> Option<T> {
+        match self {
+            Expression::Terminal(prop) => {
+                if prop.ci == variable_name {
+                    let value_being_compared_to = prop.cn.clone();
+
+                    if value_being_compared_to > expected_highest {
+                        println!(
+                            "[debug] variable {} only can take values in the [0; {:?}], but is being compared to with {:?} in proposition {:?}",
+                            prop.ci,
+                            expected_highest,
+                            value_being_compared_to,
+                            self
+                        )
+                    }
+
+                    Some(prop.cn.clone())
+                } else {
+                    None
+                }
+            }
+            // Expression::Not(inner) => inner.highest_value_used_with_variable(variable_name),
+            Expression::Not(inner) => inner
+                .highest_value_used_with_variable_detect_higher_than_exected(
+                    variable_name,
+                    expected_highest,
+                ),
+            Expression::And(inner) => inner
+                .iter()
+                .filter_map(|expr| {
+                    expr.highest_value_used_with_variable_detect_higher_than_exected(
+                        variable_name,
+                        expected_highest.clone(),
+                    )
+                })
+                .max(),
+            Expression::Or(inner) => inner
+                .iter()
+                .filter_map(|expr| {
+                    expr.highest_value_used_with_variable_detect_higher_than_exected(
+                        variable_name,
+                        expected_highest.clone(),
+                    )
+                })
+                .max(),
+            Expression::Xor(lhs, rhs) => [lhs, rhs]
+                .iter()
+                .filter_map(|expr| {
+                    expr.highest_value_used_with_variable_detect_higher_than_exected(
+                        variable_name,
+                        expected_highest.clone(),
+                    )
+                })
+                .max(),
+            Expression::Implies(lhs, rhs) => [lhs, rhs]
+                .iter()
+                .filter_map(|expr| {
+                    expr.highest_value_used_with_variable_detect_higher_than_exected(
+                        variable_name,
+                        expected_highest.clone(),
+                    )
+                })
                 .max(),
         }
     }

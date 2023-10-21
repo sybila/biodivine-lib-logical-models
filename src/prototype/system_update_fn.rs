@@ -158,7 +158,7 @@ fn vars_and_their_max_values(
         .map(|(var_name, _update_fn)| {
             (
                 var_name.clone(),
-                get_max_val_of_var_in_all_transitions_including_their_own(
+                get_max_val_of_var_in_all_transitions_including_their_own_and_detect_where_compared_with_larger_than_possible(
                     var_name,
                     vars_and_their_upd_fns,
                 ),
@@ -180,9 +180,9 @@ fn get_max_val_of_var_in_all_transitions_including_their_own(
         .terms
         .iter()
         .map(|(val, _)| val)
-        .chain(std::iter::once(&update_fns.get(var_name).unwrap().default))
+        .chain(std::iter::once(&update_fns.get(var_name).unwrap().default)) // add the value of default term
         .max() // todo this is not enough
-        .unwrap()
+        .unwrap() // safe unwrap; at least default terms value always present
         .to_owned();
 
     let max_in_terms = update_fns
@@ -192,6 +192,44 @@ fn get_max_val_of_var_in_all_transitions_including_their_own(
                 .terms
                 .iter()
                 .filter_map(|term| term.1.highest_value_used_with_variable(var_name))
+                .max()
+        })
+        .max();
+
+    match max_in_terms {
+        None => max_in_its_update_fn,
+        Some(max_in_terms) => std::cmp::max(max_in_its_update_fn, max_in_terms),
+    }
+}
+
+fn get_max_val_of_var_in_all_transitions_including_their_own_and_detect_where_compared_with_larger_than_possible(
+    var_name: &str,
+    update_fns: &HashMap<String, UpdateFn<u8>>,
+) -> u8 {
+    let max_in_its_update_fn = update_fns
+        .get(var_name)
+        .unwrap()
+        .terms
+        .iter()
+        .map(|(val, _)| val)
+        .chain(std::iter::once(&update_fns.get(var_name).unwrap().default)) // add the value of default term
+        .max()
+        .unwrap() // safe unwrap; at least the default terms value always present
+        .to_owned();
+
+    let max_in_terms = update_fns
+        .values()
+        .filter_map(|update_fn| {
+            update_fn
+                .terms
+                .iter()
+                .filter_map(|term| {
+                    term.1
+                        .highest_value_used_with_variable_detect_higher_than_exected(
+                            var_name,
+                            max_in_its_update_fn,
+                        )
+                })
                 .max()
         })
         .max();
@@ -261,37 +299,35 @@ mod tests {
 
     #[test]
     fn test_all_bigger() {
-        for _ in 0..10 {
-            std::fs::read_dir("data/large")
-                .expect("could not read dir")
-                .for_each(|dirent| {
-                    println!("dirent = {:?}", dirent);
-                    let dirent = dirent.expect("could not read file");
+        std::fs::read_dir("data/large")
+            .expect("could not read dir")
+            .for_each(|dirent| {
+                println!("dirent = {:?}", dirent);
+                let dirent = dirent.expect("could not read file");
 
-                    let xml = xml::reader::EventReader::new(std::io::BufReader::new(
-                        std::fs::File::open(dirent.path()).unwrap(),
-                    ));
+                let xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                    std::fs::File::open(dirent.path()).unwrap(),
+                ));
 
-                    let mut counting = crate::CountingReader::new(xml);
+                let mut counting = crate::CountingReader::new(xml);
 
-                    crate::find_start_of(&mut counting, "listOfTransitions")
-                        .expect("could not find list");
+                crate::find_start_of(&mut counting, "listOfTransitions")
+                    .expect("could not find list");
 
-                    let start = counting.curr_line;
+                let start = counting.curr_line;
 
-                    let _system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
-                        super::SystemUpdateFn::try_from_xml(&mut counting)
-                            .expect("cannot load system update fn");
+                let _system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
+                    super::SystemUpdateFn::try_from_xml(&mut counting)
+                        .expect("cannot load system update fn");
 
-                    println!("file size = {:?}", counting.curr_line);
-                    println!(
-                        "just the transitions list = {:?}",
-                        counting.curr_line - start
-                    );
+                println!("file size = {:?}", counting.curr_line);
+                println!(
+                    "just the transitions list = {:?}",
+                    counting.curr_line - start
+                );
 
-                    // println!("system_update_fn: {:?}", system_update_fn);
-                })
-        }
+                // println!("system_update_fn: {:?}", system_update_fn);
+            })
     }
 
     #[test]
