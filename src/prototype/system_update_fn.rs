@@ -244,7 +244,7 @@ fn get_max_val_of_var_in_all_transitions_including_their_own_and_detect_where_co
 mod tests {
     use crate::{
         symbolic_domain::{BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain},
-        SymbolicDomain, UnaryIntegerDomain,
+        SymbolicDomain, UnaryIntegerDomain, XmlReader,
     };
 
     // use std:io::{BufRead, BufReader}
@@ -325,6 +325,53 @@ mod tests {
                     "just the transitions list = {:?}",
                     counting.curr_line - start
                 );
+
+                // println!("system_update_fn: {:?}", system_update_fn);
+            })
+    }
+
+    #[test]
+    fn test_all_bigger_with_debug_xml_reader() {
+        std::fs::read_dir("data/faulty")
+            .expect("could not read dir")
+            .for_each(|dirent| {
+                println!("dirent = {:?}", dirent);
+                let dirent = dirent.expect("could not read file");
+
+                let xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                    std::fs::File::open(dirent.path()).unwrap(),
+                ));
+
+                let mut counting = crate::CountingReader::new(xml);
+
+                crate::find_start_of(&mut counting, "listOfTransitions")
+                    .expect("could not find list");
+
+                let all_update_fns = super::load_all_update_fns(&mut counting)
+                    .expect("could not even load the damn thing");
+
+                let xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                    std::fs::File::open(dirent.path()).unwrap(),
+                ));
+                let mut debug_xml = crate::DebuggingReader::new(xml, &all_update_fns, true, true);
+
+                // while let Ok(_) = debug_xml.next() {}
+
+                loop {
+                    if let xml::reader::XmlEvent::EndDocument = debug_xml.next().unwrap() {
+                        break;
+                    }
+                }
+
+                // let _system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
+                //     super::SystemUpdateFn::try_from_xml(&mut counting)
+                //         .expect("cannot load system update fn");
+
+                // println!("file size = {:?}", counting.curr_line);
+                // println!(
+                //     "just the transitions list = {:?}",
+                //     counting.curr_line - start
+                // );
 
                 // println!("system_update_fn: {:?}", system_update_fn);
             })

@@ -1,4 +1,4 @@
-use std::{io::BufRead, str::FromStr};
+use std::{collections::HashMap, io::BufRead, str::FromStr};
 use xml::{
     attribute::OwnedAttribute,
     name::OwnedName,
@@ -272,6 +272,134 @@ impl<BR: BufRead> XmlReader<BR> for LoudReader<BR> {
         }
     }
 }
+
+/// use another XMLReader implementation from this file to get the update functions - the thing you need to pass to DebuggingReader::new
+/// this is used to go through the xml (the same one that was previously loaded into update_fns) and
+/// print error messages wherever a variable is compared to a value higher than its update_fn allows it to be
+/// and also if there is a variable name, which is not known (does not have an update fn)
+pub struct DebuggingReader<BR: BufRead> {
+    loud_xml: LoudReader<BR>,
+    vars_and_their_max_values: HashMap<String, u8>,
+    complain_about_values_too_large: bool,
+    complain_about_unknown_variable_name: bool,
+    current_ci: Option<String>, // this is just a retarded way of holding the context of what variable is ananlyzed/compared with value
+    expecting_variable_name: bool,
+    expecting_variable_value: bool,
+}
+
+impl<BR: BufRead> DebuggingReader<BR> {
+    pub fn new(
+        xml: EventReader<BR>,
+        update_fns: &HashMap<String, UpdateFn<u8>>,
+        complain_about_values_too_large: bool,
+        complain_about_unknown_variable_name: bool,
+    ) -> Self {
+        let vars_and_their_max_values = update_fns
+            .iter()
+            .map(|(var_name, update_fn)| {
+                let max_value_this_variable_can_get_according_to_its_update_fn = update_fn
+                    .terms
+                    .iter()
+                    .map(|(val, _condition)| val)
+                    .chain(std::iter::once(&update_fn.default))
+                    .max()
+                    .unwrap()
+                    .to_owned();
+
+                (
+                    var_name.to_owned(),
+                    max_value_this_variable_can_get_according_to_its_update_fn,
+                )
+            })
+            .collect::<HashMap<_, _>>();
+
+        Self {
+            loud_xml: LoudReader::new(xml),
+            vars_and_their_max_values,
+            complain_about_values_too_large,
+            complain_about_unknown_variable_name,
+            current_ci: None,
+            expecting_variable_name: false,
+            expecting_variable_value: false,
+        }
+    }
+}
+
+impl<BR: BufRead> XmlReader<BR> for DebuggingReader<BR> {
+    fn next(&mut self) -> Result<XmlEvent, String> {
+        match self.loud_xml.next() {
+            Ok(e) => {
+                match e.clone() {
+                    XmlEvent::StartElement {
+                        name,
+                        // attributes,
+                        // namespace,
+                        ..
+                    } => match name.local_name.as_str() {
+                        "ci" => self.expecting_variable_name = true,
+                        "cn" => self.expecting_variable_value = true,
+                        _ => {}
+                    },
+                    XmlEvent::Characters(content) => {
+                        if self.expecting_variable_name {
+                            self.expecting_variable_name = false;
+                            self.current_ci = Some(content.to_string());
+                        }
+
+                        if self.expecting_variable_value {
+                            self.expecting_variable_value = false;
+                            let actual_value = content.clone().trim().parse::<u8>().unwrap_or_else(
+                                |_| panic!(
+                                            "currently only allowing DebugReader parse u8 values; got {}",
+                                            content
+                                )
+                            );
+
+                            let associated_max_value = self.vars_and_their_max_values.get(
+                                &self
+                                    .current_ci
+                                    .clone()
+                                    .expect("current_ci should be initialized"),
+                            );
+
+                            match associated_max_value {
+                                None => {
+                                    if self.complain_about_unknown_variable_name {
+                                        eprintln!(
+                                            "[debug: UNKNOWN_VARIABLE] got variable with name {} in this proposition, but no such name known; known names are {:?}",
+                                            self.current_ci.clone().unwrap(),
+                                            self.vars_and_their_max_values.keys()
+                                        )
+                                    }
+                                }
+                                Some(expected_max_value) => {
+                                    if *expected_max_value < actual_value
+                                        && self.complain_about_values_too_large
+                                    {
+                                        eprintln!(
+                                            "[debug: VALUE_TOO_BIG] comparing variable {} (whose domain is only [0, {}]) with value {}",
+                                            self.current_ci.clone().unwrap(),
+                                            expected_max_value,
+                                            actual_value
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                // println!("xddd next: {:?}", e);
+                Ok(e)
+            }
+            Err(e) => Err(format!("error: {:?}", e)),
+        }
+    }
+}
+
+// impl<BR: BufRead> XmlReader<BR> for DebuggingReader<BR> {
+//     fn next(&mut self) -> Result<XmlEvent, String> {}
+// }
 
 pub struct CountingReader<BR: BufRead> {
     xml: EventReader<BR>,
