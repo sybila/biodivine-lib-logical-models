@@ -13,7 +13,7 @@ use crate::{
 
 #[derive(Debug)]
 struct SmartSystemUpdateFn<D: SymbolicDomain<T>, T> {
-    pub update_fns: HashMap<String, VariableUpdateFnCompiled<D, T>>,
+    pub update_fns: HashMap<String, SymbolicTransitionFn<D, T>>,
     pub named_symbolic_domains: HashMap<String, D>,
 }
 
@@ -68,23 +68,27 @@ impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
             })
             .collect::<HashMap<String, VariableUpdateFnCompiled<D, u8>>>();
 
-        let _xd = update_fns
+        let smart_update_fns = update_fns
             .into_iter()
-            .map(|(target_variable_name, compiled_update_fn)| {
-                SymbolicTransitionFn::from_update_fn_compiled(
-                    &compiled_update_fn,
-                    &variable_set,
-                    &target_variable_name,
+            // .map(|(target_variable_name, compiled_update_fn)| {
+            .map(|tuple| {
+                let target_variable_name = tuple.0;
+                let compiled_update_fn = tuple.1;
+                (
+                    target_variable_name.clone(),
+                    SymbolicTransitionFn::from_update_fn_compiled(
+                        &compiled_update_fn,
+                        &variable_set,
+                        &target_variable_name,
+                    ),
                 )
             })
-            .collect::<Vec<_>>();
+            .collect::<HashMap<_, _>>();
 
-        // Ok(Self {
-        //     update_fns,
-        //     named_symbolic_domains,
-        // })
-
-        todo!()
+        Ok(Self {
+            update_fns: smart_update_fns,
+            named_symbolic_domains,
+        })
     }
 
     /// returns valuation inicialized so that all the symbolic values are = 0
@@ -99,39 +103,39 @@ impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
         )
     }
 
-    /// panics if this system does not contain variable of `sym_var_name` name
-    pub fn get_result_bits(
-        &self,
-        sym_var_name: &str,
-        valuation: &BddValuation,
-    ) -> Vec<(bool, BddVariable)> {
-        self.update_fns
-            .get(sym_var_name)
-            .unwrap()
-            .get_result_bits(valuation)
-    }
+    // /// panics if this system does not contain variable of `sym_var_name` name
+    // pub fn get_result_bits(
+    //     &self,
+    //     sym_var_name: &str,
+    //     valuation: &BddValuation,
+    // ) -> Vec<(bool, BddVariable)> {
+    //     self.update_fns
+    //         .get(sym_var_name)
+    //         .unwrap()
+    //         .get_result_bits(valuation)
+    // }
 
-    pub fn get_successor_under_given_variable_update_fn(
-        &self,
-        variable_name: &str,
-        valuation: &BddValuation,
-    ) -> BddValuation {
-        let bits = self.get_result_bits(variable_name, valuation);
-        let mut new_valuation = valuation.clone();
+    // pub fn get_successor_under_given_variable_update_fn(
+    //     &self,
+    //     variable_name: &str,
+    //     valuation: &BddValuation,
+    // ) -> BddValuation {
+    //     let bits = self.get_result_bits(variable_name, valuation);
+    //     let mut new_valuation = valuation.clone();
 
-        bits.into_iter().for_each(|(bool, var)| {
-            new_valuation.set_value(var, bool);
-        });
+    //     bits.into_iter().for_each(|(bool, var)| {
+    //         new_valuation.set_value(var, bool);
+    //     });
 
-        new_valuation
-    }
+    //     new_valuation
+    // }
 
-    pub fn get_successors(&self, valuation: &BddValuation) -> Vec<BddValuation> {
-        self.named_symbolic_domains
-            .keys()
-            .map(|var_name| self.get_successor_under_given_variable_update_fn(var_name, valuation))
-            .collect()
-    }
+    // pub fn get_successors(&self, valuation: &BddValuation) -> Vec<BddValuation> {
+    //     self.named_symbolic_domains
+    //         .keys()
+    //         .map(|var_name| self.get_successor_under_given_variable_update_fn(var_name, valuation))
+    //         .collect()
+    // }
 }
 
 /// expects the xml reader to be at the start of the <listOfTransitions> element
