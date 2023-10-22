@@ -33,7 +33,7 @@ impl<D: SymbolicDomain<T>, T> SymbolicTransitionFn<D, T> {
             // todo use this; now going for lunch
         }
 
-        todo!()
+        todo!("##################### this is good; all the stuff was coverted to iff ")
     }
 }
 

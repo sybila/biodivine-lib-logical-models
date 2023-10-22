@@ -6,7 +6,10 @@ use std::{collections::HashMap, io::BufRead};
 
 use biodivine_lib_bdd::{BddPartialValuation, BddValuation, BddVariable, BddVariableSetBuilder};
 
-use crate::{SymbolicDomain, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled, XmlReader};
+use crate::{
+    SymbolicDomain, SymbolicTransitionFn, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled,
+    XmlReader,
+};
 
 #[derive(Debug)]
 struct SmartSystemUpdateFn<D: SymbolicDomain<T>, T> {
@@ -29,14 +32,24 @@ impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
         let named_symbolic_domains = ctx
             .into_iter()
             .flat_map(|(name, max_value)| {
+                let original_name = name.clone();
                 let original = (
-                    name.clone(),
-                    D::new(&mut bdd_variable_set_builder, &name, max_value.to_owned()),
+                    original_name.clone(),
+                    D::new(
+                        &mut bdd_variable_set_builder,
+                        &original_name,
+                        max_value.to_owned(),
+                    ),
                 );
 
+                let primed_name = format!("{}'", name.clone());
                 let primed = (
-                    format!("{}'", name.clone()),
-                    D::new(&mut bdd_variable_set_builder, &name, max_value.to_owned()),
+                    primed_name.clone(),
+                    D::new(
+                        &mut bdd_variable_set_builder,
+                        &primed_name,
+                        max_value.to_owned(),
+                    ),
                 );
 
                 [original, primed].into_iter()
@@ -55,9 +68,16 @@ impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
             })
             .collect::<HashMap<String, VariableUpdateFnCompiled<D, u8>>>();
 
-        update_fns.into_iter().map(|(a, b)| {
-            todo!();
-        });
+        let _xd = update_fns
+            .into_iter()
+            .map(|(target_variable_name, compiled_update_fn)| {
+                SymbolicTransitionFn::from_update_fn_compiled(
+                    &compiled_update_fn,
+                    &variable_set,
+                    &target_variable_name,
+                )
+            })
+            .collect::<Vec<_>>();
 
         // Ok(Self {
         //     update_fns,
@@ -167,7 +187,7 @@ fn vars_and_their_max_values(
         .map(|(var_name, _update_fn)| {
             (
                 var_name.clone(),
-                get_max_val_of_var_in_all_transitions_including_their_own_and_detect_where_compared_with_larger_than_possible(
+                get_max_val_of_var_in_all_transitions_including_their_own(
                     var_name,
                     vars_and_their_upd_fns,
                 ),
@@ -211,49 +231,50 @@ fn get_max_val_of_var_in_all_transitions_including_their_own(
     }
 }
 
-fn get_max_val_of_var_in_all_transitions_including_their_own_and_detect_where_compared_with_larger_than_possible(
-    var_name: &str,
-    update_fns: &HashMap<String, UpdateFn<u8>>,
-) -> u8 {
-    let max_in_its_update_fn = update_fns
-        .get(var_name)
-        .unwrap()
-        .terms
-        .iter()
-        .map(|(val, _)| val)
-        .chain(std::iter::once(&update_fns.get(var_name).unwrap().default)) // add the value of default term
-        .max()
-        .unwrap() // safe unwrap; at least the default terms value always present
-        .to_owned();
+// fn get_max_val_of_var_in_all_transitions_including_their_own_and_detect_where_compared_with_larger_than_possible(
+//     var_name: &str,
+//     update_fns: &HashMap<String, UpdateFn<u8>>,
+// ) -> u8 {
+//     let max_in_its_update_fn = update_fns
+//         .get(var_name)
+//         .unwrap()
+//         .terms
+//         .iter()
+//         .map(|(val, _)| val)
+//         .chain(std::iter::once(&update_fns.get(var_name).unwrap().default)) // add the value of default term
+//         .max()
+//         .unwrap() // safe unwrap; at least the default terms value always present
+//         .to_owned();
 
-    let max_in_terms = update_fns
-        .values()
-        .filter_map(|update_fn| {
-            update_fn
-                .terms
-                .iter()
-                .filter_map(|term| {
-                    term.1
-                        .highest_value_used_with_variable_detect_higher_than_exected(
-                            var_name,
-                            max_in_its_update_fn,
-                        )
-                })
-                .max()
-        })
-        .max();
+//     let max_in_terms = update_fns
+//         .values()
+//         .filter_map(|update_fn| {
+//             update_fn
+//                 .terms
+//                 .iter()
+//                 .filter_map(|term| {
+//                     term.1
+//                         .highest_value_used_with_variable_detect_higher_than_exected(
+//                             var_name,
+//                             max_in_its_update_fn,
+//                         )
+//                 })
+//                 .max()
+//         })
+//         .max();
 
-    match max_in_terms {
-        None => max_in_its_update_fn,
-        Some(max_in_terms) => std::cmp::max(max_in_its_update_fn, max_in_terms),
-    }
-}
+//     match max_in_terms {
+//         None => max_in_its_update_fn,
+//         Some(max_in_terms) => std::cmp::max(max_in_its_update_fn, max_in_terms),
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
     use crate::{
+        prototype::smart_system_update_fn::{self, SmartSystemUpdateFn},
         symbolic_domain::{BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain},
-        SymbolicDomain, UnaryIntegerDomain, XmlReader,
+        SymbolicDomain, SystemUpdateFn, UnaryIntegerDomain, XmlReader,
     };
 
     // use std:io::{BufRead, BufReader}
@@ -261,55 +282,36 @@ mod tests {
     use std::io::BufRead;
     use std::io::BufReader;
 
-    use super::SystemUpdateFn;
+    // use super::SystemUpdateFn;
 
-    #[test]
-    fn test() {
-        let file = std::fs::File::open("data/dataset.sbml").expect("cannot open file");
-        let br = std::io::BufReader::new(file);
+    // #[test]
+    // fn test() {
+    //     let file = std::fs::File::open("data/dataset.sbml").expect("cannot open file");
+    //     let br = std::io::BufReader::new(file);
 
-        let reader = xml::reader::EventReader::new(br);
-        let mut reader = crate::LoudReader::new(reader); // uncomment to see how xml is loaded
+    //     let reader = xml::reader::EventReader::new(br);
+    //     let mut reader = crate::LoudReader::new(reader); // uncomment to see how xml is loaded
 
-        crate::find_start_of(&mut reader, "listOfTransitions").expect("cannot find start of list");
-        let system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
-            super::SystemUpdateFn::try_from_xml(&mut reader).unwrap();
+    //     crate::find_start_of(&mut reader, "listOfTransitions").expect("cannot find start of list");
+    //     let system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
+    //         super::SystemUpdateFn::try_from_xml(&mut reader).unwrap();
 
-        let mut valuation = system_update_fn.get_default_partial_valuation();
-        let some_domain = system_update_fn
-            .named_symbolic_domains
-            .get("todo some existing name")
-            .unwrap();
+    //     let mut valuation = system_update_fn.get_default_partial_valuation();
+    //     let some_domain = system_update_fn
+    //         .named_symbolic_domains
+    //         .get("todo some existing name")
+    //         .unwrap();
 
-        println!("line 184");
-        some_domain.encode_bits(&mut valuation, &1);
-    }
-
-    #[test]
-    fn test_bigger() {
-        let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
-            std::fs::File::open("data/bigger.sbml").unwrap(),
-        ));
-
-        crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find start of list");
-
-        let system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
-            super::SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load system update fn");
-
-        println!("system_update_fn: {:?}", system_update_fn);
-
-        let mut valuation = system_update_fn.get_default_partial_valuation();
-        let domain = system_update_fn.named_symbolic_domains.get("ORI").unwrap();
-        domain.encode_bits(&mut valuation, &1);
-
-        let succs = system_update_fn.get_successors(&valuation.try_into().unwrap());
-        println!("succs: {:?}", succs);
-    }
+    //     println!("line 184");
+    //     some_domain.encode_bits(&mut valuation, &1);
+    // }
 
     #[test]
     fn test_all_bigger() {
         std::fs::read_dir("data/large")
             .expect("could not read dir")
+            .skip(1)
+            .take(1)
             .for_each(|dirent| {
                 println!("dirent = {:?}", dirent);
                 let dirent = dirent.expect("could not read file");
@@ -325,55 +327,12 @@ mod tests {
 
                 let start = counting.curr_line;
 
-                let _system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
-                    super::SystemUpdateFn::try_from_xml(&mut counting)
-                        .expect("cannot load system update fn");
-
-                println!("file size = {:?}", counting.curr_line);
-                println!(
-                    "just the transitions list = {:?}",
-                    counting.curr_line - start
-                );
-
-                // println!("system_update_fn: {:?}", system_update_fn);
-            })
-    }
-
-    #[test]
-    fn test_all_bigger_with_debug_xml_reader() {
-        std::fs::read_dir("data/faulty")
-            .expect("could not read dir")
-            .for_each(|dirent| {
-                println!("dirent = {:?}", dirent);
-                let dirent = dirent.expect("could not read file");
-
-                let xml = xml::reader::EventReader::new(std::io::BufReader::new(
-                    std::fs::File::open(dirent.path()).unwrap(),
-                ));
-
-                let mut counting = crate::CountingReader::new(xml);
-
-                crate::find_start_of(&mut counting, "listOfTransitions")
-                    .expect("could not find list");
-
-                let all_update_fns = super::load_all_update_fns(&mut counting)
-                    .expect("could not even load the damn thing");
-
-                let xml = xml::reader::EventReader::new(std::io::BufReader::new(
-                    std::fs::File::open(dirent.path()).unwrap(),
-                ));
-                let mut debug_xml = crate::DebuggingReader::new(xml, &all_update_fns, true, true);
-
-                // while let Ok(_) = debug_xml.next() {}
-
-                loop {
-                    if let xml::reader::XmlEvent::EndDocument = debug_xml.next().unwrap() {
-                        break;
-                    }
-                }
+                let smart_system_update_fn: SmartSystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
+                    SmartSystemUpdateFn::try_from_xml(&mut counting)
+                        .expect("cannot load smart system update fn");
 
                 // let _system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
-                //     super::SystemUpdateFn::try_from_xml(&mut counting)
+                //     SystemUpdateFn::try_from_xml(&mut counting)
                 //         .expect("cannot load system update fn");
 
                 // println!("file size = {:?}", counting.curr_line);
@@ -386,36 +345,83 @@ mod tests {
             })
     }
 
-    #[test]
-    fn test_on_test_data() {
-        let mut reader = xml::reader::EventReader::new(std::io::BufReader::new(
-            std::fs::File::open("data/update_fn_test.sbml").unwrap(),
-        ));
+    // #[test]
+    // fn test_all_bigger_with_debug_xml_reader() {
+    //     std::fs::read_dir("data/faulty")
+    //         .expect("could not read dir")
+    //         .for_each(|dirent| {
+    //             println!("dirent = {:?}", dirent);
+    //             let dirent = dirent.expect("could not read file");
 
-        crate::find_start_of(&mut reader, "listOfTransitions").expect("cannot find start of list");
-        let system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
-            super::SystemUpdateFn::try_from_xml(&mut reader).unwrap();
+    //             let xml = xml::reader::EventReader::new(std::io::BufReader::new(
+    //                 std::fs::File::open(dirent.path()).unwrap(),
+    //             ));
 
-        let mut valuation = system_update_fn.get_default_partial_valuation();
-        let domain_renamed = system_update_fn
-            .named_symbolic_domains
-            .get("renamed")
-            .unwrap();
-        println!("line 217");
-        domain_renamed.encode_bits(&mut valuation, &6);
+    //             let mut counting = crate::CountingReader::new(xml);
 
-        let res =
-            system_update_fn.get_result_bits("renamed", &valuation.clone().try_into().unwrap());
+    //             crate::find_start_of(&mut counting, "listOfTransitions")
+    //                 .expect("could not find list");
 
-        let mut new_valuation = valuation.clone();
-        res.into_iter().for_each(|(bool, var)| {
-            new_valuation.set_value(var, bool);
-        });
+    //             let all_update_fns = super::load_all_update_fns(&mut counting)
+    //                 .expect("could not even load the damn thing");
 
-        println!("valuation: {:?}", valuation);
-        println!("new_valuation: {:?}", new_valuation);
+    //             let xml = xml::reader::EventReader::new(std::io::BufReader::new(
+    //                 std::fs::File::open(dirent.path()).unwrap(),
+    //             ));
+    //             let mut debug_xml = crate::DebuggingReader::new(xml, &all_update_fns, true, true);
 
-        let successors = system_update_fn.get_successors(&valuation.clone().try_into().unwrap());
-        println!("successors: {:?}", successors);
-    }
+    //             // while let Ok(_) = debug_xml.next() {}
+
+    //             loop {
+    //                 if let xml::reader::XmlEvent::EndDocument = debug_xml.next().unwrap() {
+    //                     break;
+    //                 }
+    //             }
+
+    //             // let _system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
+    //             //     super::SystemUpdateFn::try_from_xml(&mut counting)
+    //             //         .expect("cannot load system update fn");
+
+    //             // println!("file size = {:?}", counting.curr_line);
+    //             // println!(
+    //             //     "just the transitions list = {:?}",
+    //             //     counting.curr_line - start
+    //             // );
+
+    //             // println!("system_update_fn: {:?}", system_update_fn);
+    //         })
+    // }
+
+    // #[test]
+    // fn test_on_test_data() {
+    //     let mut reader = xml::reader::EventReader::new(std::io::BufReader::new(
+    //         std::fs::File::open("data/update_fn_test.sbml").unwrap(),
+    //     ));
+
+    //     crate::find_start_of(&mut reader, "listOfTransitions").expect("cannot find start of list");
+    //     let system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
+    //         super::SystemUpdateFn::try_from_xml(&mut reader).unwrap();
+
+    //     let mut valuation = system_update_fn.get_default_partial_valuation();
+    //     let domain_renamed = system_update_fn
+    //         .named_symbolic_domains
+    //         .get("renamed")
+    //         .unwrap();
+    //     println!("line 217");
+    //     domain_renamed.encode_bits(&mut valuation, &6);
+
+    //     let res =
+    //         system_update_fn.get_result_bits("renamed", &valuation.clone().try_into().unwrap());
+
+    //     let mut new_valuation = valuation.clone();
+    //     res.into_iter().for_each(|(bool, var)| {
+    //         new_valuation.set_value(var, bool);
+    //     });
+
+    //     println!("valuation: {:?}", valuation);
+    //     println!("new_valuation: {:?}", new_valuation);
+
+    //     let successors = system_update_fn.get_successors(&valuation.clone().try_into().unwrap());
+    //     println!("successors: {:?}", successors);
+    // }
 }

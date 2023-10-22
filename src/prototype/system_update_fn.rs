@@ -9,7 +9,7 @@ use biodivine_lib_bdd::{BddPartialValuation, BddValuation, BddVariable, BddVaria
 use crate::{SymbolicDomain, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled, XmlReader};
 
 #[derive(Debug)]
-struct SystemUpdateFn<D: SymbolicDomain<T>, T> {
+pub struct SystemUpdateFn<D: SymbolicDomain<T>, T> {
     pub update_fns: HashMap<String, VariableUpdateFnCompiled<D, T>>,
     pub named_symbolic_domains: HashMap<String, D>,
 }
