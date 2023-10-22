@@ -4,7 +4,8 @@
 
 use std::{collections::HashMap, io::BufRead};
 
-use biodivine_lib_bdd::{BddPartialValuation, BddValuation, BddVariable, BddVariableSetBuilder};
+use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddVariableSet, BddVariableSetBuilder};
+use debug_ignore::DebugIgnore;
 
 use crate::{
     SymbolicDomain, SymbolicTransitionFn, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled,
@@ -15,6 +16,7 @@ use crate::{
 struct SmartSystemUpdateFn<D: SymbolicDomain<T>, T> {
     pub update_fns: HashMap<String, SymbolicTransitionFn<D, T>>,
     pub named_symbolic_domains: HashMap<String, D>,
+    bdd_variable_set: DebugIgnore<BddVariableSet>,
 }
 
 impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
@@ -88,6 +90,7 @@ impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
         Ok(Self {
             update_fns: smart_update_fns,
             named_symbolic_domains,
+            bdd_variable_set: variable_set.into(),
         })
     }
 
@@ -103,39 +106,55 @@ impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
         )
     }
 
-    // /// panics if this system does not contain variable of `sym_var_name` name
-    // pub fn get_result_bits(
-    //     &self,
-    //     sym_var_name: &str,
-    //     valuation: &BddValuation,
-    // ) -> Vec<(bool, BddVariable)> {
-    //     self.update_fns
-    //         .get(sym_var_name)
-    //         .unwrap()
-    //         .get_result_bits(valuation)
-    // }
+    pub fn transition_under_variable(
+        &self,
+        transitioned_variable_name: &str,
+        current_state: &Bdd,
+    ) -> Bdd {
+        let used_transition_fn = self
+            .update_fns
+            .get(transitioned_variable_name)
+            .expect("no such variable");
+        let states_capable_of_performing_the_transition =
+            used_transition_fn.transition_function.and(current_state);
 
-    // pub fn get_successor_under_given_variable_update_fn(
-    //     &self,
-    //     variable_name: &str,
-    //     valuation: &BddValuation,
-    // ) -> BddValuation {
-    //     let bits = self.get_result_bits(variable_name, valuation);
-    //     let mut new_valuation = valuation.clone();
+        let target_symbolic_domain = self
+            .named_symbolic_domains
+            .get(transitioned_variable_name)
+            .expect("no such variable");
 
-    //     bits.into_iter().for_each(|(bool, var)| {
-    //         new_valuation.set_value(var, bool);
-    //     });
+        let target_symbolic_domain_primed = self
+            .named_symbolic_domains
+            .get(&format!("{}'", transitioned_variable_name))
+            .expect("no such variable");
 
-    //     new_valuation
-    // }
+        let mut acc = states_capable_of_performing_the_transition;
+        for bdd_variable in target_symbolic_domain.symbolic_variables() {
+            acc = acc.var_exists(bdd_variable);
+        }
 
-    // pub fn get_successors(&self, valuation: &BddValuation) -> Vec<BddValuation> {
-    //     self.named_symbolic_domains
-    //         .keys()
-    //         .map(|var_name| self.get_successor_under_given_variable_update_fn(var_name, valuation))
-    //         .collect()
-    // }
+        for bdd_variable in target_symbolic_domain.symbolic_variables() {
+            let bdd_variable_primed = crate::prototype::utils::find_bdd_variables_prime(
+                &bdd_variable,
+                target_symbolic_domain,
+                target_symbolic_domain_primed,
+            );
+
+            unsafe {
+                acc.rename_variable(bdd_variable_primed, bdd_variable);
+            };
+        }
+
+        acc
+    }
+
+    pub fn get_empty_state_subset(&self) -> Bdd {
+        self.bdd_variable_set.0.mk_false()
+    }
+
+    pub fn get_whole_state_space_subset(&self) -> Bdd {
+        self.bdd_variable_set.0.mk_true()
+    }
 }
 
 /// expects the xml reader to be at the start of the <listOfTransitions> element
@@ -334,6 +353,28 @@ mod tests {
                 let smart_system_update_fn: SmartSystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
                     SmartSystemUpdateFn::try_from_xml(&mut counting)
                         .expect("cannot load smart system update fn");
+
+                println!(
+                    "available variables: {:?}",
+                    smart_system_update_fn.named_symbolic_domains
+                );
+
+                // let currently_reachable = smart_system_update_fn
+                //     .update_fns
+                //     .get("BCat_exp_id99")
+                //     .unwrap()
+                //     .
+
+                let empty_subset = smart_system_update_fn.get_empty_state_subset();
+                let whole_subset = smart_system_update_fn.get_whole_state_space_subset();
+
+                let empty_succs = smart_system_update_fn
+                    .transition_under_variable("BCat_exp_id99", &empty_subset);
+                let whole_succs = smart_system_update_fn
+                    .transition_under_variable("BCat_exp_id99", &whole_subset);
+
+                println!("empty succs: {:?}", empty_succs.is_false());
+                println!("whole succs: {:?}", whole_succs.is_true()); // actually this not being true might be the correct behavior
 
                 // let _system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
                 //     SystemUpdateFn::try_from_xml(&mut counting)

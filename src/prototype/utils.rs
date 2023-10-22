@@ -1,3 +1,4 @@
+use biodivine_lib_bdd::BddVariable;
 use std::{collections::HashMap, io::BufRead, str::FromStr};
 use xml::{
     attribute::OwnedAttribute,
@@ -6,7 +7,7 @@ use xml::{
     reader::{EventReader, XmlEvent},
 };
 
-use crate::UpdateFn;
+use crate::{SymbolicDomain, UpdateFn};
 
 pub fn expect_opening<XR: XmlReader<BR>, BR: BufRead>(
     xml: &mut XR,
@@ -436,4 +437,30 @@ impl<BR: BufRead> XmlReader<BR> for CountingReader<BR> {
             Err(e) => Err(format!("error: {:?}", e)),
         }
     }
+}
+
+pub fn find_bdd_variables_prime<D: SymbolicDomain<T>, T>(
+    target_variable: &BddVariable,
+    target_sym_dom: &D,
+    target_sym_dom_primed: &D,
+) -> BddVariable {
+    target_sym_dom
+        .symbolic_variables()
+        .into_iter()
+        .zip(target_sym_dom_primed.symbolic_variables())
+        .find_map(|(maybe_target_variable, its_primed)| {
+            if maybe_target_variable == *target_variable {
+                Some(its_primed)
+            } else {
+                None
+            }
+        })
+        .unwrap_or_else(|| {
+            // this might happen if the supplied target_sym_domain does not contain target_variable
+            // or if the target_sym_dom_primed has less elements (but this fn should not be called with such)
+            panic!(
+                "did not find the variable {} in given target sym domain",
+                target_variable,
+            )
+        })
 }
