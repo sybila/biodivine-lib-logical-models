@@ -9,12 +9,12 @@ use biodivine_lib_bdd::{BddPartialValuation, BddValuation, BddVariable, BddVaria
 use crate::{SymbolicDomain, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled, XmlReader};
 
 #[derive(Debug)]
-struct SystemUpdateFn<D: SymbolicDomain<T>, T> {
+struct SmartSystemUpdateFn<D: SymbolicDomain<T>, T> {
     pub update_fns: HashMap<String, VariableUpdateFnCompiled<D, T>>,
     pub named_symbolic_domains: HashMap<String, D>,
 }
 
-impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
+impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
     /// expects the xml reader to be at the start of the <listOfTransitions> element
     pub fn try_from_xml<XR: XmlReader<BR>, BR: BufRead>(
         xml: &mut XR,
@@ -28,11 +28,18 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
         let mut bdd_variable_set_builder = BddVariableSetBuilder::new();
         let named_symbolic_domains = ctx
             .into_iter()
-            .map(|(name, max_value)| {
-                (
+            .flat_map(|(name, max_value)| {
+                let original = (
                     name.clone(),
                     D::new(&mut bdd_variable_set_builder, &name, max_value.to_owned()),
-                )
+                );
+
+                let primed = (
+                    format!("{}'", name.clone()),
+                    D::new(&mut bdd_variable_set_builder, &name, max_value.to_owned()),
+                );
+
+                [original, primed].into_iter()
             })
             .collect::<HashMap<_, _>>();
         let variable_set = bdd_variable_set_builder.build();
@@ -46,12 +53,18 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                         .into(),
                 )
             })
-            .collect::<HashMap<_, _>>();
+            .collect::<HashMap<String, VariableUpdateFnCompiled<D, u8>>>();
 
-        Ok(Self {
-            update_fns,
-            named_symbolic_domains,
-        })
+        update_fns.into_iter().map(|(a, b)| {
+            todo!();
+        });
+
+        // Ok(Self {
+        //     update_fns,
+        //     named_symbolic_domains,
+        // })
+
+        todo!()
     }
 
     /// returns valuation inicialized so that all the symbolic values are = 0

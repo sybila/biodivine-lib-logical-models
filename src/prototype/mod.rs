@@ -15,3 +15,9 @@ pub use update_fn_bdd::*;
 
 mod system_update_fn;
 pub use system_update_fn::*;
+
+mod smart_system_update_fn;
+pub use smart_system_update_fn::*;
+
+mod symbolic_transition_fn;
+pub use symbolic_transition_fn::*;
