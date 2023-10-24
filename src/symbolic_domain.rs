@@ -39,6 +39,13 @@ pub trait SymbolicDomain<T>: Clone {
     /// todo: might want to panic if the input is not in the domain; eg if the value is too big - see unary domain
     fn encode_bits(&self, bdd_valuation: &mut BddPartialValuation, value: &T);
 
+    /// acts the same as `encode_bits` but instead of directly modifying `BddPartialValuation`
+    /// instance, lets us inspect...
+    // todo restrict/define the behavior - should be coupled with encode_bits & get_bdd_variables ordering
+    fn encode_bits_into_vec(&self, value: T) -> Vec<bool> {
+        todo!("encode bits into vec not implemented")
+    }
+
     /// Decode a value from the provided `BddPartialValuation`.
     ///
     /// *Contract:* This method only reads the symbolic variables from `Self::symbolic_variables`.
@@ -53,6 +60,12 @@ pub trait SymbolicDomain<T>: Clone {
     /// *Contract:* There is no requirement for the resulting variables to be sorted in any
     /// explicit way. However, we do require that the resulting vector is the same when the method
     /// is invoked repeatedly (i.e. the order of variables cannot change non-deterministically).
+    /// We also require that the order of the returned variables is the same two different
+    /// instances that hold a variable of the same maximum value. Eg when we create two
+    /// symbolic domains (of the same specific subtype), with the same maximum value, the first
+    /// returned variable would be the one where this domain stores its `i`th most significant,
+    /// same as the second domains first variable would be the one where it stores its `i`th most
+    /// significant bit. then second returned variable would be the domains store its `j`-th bit, ...
     ///
     /// Furthermore, Note that not all valuations of the returned variables must encode valid
     /// values of type `T`. The actual set of all valid encoded values can be obtained
@@ -152,6 +165,11 @@ pub trait SymbolicDomain<T>: Clone {
                 self.decode_bits(&encoded_bits)
             })
             .collect()
+    }
+
+    fn get_all_possible_values(&self, variables: &BddVariableSet) -> Vec<T> {
+        let collection = self.unit_collection(variables);
+        self.decode_collection(variables, &collection)
     }
 }
 

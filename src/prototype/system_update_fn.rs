@@ -4,7 +4,10 @@
 
 use std::{collections::HashMap, io::BufRead};
 
-use biodivine_lib_bdd::{BddPartialValuation, BddValuation, BddVariable, BddVariableSetBuilder};
+use biodivine_lib_bdd::{
+    Bdd, BddPartialValuation, BddValuation, BddVariable, BddVariableSet, BddVariableSetBuilder,
+};
+use debug_ignore::DebugIgnore;
 
 use crate::{SymbolicDomain, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled, XmlReader};
 
@@ -12,6 +15,7 @@ use crate::{SymbolicDomain, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled, Xml
 pub struct SystemUpdateFn<D: SymbolicDomain<T>, T> {
     pub update_fns: HashMap<String, VariableUpdateFnCompiled<D, T>>,
     pub named_symbolic_domains: HashMap<String, D>,
+    variable_set: DebugIgnore<BddVariableSet>,
 }
 
 impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
@@ -51,6 +55,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
         Ok(Self {
             update_fns,
             named_symbolic_domains,
+            variable_set: variable_set.into(),
         })
     }
 
@@ -98,6 +103,97 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
             .keys()
             .map(|var_name| self.get_successor_under_given_variable_update_fn(var_name, valuation))
             .collect()
+    }
+
+    pub fn transition_under_variable(
+        &self,
+        transitioned_variable_name: &str,
+        current_state: &Bdd,
+    ) -> Bdd {
+        let domain = self
+            .named_symbolic_domains
+            .get(transitioned_variable_name.clone())
+            .unwrap_or_else(|| panic!("could not find variable {}", transitioned_variable_name));
+
+        let const_false = current_state.and(&current_state.not()); // used as the start of the fold
+
+        let succs = domain
+            .get_all_possible_values(&self.variable_set)
+            .into_iter()
+            .fold(const_false, |acc, possible_value| {
+                // todo the fact that you have to query two hashmaps with the variables name to get the domain & the update fn suggests it should be refactored
+                let update_fn = self
+                    .update_fns
+                    .get(transitioned_variable_name.clone())
+                    .unwrap();
+
+                // todo this one should likely store the domain (and the name?) of the variable it is updating
+                // todo  because there is some tight coupling between the order of the bit_updating_bdds in update_fn
+                // todo  and the domain (specifically how the domain encodes given value into (bdd) bits)
+                // update_fn.bit_answering_bdds[0].0.ev;
+
+                let bits_of_the_encoded_value = domain.encode_bits_into_vec(possible_value);
+
+                // todo assert the len of the `bits_encoded_value` == count of bdds in `bit_answering_bdds`
+
+                let bdd_representing_transition_to_given_value = update_fn
+                    .bit_answering_bdds
+                    .iter()
+                    .map(|(bit_answering_bdd, _)| bit_answering_bdd)
+                    .zip(bits_of_the_encoded_value.iter().cloned())
+                    .fold(
+                        current_state.clone(),
+                        |acc, (ith_bit_answering_bdd, ith_expected_bit)| {
+                            if ith_expected_bit {
+                                acc.and(ith_bit_answering_bdd)
+                            } else {
+                                acc.and(&ith_bit_answering_bdd.not())
+                            }
+                        },
+                    );
+
+                acc.or(&bdd_representing_transition_to_given_value)
+            });
+
+        // for possible_value_of_symbolic_variable in
+        //     domain.get_all_possible_values(&self.variable_set)
+        // {
+        //     // todo the fact that you have to query two hashmaps with the variables name to get the domain & the update fn suggests it should be refactored
+        //     let update_fn = self
+        //         .update_fns
+        //         .get(transitioned_variable_name.clone())
+        //         .unwrap();
+
+        //     // todo this one should likely store the domain (and the name?) of the variable it is updating
+        //     // todo  because there is some tight coupling between the order of the bit_updating_bdds in update_fn
+        //     // todo  and the domain (specifically how the domain encodes given value into (bdd) bits)
+        //     // update_fn.bit_answering_bdds[0].0.ev;
+
+        //     let bits_of_the_encoded_value =
+        //         domain.encode_bits_into_vec(possible_value_of_symbolic_variable);
+
+        //     // todo assert the len of the `bits_encoded_value` == count of bdds in `bit_answering_bdds`
+
+        //     let bdd_representing_transition_to_given_value = update_fn
+        //         .bit_answering_bdds
+        //         .iter()
+        //         .map(|(bit_answering_bdd, _)| bit_answering_bdd)
+        //         .zip(bits_of_the_encoded_value.iter().cloned())
+        //         .fold(
+        //             current_state.clone(),
+        //             |acc, (ith_bit_answering_bdd, ith_expected_bit)| {
+        //                 if ith_expected_bit {
+        //                     acc.and(ith_bit_answering_bdd)
+        //                 } else {
+        //                     acc.and(&ith_bit_answering_bdd.not())
+        //                 }
+        //             },
+        //         );
+
+        //     todo!()
+        // }
+
+        todo!()
     }
 }
 
