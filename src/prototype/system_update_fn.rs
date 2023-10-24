@@ -110,39 +110,57 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
         transitioned_variable_name: &str,
         current_state: &Bdd,
     ) -> Bdd {
+        // get the domain
+
+        // for each possible value of the domain
+
+        //      get the update fn  // todo this can be done outside of the loop
+
+        //      get the bits that encode the value
+
+        //      associate them ^ with the bdd variables
+
+        //      current state does not have the same value as the one it is transitioning to ie current state && !(any_that_has_this_value_of_var)
+
+        //      current_state - (those of the current state that already have the variable set to the value we are transitioning to)
+
+        //      `and` the accumulator with those that transition to the target bit
+
+        // or them all together (base of the acc is const false)
+
         let domain = self
             .named_symbolic_domains
             .get(transitioned_variable_name.clone())
             .unwrap_or_else(|| panic!("could not find variable {}", transitioned_variable_name));
 
         let const_false = current_state.and(&current_state.not()); // used as the start of the fold
+        let var_upd_fn = self
+            .update_fns
+            .get(transitioned_variable_name.clone())
+            .unwrap();
 
         domain
             .get_all_possible_values(&self.variable_set)
             .into_iter()
-            .fold(const_false, |acc, possible_value| {
-                // todo the fact that you have to query two hashmaps with the variables name to get the domain & the update fn suggests it should be refactored
-                let update_fn = self
-                    .update_fns
-                    .get(transitioned_variable_name.clone())
-                    .unwrap();
+            .fold(const_false, |acc, possible_var_val| {
+                let bits_of_the_encoded_value = domain.encode_bits_into_vec(possible_var_val);
 
-                // todo this one should likely store the domain (and the name?) of the variable it is updating
-                // todo  because there is some tight coupling between the order of the bit_updating_bdds in update_fn
-                // todo  and the domain (specifically how the domain encodes given value into (bdd) bits)
-                // update_fn.bit_answering_bdds[0].0.ev;
+                let vars_and_their_bits = domain
+                    .symbolic_variables()
+                    .into_iter()
+                    .zip(bits_of_the_encoded_value.clone())
+                    .collect::<Vec<_>>();
 
-                let bits_of_the_encoded_value = domain.encode_bits_into_vec(possible_value);
+                let const_true = current_state.or(&current_state.not());
+                let any_where_var_has_target_value = const_true.restrict(&vars_and_their_bits);
 
-                // todo assert the len of the `bits_encoded_value` == count of bdds in `bit_answering_bdds`
-
-                let bdd_representing_transition_to_given_value = update_fn
+                let states_capable_of_transitioning_into_given_value = var_upd_fn
                     .bit_answering_bdds
                     .iter()
                     .map(|(bit_answering_bdd, _)| bit_answering_bdd)
                     .zip(bits_of_the_encoded_value.iter().cloned())
                     .fold(
-                        current_state.clone(),
+                        current_state.and(&any_where_var_has_target_value.not()),
                         |acc, (ith_bit_answering_bdd, ith_expected_bit)| {
                             if ith_expected_bit {
                                 acc.and(ith_bit_answering_bdd)
@@ -152,7 +170,12 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                         },
                     );
 
-                acc.or(&bdd_representing_transition_to_given_value)
+                // this restriction should "perform the transition"
+                let states_transitioned_into_given_value =
+                    states_capable_of_transitioning_into_given_value
+                        .restrict(&vars_and_their_bits[..]);
+
+                acc.or(&states_transitioned_into_given_value)
             })
     }
 
