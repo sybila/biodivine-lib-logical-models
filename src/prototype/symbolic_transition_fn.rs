@@ -42,9 +42,6 @@ impl<D: SymbolicDomain<T>, T> SymbolicTransitionFn<D, T> {
             accumulator = accumulator.and(&the_part_of_the_update_fn);
         }
 
-        let dot = accumulator.to_dot_string(ctx, false);
-        println!("dot: {}", dot);
-
         Self {
             transition_function: accumulator,
             penis: std::marker::PhantomData,

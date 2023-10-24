@@ -4,7 +4,7 @@ use biodivine_lib_bdd::{
 // todo do not understand what this does, but prevents me from specifying method that does not
 // todo take `self`, which is a must if i want to define api for instantiating new symbolic domains
 // use dyn_clonable::clonable;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// Objects implementing `SymbolicDomain` serve as encoders/decoders for their associated type
 /// `T` from/into `Bdd` objects.
@@ -43,7 +43,32 @@ pub trait SymbolicDomain<T>: Clone {
     /// instance, lets us inspect...
     // todo restrict/define the behavior - should be coupled with encode_bits & get_bdd_variables ordering
     fn encode_bits_into_vec(&self, value: T) -> Vec<bool> {
-        todo!("encode bits into vec not implemented")
+        let value_encoded_into_partial_valuation = {
+            let something_to_create_a_partial_valuation_with = self
+                .symbolic_variables()
+                .into_iter()
+                .map(|var| (var, true))
+                .collect::<Vec<_>>();
+
+            let mut partial_valuation =
+                BddPartialValuation::from_values(&something_to_create_a_partial_valuation_with[..]);
+
+            self.encode_bits(&mut partial_valuation, &value);
+
+            partial_valuation
+        };
+
+        let bdd_variables_and_their_bit = value_encoded_into_partial_valuation.to_values();
+
+        // must correspond to the order of variables in `self.symbolic_variables()`
+        let bdd_variables_and_their_bit_but_hash_map = bdd_variables_and_their_bit
+            .into_iter()
+            .collect::<HashMap<BddVariable, bool>>();
+
+        self.symbolic_variables()
+            .into_iter()
+            .map(|sym_var| bdd_variables_and_their_bit_but_hash_map[&sym_var])
+            .collect()
     }
 
     /// Decode a value from the provided `BddPartialValuation`.

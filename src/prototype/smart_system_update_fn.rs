@@ -155,6 +155,11 @@ impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
     pub fn get_whole_state_space_subset(&self) -> Bdd {
         self.bdd_variable_set.0.mk_true()
     }
+
+    /// converts the given bdd into a dot string with names relevant to this system
+    pub fn bdd_to_dot_string(&self, bdd: &Bdd) -> String {
+        bdd.to_dot_string(&self.bdd_variable_set, false)
+    }
 }
 
 /// expects the xml reader to be at the start of the <listOfTransitions> element
@@ -294,6 +299,8 @@ fn get_max_val_of_var_in_all_transitions_including_their_own(
 
 #[cfg(test)]
 mod tests {
+    use xml::EventReader;
+
     use crate::{
         prototype::smart_system_update_fn::{self, SmartSystemUpdateFn},
         symbolic_domain::{BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain},
@@ -339,54 +346,108 @@ mod tests {
                 println!("dirent = {:?}", dirent);
                 let dirent = dirent.expect("could not read file");
 
-                let xml = xml::reader::EventReader::new(std::io::BufReader::new(
-                    std::fs::File::open(dirent.path()).unwrap(),
-                ));
+                let (
+                    smart_empty_succs_dot,
+                    smart_whole_succs_dot,
+                    smart_empty_succs,
+                    smart_whole_succs,
+                ) = {
+                    let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                        std::fs::File::open(dirent.path()).unwrap(),
+                    ));
 
-                let mut counting = crate::CountingReader::new(xml);
+                    crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
-                crate::find_start_of(&mut counting, "listOfTransitions")
-                    .expect("could not find list");
+                    let smart_system_update_fn: SmartSystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
+                        SmartSystemUpdateFn::try_from_xml(&mut xml)
+                            .expect("cannot load smart system update fn");
 
-                let start = counting.curr_line;
+                    println!(
+                        "smart const false: {}",
+                        smart_system_update_fn.get_empty_state_subset()
+                    );
+                    println!(
+                        "smart const true: {}",
+                        smart_system_update_fn.get_whole_state_space_subset()
+                    );
 
-                let smart_system_update_fn: SmartSystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
-                    SmartSystemUpdateFn::try_from_xml(&mut counting)
-                        .expect("cannot load smart system update fn");
+                    let empty_subset = smart_system_update_fn.get_empty_state_subset();
+                    let whole_subset = smart_system_update_fn.get_whole_state_space_subset();
 
-                println!(
-                    "available variables: {:?}",
-                    smart_system_update_fn.named_symbolic_domains
-                );
+                    let empty_succs = smart_system_update_fn
+                        .transition_under_variable("BCat_exp_id99", &empty_subset);
+                    let whole_succs = smart_system_update_fn
+                        .transition_under_variable("BCat_exp_id99", &whole_subset);
 
-                // let currently_reachable = smart_system_update_fn
-                //     .update_fns
-                //     .get("BCat_exp_id99")
-                //     .unwrap()
-                //     .
+                    (
+                        smart_system_update_fn.bdd_to_dot_string(&empty_succs),
+                        smart_system_update_fn.bdd_to_dot_string(&whole_succs),
+                        empty_succs,
+                        whole_succs,
+                    )
+                };
 
-                let empty_subset = smart_system_update_fn.get_empty_state_subset();
-                let whole_subset = smart_system_update_fn.get_whole_state_space_subset();
+                let (
+                    force_empty_succs_dot,
+                    force_whole_succs_dot,
+                    force_empty_succs,
+                    force_whole_succs,
+                ) = {
+                    let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                        std::fs::File::open(dirent.path()).unwrap(),
+                    ));
 
-                let empty_succs = smart_system_update_fn
-                    .transition_under_variable("BCat_exp_id99", &empty_subset);
-                let whole_succs = smart_system_update_fn
-                    .transition_under_variable("BCat_exp_id99", &whole_subset);
+                    crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
-                println!("empty succs: {:?}", empty_succs.is_false());
-                println!("whole succs: {:?}", whole_succs.is_true()); // actually this not being true might be the correct behavior
+                    let force_system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
+                        SystemUpdateFn::try_from_xml(&mut xml)
+                            .expect("cannot load smart system update fn");
 
-                // let _system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
-                //     SystemUpdateFn::try_from_xml(&mut counting)
-                //         .expect("cannot load system update fn");
+                    println!(
+                        "force const false: {}",
+                        force_system_update_fn.get_empty_state_subset()
+                    );
+                    println!(
+                        "force const true: {}",
+                        force_system_update_fn.get_whole_state_space_subset()
+                    );
 
-                // println!("file size = {:?}", counting.curr_line);
-                // println!(
-                //     "just the transitions list = {:?}",
-                //     counting.curr_line - start
-                // );
+                    let empty_subset = force_system_update_fn.get_empty_state_subset();
+                    let whole_subset = force_system_update_fn.get_whole_state_space_subset();
 
-                // println!("system_update_fn: {:?}", system_update_fn);
+                    let empty_succs = force_system_update_fn
+                        .transition_under_variable("BCat_exp_id99", &empty_subset);
+                    let whole_succs = force_system_update_fn
+                        .transition_under_variable("BCat_exp_id99", &whole_subset);
+
+                    (
+                        force_system_update_fn.bdd_to_dot_string(&empty_succs),
+                        force_system_update_fn.bdd_to_dot_string(&whole_succs),
+                        empty_succs,
+                        whole_succs,
+                    )
+                };
+
+                // assert_eq!(smart_empty_succs, force_empty_succs);
+                // assert_eq!(smart_whole_succs, force_whole_succs);
+
+                assert_eq!(smart_empty_succs_dot, force_empty_succs_dot);
+
+                // println!("smart_empty_succs_dot = {:?}", smart_empty_succs_dot);
+                // println!("force_empty_succs_dot = {:?}", force_empty_succs_dot);
+
+                print!("smart_whole_succs_dot = {}", smart_whole_succs_dot);
+                print!("force_whole_succs_dot = {}", force_whole_succs_dot);
+
+                assert_eq!(smart_whole_succs_dot, force_whole_succs_dot); // todo this is the problematic one
+
+                // assert!(smart_empty_succs.iff(&force_empty_succs).is_true());
+                // assert!(smart_whole_succs.iff(&force_whole_succs).is_true());
+
+                println!("smart_empty_succs = {:?}", smart_empty_succs);
+                println!("smart_whole_succs = {:?}", smart_whole_succs);
+                println!("force_empty_succs = {:?}", force_empty_succs);
+                println!("force_whole_succs = {:?}", force_whole_succs);
             })
     }
 

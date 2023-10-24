@@ -117,7 +117,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
 
         let const_false = current_state.and(&current_state.not()); // used as the start of the fold
 
-        let succs = domain
+        domain
             .get_all_possible_values(&self.variable_set)
             .into_iter()
             .fold(const_false, |acc, possible_value| {
@@ -153,47 +153,20 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                     );
 
                 acc.or(&bdd_representing_transition_to_given_value)
-            });
+            })
+    }
 
-        // for possible_value_of_symbolic_variable in
-        //     domain.get_all_possible_values(&self.variable_set)
-        // {
-        //     // todo the fact that you have to query two hashmaps with the variables name to get the domain & the update fn suggests it should be refactored
-        //     let update_fn = self
-        //         .update_fns
-        //         .get(transitioned_variable_name.clone())
-        //         .unwrap();
+    pub fn get_empty_state_subset(&self) -> Bdd {
+        self.variable_set.0.mk_false()
+    }
 
-        //     // todo this one should likely store the domain (and the name?) of the variable it is updating
-        //     // todo  because there is some tight coupling between the order of the bit_updating_bdds in update_fn
-        //     // todo  and the domain (specifically how the domain encodes given value into (bdd) bits)
-        //     // update_fn.bit_answering_bdds[0].0.ev;
+    pub fn get_whole_state_space_subset(&self) -> Bdd {
+        self.variable_set.0.mk_true()
+    }
 
-        //     let bits_of_the_encoded_value =
-        //         domain.encode_bits_into_vec(possible_value_of_symbolic_variable);
-
-        //     // todo assert the len of the `bits_encoded_value` == count of bdds in `bit_answering_bdds`
-
-        //     let bdd_representing_transition_to_given_value = update_fn
-        //         .bit_answering_bdds
-        //         .iter()
-        //         .map(|(bit_answering_bdd, _)| bit_answering_bdd)
-        //         .zip(bits_of_the_encoded_value.iter().cloned())
-        //         .fold(
-        //             current_state.clone(),
-        //             |acc, (ith_bit_answering_bdd, ith_expected_bit)| {
-        //                 if ith_expected_bit {
-        //                     acc.and(ith_bit_answering_bdd)
-        //                 } else {
-        //                     acc.and(&ith_bit_answering_bdd.not())
-        //                 }
-        //             },
-        //         );
-
-        //     todo!()
-        // }
-
-        todo!()
+    /// converts the given bdd into a dot string with names relevant to this system
+    pub fn bdd_to_dot_string(&self, bdd: &Bdd) -> String {
+        bdd.to_dot_string(&self.variable_set, false)
     }
 }
 
@@ -250,7 +223,7 @@ fn vars_and_their_max_values(
         .map(|(var_name, _update_fn)| {
             (
                 var_name.clone(),
-                get_max_val_of_var_in_all_transitions_including_their_own_and_detect_where_compared_with_larger_than_possible(
+                get_max_val_of_var_in_all_transitions_including_their_own(
                     var_name,
                     vars_and_their_upd_fns,
                 ),
