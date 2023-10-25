@@ -344,6 +344,23 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
             })
             .collect()
     }
+
+    pub fn get_bdd_with_specific_var_set_to_specific_value(
+        &self,
+        variable_name: &str,
+        value: u8,
+    ) -> Bdd {
+        let sym_dom = self.named_symbolic_domains.get(variable_name).unwrap();
+        let bits = sym_dom.encode_bits_into_vec(value);
+        let vars = sym_dom.symbolic_variables();
+
+        let vars_and_bits = vars.into_iter().zip(bits);
+
+        let const_true = self.bdd_variable_set.0.mk_true();
+
+        // constrain this specific sym variable to its specific value (& leave others unrestricted)
+        vars_and_bits.fold(const_true, |acc, (var, bit)| acc.var_select(var, bit))
+    }
 }
 
 /// expects the xml reader to be at the start of the <listOfTransitions> element

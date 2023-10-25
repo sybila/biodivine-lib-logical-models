@@ -209,6 +209,23 @@ impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
             })
             .collect()
     }
+
+    pub fn get_bdd_with_specific_var_set_to_specific_value(
+        &self,
+        variable_name: &str,
+        value: u8,
+    ) -> Bdd {
+        let sym_dom = self.named_symbolic_domains.get(variable_name).unwrap();
+        let bits = sym_dom.encode_bits_into_vec(value);
+        let vars = sym_dom.symbolic_variables();
+
+        let vars_and_bits = vars.into_iter().zip(bits);
+
+        let const_true = self.bdd_variable_set.0.mk_true();
+
+        // constrain this specific sym variable to its specific value (& leave others unrestricted)
+        vars_and_bits.fold(const_true, |acc, (var, bit)| acc.var_select(var, bit))
+    }
 }
 
 /// expects the xml reader to be at the start of the <listOfTransitions> element
@@ -609,6 +626,168 @@ mod tests {
 
         // std::fs::write("dot_output.dot", the_two_whole).expect("cannot write to file");
         std::fs::write("dot_output.dot", the_two_empty).expect("cannot write to file");
+    }
+
+    #[test]
+    fn test_handmade_larger_starting_set() {
+        let filepath = "data/manual/single_variable_v2.sbml";
+
+        let smart_system_update_fn = {
+            let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                std::fs::File::open(filepath.clone()).expect("cannot open the file"),
+            ));
+
+            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+
+            let smart_system_update_fn: SmartSystemUpdateFn<UnaryIntegerDomain, u8> =
+                SmartSystemUpdateFn::try_from_xml(&mut xml)
+                    .expect("cannot load smart system update fn");
+
+            smart_system_update_fn
+        };
+
+        let force_system_update_fn = {
+            let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                std::fs::File::open(filepath).expect("cannot open the file"),
+            ));
+
+            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+
+            let force_system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
+                SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load smart system update fn");
+
+            force_system_update_fn
+        };
+
+        let smart_zero_bdd = smart_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 0);
+        let smart_two_bdd = smart_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 2);
+        let smart_zero_or_two_bdd = smart_zero_bdd.or(&smart_two_bdd);
+
+        let force_zero_bdd = force_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 0);
+        let force_two_bdd = force_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 2);
+        let force_zero_or_two_bdd = force_zero_bdd.or(&force_two_bdd);
+
+        let smart_transitioned = smart_system_update_fn
+            .transition_under_variable("the_only_variable", &smart_zero_or_two_bdd);
+
+        let force_transitioned = force_system_update_fn
+            .transition_under_variable("the_only_variable", &force_zero_or_two_bdd);
+
+        // let the_two_transitioned = format!(
+        //     "{}\n{}",
+        //     smart_system_update_fn.bdd_to_dot_string(&smart_transitioned),
+        //     force_system_update_fn.bdd_to_dot_string(&force_transitioned)
+        // );
+
+        // std::fs::write("dot_output.dot", the_two_transitioned).expect("cannot write to file");
+
+        assert_eq!(
+            smart_system_update_fn.bdd_to_dot_string(&smart_transitioned),
+            force_system_update_fn.bdd_to_dot_string(&force_transitioned)
+        );
+
+        let force_one = force_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 1);
+        let force_three = force_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 3);
+        let force_one_or_three = force_one.or(&force_three);
+
+        assert!(
+            force_one_or_three.iff(&force_transitioned).is_true(),
+            "should be set of [one, three]",
+        );
+    }
+
+    #[test]
+    fn test_handmade_larger_starting_set_and_includes_previous() {
+        let filepath = "data/manual/single_variable_v3.sbml";
+
+        let smart_system_update_fn = {
+            let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                std::fs::File::open(filepath.clone()).expect("cannot open the file"),
+            ));
+
+            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+
+            let smart_system_update_fn: SmartSystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
+                SmartSystemUpdateFn::try_from_xml(&mut xml)
+                    .expect("cannot load smart system update fn");
+
+            smart_system_update_fn
+        };
+
+        let force_system_update_fn = {
+            let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                std::fs::File::open(filepath).expect("cannot open the file"),
+            ));
+
+            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+
+            let force_system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
+                SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load smart system update fn");
+
+            force_system_update_fn
+        };
+
+        let smart_zero_bdd = smart_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 0);
+        let smart_one_bdd = smart_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 1);
+        let smart_zero_or_one_bdd = smart_zero_bdd.or(&smart_one_bdd);
+
+        let force_zero_bdd = force_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 0);
+        let force_one_bdd = force_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 1);
+        let force_zero_or_one_bdd = force_zero_bdd.or(&force_one_bdd);
+
+        let smart_transitioned = smart_system_update_fn
+            .transition_under_variable("the_only_variable", &smart_zero_or_one_bdd);
+
+        let force_transitioned = force_system_update_fn
+            .transition_under_variable("the_only_variable", &force_zero_or_one_bdd);
+
+        let the_two_transitioned = format!(
+            "{}\n{}",
+            smart_system_update_fn.bdd_to_dot_string(&smart_transitioned),
+            force_system_update_fn.bdd_to_dot_string(&force_transitioned)
+        );
+
+        std::fs::write("dot_output.dot", the_two_transitioned).expect("cannot write to file");
+
+        assert_eq!(
+            smart_system_update_fn.bdd_to_dot_string(&smart_transitioned),
+            force_system_update_fn.bdd_to_dot_string(&force_transitioned)
+        );
+
+        let force_one = force_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 1);
+        let force_two = force_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 2);
+        let force_one_or_two = force_one.or(&force_two);
+
+        std::fs::write(
+            "dot_output.dot",
+            force_system_update_fn.bdd_to_dot_string(&force_one_or_two),
+        )
+        .expect("cannot write to file");
+
+        // std::fs::write(
+        //     "dot_output.dot",
+        //     force_system_update_fn.bdd_to_dot_string(&force_transitioned),
+        // )
+        // .expect("cannot write to file");
+
+        assert!(
+            // force_transitioned.iff(&force_one_or_two).is_true(),
+            force_system_update_fn.bdd_to_dot_string(&force_transitioned)
+                == force_system_update_fn.bdd_to_dot_string(&force_one_or_two),
+            "should be set of [one, two]",
+        );
     }
 
     #[test]
