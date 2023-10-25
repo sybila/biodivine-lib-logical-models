@@ -160,6 +160,55 @@ impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
     pub fn bdd_to_dot_string(&self, bdd: &Bdd) -> String {
         bdd.to_dot_string(&self.bdd_variable_set, false)
     }
+
+    // todo this should likely not be part of the api; there are the primed variables - implementation detail
+    pub fn get_bdd_variable_set(&self) -> BddVariableSet {
+        self.bdd_variable_set.0.clone()
+    }
+
+    pub fn get_bdd_for_each_value_of_each_variable(&self) -> Vec<Bdd> {
+        self.named_symbolic_domains
+            .iter()
+            .flat_map(|(var_name, sym_dom)| {
+                let all_possible_values = sym_dom.get_all_possible_values(&self.bdd_variable_set.0);
+                all_possible_values.into_iter().map(|possible_value| {
+                    let bits = sym_dom.encode_bits_into_vec(possible_value);
+                    let vars = sym_dom.symbolic_variables();
+                    let vars_and_bits = vars.into_iter().zip(bits);
+
+                    let const_true = self.bdd_variable_set.0.mk_true();
+
+                    // constrain this specific sym variable to its specific value (& leave others unrestricted)
+                    vars_and_bits.fold(const_true, |acc, (var, bit)| acc.var_select(var, bit))
+                })
+            })
+            .collect()
+    }
+
+    pub fn get_bdd_for_each_value_of_each_variable_with_debug_but_only_not_primed(
+        &self,
+    ) -> Vec<(String, u8, Bdd)> {
+        self.named_symbolic_domains
+            .iter()
+            .filter(|(name, _)| !name.contains('\''))
+            .flat_map(|(var_name, sym_dom)| {
+                let all_possible_values = sym_dom.get_all_possible_values(&self.bdd_variable_set.0);
+                all_possible_values.into_iter().map(|possible_value| {
+                    let bits = sym_dom.encode_bits_into_vec(possible_value);
+                    let vars = sym_dom.symbolic_variables();
+                    let vars_and_bits = vars.into_iter().zip(bits);
+
+                    let const_true = self.bdd_variable_set.0.mk_true();
+
+                    // constrain this specific sym variable to its specific value (& leave others unrestricted)
+                    let bdd =
+                        vars_and_bits.fold(const_true, |acc, (var, bit)| acc.var_select(var, bit));
+
+                    (var_name.clone(), possible_value, bdd)
+                })
+            })
+            .collect()
+    }
 }
 
 /// expects the xml reader to be at the start of the <listOfTransitions> element
@@ -299,6 +348,7 @@ fn get_max_val_of_var_in_all_transitions_including_their_own(
 
 #[cfg(test)]
 mod tests {
+    use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
     use xml::EventReader;
 
     use crate::{
@@ -309,8 +359,13 @@ mod tests {
 
     // use std:io::{BufRead, BufReader}
 
-    use std::io::BufRead;
-    use std::io::BufReader;
+    use std::{
+        cell::RefCell,
+        io::BufReader,
+        ops::Add,
+        sync::{Arc, RwLock},
+    };
+    use std::{collections::HashMap, io::BufRead};
 
     // use super::SystemUpdateFn;
 
@@ -554,6 +609,156 @@ mod tests {
 
         // std::fs::write("dot_output.dot", the_two_whole).expect("cannot write to file");
         std::fs::write("dot_output.dot", the_two_empty).expect("cannot write to file");
+    }
+
+    #[test]
+    fn test_handmade_basic_() {
+        std::fs::read_dir("data/large")
+            .expect("could not read dir")
+            .skip(1)
+            .take(1)
+            .for_each(|dirent| {
+                println!("dirent = {:?}", dirent);
+                let filepath = dirent.expect("could not read file").path();
+
+                let smart_system_update_fn = {
+                    let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                        std::fs::File::open(filepath.clone()).expect("cannot open the file"),
+                    ));
+
+                    crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+
+                    let smart_system_update_fn: SmartSystemUpdateFn<UnaryIntegerDomain, u8> =
+                        SmartSystemUpdateFn::try_from_xml(&mut xml)
+                            .expect("cannot load smart system update fn");
+
+                    smart_system_update_fn
+                };
+
+                let force_system_update_fn = {
+                    let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                        std::fs::File::open(filepath).expect("cannot open the file"),
+                    ));
+
+                    crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+
+                    let force_system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
+                        SystemUpdateFn::try_from_xml(&mut xml)
+                            .expect("cannot load smart system update fn");
+
+                    force_system_update_fn
+                };
+
+                let smart_triple = smart_system_update_fn
+                    .get_bdd_for_each_value_of_each_variable_with_debug_but_only_not_primed();
+
+                let force_triple =
+                    force_system_update_fn.get_bdd_for_each_value_of_each_variable_with_debug();
+
+                // the orderings might be fcked up -> pair the corresponding bdds of the two
+                let smart_triple_hash_map = smart_triple
+                    .into_iter()
+                    .map(|(name, value, bdd)| (format!("{}{}", name, value), bdd))
+                    .collect::<HashMap<_, _>>();
+
+                let force_triple_hash_map = force_triple
+                    .into_iter()
+                    .map(|(name, value, bdd)| (format!("{}{}", name, value), bdd))
+                    .collect::<HashMap<_, _>>();
+
+                let smart_bdd_force_bdd_tuples = smart_triple_hash_map
+                    .into_iter()
+                    .map(|(name_and_value, smart_bdd)| {
+                        println!("name_and_value = {}", name_and_value);
+                        (
+                            name_and_value.clone(),
+                            smart_bdd,
+                            force_triple_hash_map
+                                .get(&name_and_value)
+                                .expect("no such bdd")
+                                .clone(),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+
+                smart_bdd_force_bdd_tuples.iter().for_each(
+                    |(variable_and_value, smart_bdd, force_bdd)| {
+                        println!("comparing bdds of {}", variable_and_value);
+                        assert_eq!(
+                            smart_system_update_fn.bdd_to_dot_string(smart_bdd),
+                            force_system_update_fn.bdd_to_dot_string(force_bdd)
+                        );
+                    },
+                );
+
+                let var_names = force_system_update_fn
+                    .named_symbolic_domains
+                    .keys()
+                    .collect::<Vec<_>>();
+
+                println!("var_names = {:?}", var_names.len());
+
+                let those_that_eq = RwLock::new(0);
+                let those_that_neq = RwLock::new(0);
+
+                // let res =
+                var_names.par_iter().for_each(|var_name| {
+                    smart_bdd_force_bdd_tuples.par_iter().for_each(
+                        |(name, smart_set_of_states, force_set_of_states)| {
+                            println!("comparing bdds of {}", name);
+                            let smart_transitioned = smart_system_update_fn
+                                .transition_under_variable(var_name, smart_set_of_states);
+
+                            let force_transitioned = force_system_update_fn
+                                .transition_under_variable(var_name, force_set_of_states);
+
+                            let smart_dot =
+                                smart_system_update_fn.bdd_to_dot_string(&smart_transitioned);
+
+                            let force_dot =
+                                force_system_update_fn.bdd_to_dot_string(&force_transitioned);
+
+                            // let the_two_whole = format!("{}\n{}", smart_whole_succs_dot, force_whole_succs_dot);
+                            let the_two = format!("{}\n{}", smart_dot, force_dot);
+
+                            // std::fs::write("dot_output.dot", the_two_whole).expect("cannot write to file");
+                            std::fs::write("dot_output.dot", the_two)
+                                .expect("cannot write to file");
+
+                            // assert_eq!(smart_dot, force_dot);
+                            // if smart_dot != force_dot {
+                            //     println!("neq");
+                            // };
+
+                            if smart_dot == force_dot {
+                                let curr = {
+                                    let xd = those_that_eq.read().unwrap().to_owned();
+                                    xd
+                                };
+                                *those_that_eq.write().unwrap() = curr + 1;
+                            } else {
+                                let curr = {
+                                    let xd = those_that_neq.read().unwrap().to_owned();
+                                    xd
+                                };
+                                *those_that_neq.write().unwrap() = curr + 1;
+                            }
+                        },
+                    )
+                });
+                // .count();
+
+                println!("those_that_eq = {:?}", *those_that_eq.read().unwrap());
+                println!("those_that_neq = {:?}", *those_that_neq.read().unwrap());
+
+                assert_eq!(
+                    *those_that_neq.read().unwrap(),
+                    0,
+                    "some bdds are not equal"
+                );
+
+                // println!("{:?}", res);
+            });
     }
 
     // #[test]

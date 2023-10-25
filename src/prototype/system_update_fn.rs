@@ -15,7 +15,7 @@ use crate::{SymbolicDomain, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled, Xml
 pub struct SystemUpdateFn<D: SymbolicDomain<T>, T> {
     pub update_fns: HashMap<String, VariableUpdateFnCompiled<D, T>>,
     pub named_symbolic_domains: HashMap<String, D>,
-    variable_set: DebugIgnore<BddVariableSet>,
+    bdd_variable_set: DebugIgnore<BddVariableSet>,
 }
 
 impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
@@ -55,7 +55,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
         Ok(Self {
             update_fns,
             named_symbolic_domains,
-            variable_set: variable_set.into(),
+            bdd_variable_set: variable_set.into(),
         })
     }
 
@@ -140,12 +140,12 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
             .unwrap();
 
         domain
-            .get_all_possible_values(&self.variable_set)
+            .get_all_possible_values(&self.bdd_variable_set)
             .into_iter()
             .fold(const_false.clone(), |acc, possible_var_val| {
                 let bits_of_the_encoded_value = domain.encode_bits_into_vec(possible_var_val);
 
-                println!("possible value {}", possible_var_val);
+                // println!("possible value {}", possible_var_val);
 
                 let vars_and_their_bits = domain
                     .symbolic_variables()
@@ -189,12 +189,12 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                         .fold(
                             const_true,
                             |acc, (ith_bit_answering_bdd, ith_expected_bit)| {
-                                println!("ith expected bit {}", ith_expected_bit);
-                                println!(
-                                    "   acc currently: is false: {}, is true: {}",
-                                    acc.is_false(),
-                                    acc.is_true()
-                                );
+                                // println!("ith expected bit {}", ith_expected_bit);
+                                // println!(
+                                //     "   acc currently: is false: {}, is true: {}",
+                                //     acc.is_false(),
+                                //     acc.is_true()
+                                // );
 
                                 let new_acc = if ith_expected_bit {
                                     acc.and(ith_bit_answering_bdd)
@@ -202,19 +202,19 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                                     acc.and(&ith_bit_answering_bdd.not())
                                 };
 
-                                println!(
-                                    "   ith_bit_answering_bdd is true: {}, is false: {}",
-                                    ith_bit_answering_bdd.is_true(),
-                                    ith_bit_answering_bdd.is_false()
-                                );
+                                // println!(
+                                //     "   ith_bit_answering_bdd is true: {}, is false: {}",
+                                //     ith_bit_answering_bdd.is_true(),
+                                //     ith_bit_answering_bdd.is_false()
+                                // );
 
                                 // let new_acc = acc.and(ith_bit_answering_bdd);
 
-                                println!(
-                                    "   updated acc: is false: {}, is true: {}",
-                                    new_acc.is_false(),
-                                    new_acc.is_true()
-                                );
+                                // println!(
+                                //     "   updated acc: is false: {}, is true: {}",
+                                //     new_acc.is_false(),
+                                //     new_acc.is_true()
+                                // );
 
                                 new_acc
                             },
@@ -258,17 +258,17 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                 //         },
                 //     );
 
-                println!(
-                    "intermediate_fold: is false: {}, is true: {}",
-                    states_capable_of_transitioning_into_given_value.is_false(),
-                    states_capable_of_transitioning_into_given_value.is_true()
-                );
+                // println!(
+                //     "intermediate_fold: is false: {}, is true: {}",
+                //     states_capable_of_transitioning_into_given_value.is_false(),
+                //     states_capable_of_transitioning_into_given_value.is_true()
+                // );
 
-                println!(
-                    "states_capable_of_transitioning_into_given_value: is false: {}, is true: {}",
-                    states_capable_of_transitioning_into_given_value.is_false(),
-                    states_capable_of_transitioning_into_given_value.is_true()
-                );
+                // println!(
+                //     "states_capable_of_transitioning_into_given_value: is false: {}, is true: {}",
+                //     states_capable_of_transitioning_into_given_value.is_false(),
+                //     states_capable_of_transitioning_into_given_value.is_true()
+                // );
 
                 let states_from_current_state_set_capable_of_transitioning_into_given_value =
                     current_state.and(&states_capable_of_transitioning_into_given_value);
@@ -285,42 +285,64 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                                 .collect::<Vec<_>>()[..],
                         );
 
-                println!(
-                    "states_forgot_the_value_of_target_sym_var: is false: {}, is true: {}",
-                    states_forgot_the_value_of_target_sym_var.is_false(),
-                    states_forgot_the_value_of_target_sym_var.is_true()
-                );
+                // println!(
+                //     "states_forgot_the_value_of_target_sym_var: is false: {}, is true: {}",
+                //     states_forgot_the_value_of_target_sym_var.is_false(),
+                //     states_forgot_the_value_of_target_sym_var.is_true()
+                // );
 
                 let states_transitioned_into_given_value =
                     any_where_var_has_target_value.and(&states_forgot_the_value_of_target_sym_var);
 
-                println!(
-                    "-+------ any where var has target value: is false: {}, is true: {}",
-                    any_where_var_has_target_value.is_false(),
-                    any_where_var_has_target_value.is_true()
-                );
+                // println!(
+                //     "-+------ any where var has target value: is false: {}, is true: {}",
+                //     any_where_var_has_target_value.is_false(),
+                //     any_where_var_has_target_value.is_true()
+                // );
 
-                println!(
-                    "states_transitioned_into_given_value: is false: {}, is true: {}",
-                    states_transitioned_into_given_value.is_false(),
-                    states_transitioned_into_given_value.is_true()
-                );
+                // println!(
+                //     "states_transitioned_into_given_value: is false: {}, is true: {}",
+                //     states_transitioned_into_given_value.is_false(),
+                //     states_transitioned_into_given_value.is_true()
+                // );
 
                 acc.or(&states_transitioned_into_given_value)
             })
     }
 
     pub fn get_empty_state_subset(&self) -> Bdd {
-        self.variable_set.0.mk_false()
+        self.bdd_variable_set.0.mk_false()
     }
 
     pub fn get_whole_state_space_subset(&self) -> Bdd {
-        self.variable_set.0.mk_true()
+        self.bdd_variable_set.0.mk_true()
     }
 
     /// converts the given bdd into a dot string with names relevant to this system
     pub fn bdd_to_dot_string(&self, bdd: &Bdd) -> String {
-        bdd.to_dot_string(&self.variable_set, false)
+        bdd.to_dot_string(&self.bdd_variable_set, false)
+    }
+
+    pub fn get_bdd_for_each_value_of_each_variable_with_debug(&self) -> Vec<(String, u8, Bdd)> {
+        self.named_symbolic_domains
+            .iter()
+            .flat_map(|(var_name, sym_dom)| {
+                let all_possible_values = sym_dom.get_all_possible_values(&self.bdd_variable_set.0);
+                all_possible_values.into_iter().map(|possible_value| {
+                    let bits = sym_dom.encode_bits_into_vec(possible_value);
+                    let vars = sym_dom.symbolic_variables();
+                    let vars_and_bits = vars.into_iter().zip(bits);
+
+                    let const_true = self.bdd_variable_set.0.mk_true();
+
+                    // constrain this specific sym variable to its specific value (& leave others unrestricted)
+                    let bdd =
+                        vars_and_bits.fold(const_true, |acc, (var, bit)| acc.var_select(var, bit));
+
+                    (var_name.clone(), possible_value, bdd)
+                })
+            })
+            .collect()
     }
 }
 
