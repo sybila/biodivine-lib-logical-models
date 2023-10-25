@@ -489,7 +489,7 @@ impl SymbolicDomain<u8> for BinaryIntegerDomain<u8> {
 
     fn unit_collection(&self, variables: &BddVariableSet) -> Bdd {
         let mut allowed_values = variables.mk_false();
-        for allowed_value_numeric in 0..self.max_value {
+        for allowed_value_numeric in 0..=self.max_value {
             let mut allowed_value_bdd = variables.mk_true();
             for (idx, var) in self.variables.iter().enumerate() {
                 if (allowed_value_numeric & (1 << idx)) == 0 {
@@ -601,7 +601,7 @@ impl SymbolicDomain<u8> for GrayCodeIntegerDomain<u8> {
 
     fn unit_collection(&self, variables: &BddVariableSet) -> Bdd {
         let mut allowed_values = variables.mk_false();
-        for allowed_value_numeric_binary in 0..self.max_value {
+        for allowed_value_numeric_binary in 0..=self.max_value {
             let allowed_value_numeric_gray = binary_to_gray_code(allowed_value_numeric_binary);
             let mut allowed_value_bdd_gray = variables.mk_true();
             for (idx, var) in self.variables.iter().enumerate() {
