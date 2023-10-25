@@ -270,9 +270,12 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                     states_capable_of_transitioning_into_given_value.is_true()
                 );
 
+                let states_from_current_state_set_capable_of_transitioning_into_given_value =
+                    current_state.and(&states_capable_of_transitioning_into_given_value);
+
                 // this restriction should "perform the transition"
                 let states_forgot_the_value_of_target_sym_var =
-                    states_capable_of_transitioning_into_given_value
+                    states_from_current_state_set_capable_of_transitioning_into_given_value
                         // .restrict(&vars_and_their_bits[..]);
                         .exists(
                             &vars_and_their_bits

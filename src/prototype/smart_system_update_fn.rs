@@ -499,9 +499,9 @@ mod tests {
         };
 
         let (
-            // force_empty_succs_dot,
+            force_empty_succs_dot,
             force_whole_succs_dot,
-            // force_empty_succs_bdd,
+            force_empty_succs_bdd,
             force_whole_succs_bdd,
         ) = {
             let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
@@ -516,23 +516,21 @@ mod tests {
             let force_system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
                 SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load smart system update fn");
 
-            // let empty_subset = force_system_update_fn.get_empty_state_subset();
+            let empty_subset = force_system_update_fn.get_empty_state_subset();
             let whole_subset = force_system_update_fn.get_whole_state_space_subset();
 
-            // let empty_succs = force_system_update_fn
-            //     .transition_under_variable("the_only_variable", &empty_subset);
+            let empty_succs = force_system_update_fn
+                .transition_under_variable("the_only_variable", &empty_subset);
             let whole_succs = force_system_update_fn
                 .transition_under_variable("the_only_variable", &whole_subset);
 
             (
-                // force_system_update_fn.bdd_to_dot_string(&empty_succs),
+                force_system_update_fn.bdd_to_dot_string(&empty_succs),
                 force_system_update_fn.bdd_to_dot_string(&whole_succs),
-                // empty_succs,
+                empty_succs,
                 whole_succs,
             )
         };
-
-        let the_two_whole = format!("{}\n{}", smart_whole_succs_dot, force_whole_succs_dot);
 
         // write the dot strings to files
 
@@ -549,7 +547,13 @@ mod tests {
 
         assert_eq!(smart_whole_succs_dot, force_whole_succs_dot);
 
-        std::fs::write("dot_output.dot", the_two_whole).expect("cannot write to file");
+        assert_eq!(smart_empty_succs_dot, force_empty_succs_dot);
+
+        // let the_two_whole = format!("{}\n{}", smart_whole_succs_dot, force_whole_succs_dot);
+        let the_two_empty = format!("{}\n{}", smart_empty_succs_dot, force_empty_succs_dot);
+
+        // std::fs::write("dot_output.dot", the_two_whole).expect("cannot write to file");
+        std::fs::write("dot_output.dot", the_two_empty).expect("cannot write to file");
     }
 
     // #[test]
