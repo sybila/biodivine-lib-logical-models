@@ -451,6 +451,107 @@ mod tests {
             })
     }
 
+    #[test]
+    fn test_handmade_basic() {
+        let (
+            smart_empty_succs_dot,
+            smart_whole_succs_dot,
+            smart_empty_succs_bdd,
+            smart_whole_succs_bdd,
+        ) = {
+            let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                std::fs::File::open("data/manual/basic_transition.sbml")
+                    .expect("cannot open the file"),
+            ));
+
+            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+
+            let smart_system_update_fn: SmartSystemUpdateFn<UnaryIntegerDomain, u8> =
+                SmartSystemUpdateFn::try_from_xml(&mut xml)
+                    .expect("cannot load smart system update fn");
+
+            println!(
+                "smart const false: {}",
+                smart_system_update_fn.get_empty_state_subset()
+            );
+            println!(
+                "smart const true: {}",
+                smart_system_update_fn.get_whole_state_space_subset()
+            );
+
+            let empty_subset = smart_system_update_fn.get_empty_state_subset();
+            let whole_subset = smart_system_update_fn.get_whole_state_space_subset();
+
+            let empty_succs = smart_system_update_fn
+                .transition_under_variable("the_only_variable", &empty_subset);
+            let whole_succs = smart_system_update_fn
+                .transition_under_variable("the_only_variable", &whole_subset);
+
+            let whole_succs =
+                smart_system_update_fn.transition_under_variable("the_only_variable", &whole_succs);
+
+            (
+                smart_system_update_fn.bdd_to_dot_string(&empty_succs),
+                smart_system_update_fn.bdd_to_dot_string(&whole_succs),
+                empty_succs,
+                whole_succs,
+            )
+        };
+
+        let (
+            // force_empty_succs_dot,
+            force_whole_succs_dot,
+            // force_empty_succs_bdd,
+            force_whole_succs_bdd,
+        ) = {
+            let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                std::fs::File::open("data/manual/basic_transition.sbml")
+                    .expect("cannot open the file"),
+            ));
+
+            println!("---force");
+
+            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+
+            let force_system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
+                SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load smart system update fn");
+
+            // let empty_subset = force_system_update_fn.get_empty_state_subset();
+            let whole_subset = force_system_update_fn.get_whole_state_space_subset();
+
+            // let empty_succs = force_system_update_fn
+            //     .transition_under_variable("the_only_variable", &empty_subset);
+            let whole_succs = force_system_update_fn
+                .transition_under_variable("the_only_variable", &whole_subset);
+
+            (
+                // force_system_update_fn.bdd_to_dot_string(&empty_succs),
+                force_system_update_fn.bdd_to_dot_string(&whole_succs),
+                // empty_succs,
+                whole_succs,
+            )
+        };
+
+        let the_two_whole = format!("{}\n{}", smart_whole_succs_dot, force_whole_succs_dot);
+
+        // write the dot strings to files
+
+        println!(
+            "smart whole is true: {}, is false: {}",
+            smart_whole_succs_bdd.is_true(),
+            smart_whole_succs_bdd.is_false()
+        );
+        println!(
+            "force whole is true: {}, is false: {}",
+            force_whole_succs_bdd.is_true(),
+            force_whole_succs_bdd.is_false()
+        );
+
+        assert_eq!(smart_whole_succs_dot, force_whole_succs_dot);
+
+        std::fs::write("dot_output.dot", the_two_whole).expect("cannot write to file");
+    }
+
     // #[test]
     // fn test_all_bigger_with_debug_xml_reader() {
     //     std::fs::read_dir("data/faulty")

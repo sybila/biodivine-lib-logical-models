@@ -1,0 +1,31 @@
+digraph G {
+init__ [label="", style=invis, height=0, width=0];
+init__ -> 4;
+0 [shape=box, label="0", style=filled, shape=box, height=0.3, width=0.3];
+1 [shape=box, label="1", style=filled, shape=box, height=0.3, width=0.3];
+2[label="the_only_variable_v3"];
+2 -> 1 [style=filled];
+2 -> 0 [style=dotted];
+3[label="the_only_variable_v2"];
+3 -> 2 [style=filled];
+3 -> 0 [style=dotted];
+4[label="the_only_variable_v1"];
+4 -> 3 [style=filled];
+4 -> 0 [style=dotted];
+}
+
+digraph G {
+init__ [label="", style=invis, height=0, width=0];
+init__ -> 4;
+0 [shape=box, label="0", style=filled, shape=box, height=0.3, width=0.3];
+1 [shape=box, label="1", style=filled, shape=box, height=0.3, width=0.3];
+2[label="the_only_variable_v3"];
+2 -> 1 [style=filled];
+2 -> 0 [style=dotted];
+3[label="the_only_variable_v2"];
+3 -> 2 [style=filled];
+3 -> 0 [style=dotted];
+4[label="the_only_variable_v1"];
+4 -> 3 [style=filled];
+4 -> 0 [style=dotted];
+}
