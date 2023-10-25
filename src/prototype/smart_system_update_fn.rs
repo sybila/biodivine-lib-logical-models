@@ -881,8 +881,8 @@ mod tests {
                 let those_that_neq = RwLock::new(0);
 
                 // let res =
-                var_names.par_iter().for_each(|var_name| {
-                    smart_bdd_force_bdd_tuples.par_iter().for_each(
+                var_names.iter().for_each(|var_name| {
+                    smart_bdd_force_bdd_tuples.iter().for_each(
                         |(name, smart_set_of_states, force_set_of_states)| {
                             println!("comparing bdds of {}", name);
                             let smart_transitioned = smart_system_update_fn
@@ -904,7 +904,7 @@ mod tests {
                             std::fs::write("dot_output.dot", the_two)
                                 .expect("cannot write to file");
 
-                            // assert_eq!(smart_dot, force_dot);
+                            assert_eq!(smart_dot, force_dot);
                             // if smart_dot != force_dot {
                             //     println!("neq");
                             // };
@@ -940,83 +940,142 @@ mod tests {
             });
     }
 
-    // #[test]
-    // fn test_all_bigger_with_debug_xml_reader() {
-    //     std::fs::read_dir("data/faulty")
-    //         .expect("could not read dir")
-    //         .for_each(|dirent| {
-    //             println!("dirent = {:?}", dirent);
-    //             let dirent = dirent.expect("could not read file");
+    #[test]
+    fn test_handmade_basic_xd() {
+        let filepath = "data/manual/handbook_example.sbml";
 
-    //             let xml = xml::reader::EventReader::new(std::io::BufReader::new(
-    //                 std::fs::File::open(dirent.path()).unwrap(),
-    //             ));
+        let smart_system_update_fn = {
+            let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                std::fs::File::open(filepath.clone()).expect("cannot open the file"),
+            ));
 
-    //             let mut counting = crate::CountingReader::new(xml);
+            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
-    //             crate::find_start_of(&mut counting, "listOfTransitions")
-    //                 .expect("could not find list");
+            let smart_system_update_fn: SmartSystemUpdateFn<UnaryIntegerDomain, u8> =
+                SmartSystemUpdateFn::try_from_xml(&mut xml)
+                    .expect("cannot load smart system update fn");
 
-    //             let all_update_fns = super::load_all_update_fns(&mut counting)
-    //                 .expect("could not even load the damn thing");
+            smart_system_update_fn
+        };
 
-    //             let xml = xml::reader::EventReader::new(std::io::BufReader::new(
-    //                 std::fs::File::open(dirent.path()).unwrap(),
-    //             ));
-    //             let mut debug_xml = crate::DebuggingReader::new(xml, &all_update_fns, true, true);
+        let force_system_update_fn = {
+            let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                std::fs::File::open(filepath).expect("cannot open the file"),
+            ));
 
-    //             // while let Ok(_) = debug_xml.next() {}
+            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
-    //             loop {
-    //                 if let xml::reader::XmlEvent::EndDocument = debug_xml.next().unwrap() {
-    //                     break;
-    //                 }
-    //             }
+            let force_system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
+                SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load smart system update fn");
 
-    //             // let _system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
-    //             //     super::SystemUpdateFn::try_from_xml(&mut counting)
-    //             //         .expect("cannot load system update fn");
+            force_system_update_fn
+        };
 
-    //             // println!("file size = {:?}", counting.curr_line);
-    //             // println!(
-    //             //     "just the transitions list = {:?}",
-    //             //     counting.curr_line - start
-    //             // );
+        let smart_triple = smart_system_update_fn
+            .get_bdd_for_each_value_of_each_variable_with_debug_but_only_not_primed();
 
-    //             // println!("system_update_fn: {:?}", system_update_fn);
-    //         })
-    // }
+        let force_triple =
+            force_system_update_fn.get_bdd_for_each_value_of_each_variable_with_debug();
 
-    // #[test]
-    // fn test_on_test_data() {
-    //     let mut reader = xml::reader::EventReader::new(std::io::BufReader::new(
-    //         std::fs::File::open("data/update_fn_test.sbml").unwrap(),
-    //     ));
+        // the orderings might be fcked up -> pair the corresponding bdds of the two
+        let smart_triple_hash_map = smart_triple
+            .into_iter()
+            .map(|(name, value, bdd)| (format!("{}{}", name, value), bdd))
+            .collect::<HashMap<_, _>>();
 
-    //     crate::find_start_of(&mut reader, "listOfTransitions").expect("cannot find start of list");
-    //     let system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
-    //         super::SystemUpdateFn::try_from_xml(&mut reader).unwrap();
+        let force_triple_hash_map = force_triple
+            .into_iter()
+            .map(|(name, value, bdd)| (format!("{}{}", name, value), bdd))
+            .collect::<HashMap<_, _>>();
 
-    //     let mut valuation = system_update_fn.get_default_partial_valuation();
-    //     let domain_renamed = system_update_fn
-    //         .named_symbolic_domains
-    //         .get("renamed")
-    //         .unwrap();
-    //     println!("line 217");
-    //     domain_renamed.encode_bits(&mut valuation, &6);
+        let smart_bdd_force_bdd_tuples = smart_triple_hash_map
+            .into_iter()
+            .map(|(name_and_value, smart_bdd)| {
+                println!("name_and_value = {}", name_and_value);
+                (
+                    name_and_value.clone(),
+                    smart_bdd,
+                    force_triple_hash_map
+                        .get(&name_and_value)
+                        .expect("no such bdd")
+                        .clone(),
+                )
+            })
+            .collect::<Vec<_>>();
 
-    //     let res =
-    //         system_update_fn.get_result_bits("renamed", &valuation.clone().try_into().unwrap());
+        smart_bdd_force_bdd_tuples
+            .iter()
+            .for_each(|(variable_and_value, smart_bdd, force_bdd)| {
+                println!("comparing bdds of {}", variable_and_value);
+                assert_eq!(
+                    smart_system_update_fn.bdd_to_dot_string(smart_bdd),
+                    force_system_update_fn.bdd_to_dot_string(force_bdd)
+                );
+            });
 
-    //     let mut new_valuation = valuation.clone();
-    //     res.into_iter().for_each(|(bool, var)| {
-    //         new_valuation.set_value(var, bool);
-    //     });
+        let var_names = force_system_update_fn
+            .named_symbolic_domains
+            .keys()
+            .collect::<Vec<_>>();
 
-    //     println!("valuation: {:?}", valuation);
-    //     println!("new_valuation: {:?}", new_valuation);
+        println!("var_names = {:?}", var_names.len());
 
-    //     let successors = system_update_fn.get_successors(&valuation.clone().try_into().unwrap());
-    //     println!("successors: {:?}", successors);
-    // }
+        let those_that_eq = RwLock::new(0);
+        let those_that_neq = RwLock::new(0);
+
+        // let res =
+        var_names.par_iter().for_each(|var_name| {
+            smart_bdd_force_bdd_tuples.par_iter().for_each(
+                |(name, smart_set_of_states, force_set_of_states)| {
+                    println!("comparing bdds of {}", name);
+                    let smart_transitioned = smart_system_update_fn
+                        .transition_under_variable(var_name, smart_set_of_states);
+
+                    let force_transitioned = force_system_update_fn
+                        .transition_under_variable(var_name, force_set_of_states);
+
+                    let smart_dot = smart_system_update_fn.bdd_to_dot_string(&smart_transitioned);
+
+                    let force_dot = force_system_update_fn.bdd_to_dot_string(&force_transitioned);
+
+                    // let the_two_whole = format!("{}\n{}", smart_whole_succs_dot, force_whole_succs_dot);
+                    let the_two = format!("{}\n{}", smart_dot, force_dot);
+
+                    // std::fs::write("dot_output.dot", the_two_whole).expect("cannot write to file");
+                    std::fs::write("dot_output.dot", the_two).expect("cannot write to file");
+
+                    // assert_eq!(smart_dot, force_dot);
+                    // if smart_dot != force_dot {
+                    //     println!("neq");
+                    // };
+
+                    if smart_dot == force_dot {
+                        let curr = {
+                            let xd = those_that_eq.read().unwrap().to_owned();
+                            xd
+                        };
+                        *those_that_eq.write().unwrap() = curr + 1;
+                    } else {
+                        let curr = {
+                            let xd = those_that_neq.read().unwrap().to_owned();
+                            xd
+                        };
+                        *those_that_neq.write().unwrap() = curr + 1;
+                    }
+                },
+            )
+        });
+        // .count();
+
+        println!("those_that_eq = {:?}", *those_that_eq.read().unwrap());
+        println!("those_that_neq = {:?}", *those_that_neq.read().unwrap());
+
+        assert_eq!(
+            *those_that_neq.read().unwrap(),
+            0,
+            "some bdds are not equal"
+        );
+
+        // println!("{:?}", res);
+    }
 }
