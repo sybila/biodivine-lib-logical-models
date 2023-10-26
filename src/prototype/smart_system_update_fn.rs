@@ -997,7 +997,7 @@ mod tests {
     }
 
     #[test]
-    fn test_handmade_basic_() {
+    fn test_kinda_inclusive() {
         std::fs::read_dir("data/large")
             .expect("could not read dir")
             .skip(1)
@@ -1054,7 +1054,7 @@ mod tests {
                 let smart_bdd_force_bdd_tuples = smart_triple_hash_map
                     .into_iter()
                     .map(|(name_and_value, smart_bdd)| {
-                        println!("name_and_value = {}", name_and_value);
+                        // println!("name_and_value = {}", name_and_value);
                         (
                             name_and_value.clone(),
                             smart_bdd,
@@ -1068,7 +1068,7 @@ mod tests {
 
                 smart_bdd_force_bdd_tuples.iter().for_each(
                     |(variable_and_value, smart_bdd, force_bdd)| {
-                        println!("comparing bdds of {}", variable_and_value);
+                        // println!("comparing bdds of {}", variable_and_value);
                         assert_eq!(
                             smart_system_update_fn.bdd_to_dot_string(smart_bdd),
                             force_system_update_fn.bdd_to_dot_string(force_bdd)
@@ -1081,16 +1081,16 @@ mod tests {
                     .keys()
                     .collect::<Vec<_>>();
 
-                println!("var_names = {:?}", var_names.len());
+                // println!("var_names = {:?}", var_names.len());
 
                 let those_that_eq = RwLock::new(0);
                 let those_that_neq = RwLock::new(0);
 
                 // let res =
-                var_names.iter().for_each(|var_name| {
-                    smart_bdd_force_bdd_tuples.iter().for_each(
+                var_names.par_iter().for_each(|var_name| {
+                    smart_bdd_force_bdd_tuples.par_iter().for_each(
                         |(name, smart_set_of_states, force_set_of_states)| {
-                            println!("comparing bdds of {}", name);
+                            // println!("comparing bdds of {}", name);
                             let smart_transitioned = smart_system_update_fn
                                 .transition_under_variable(var_name, smart_set_of_states);
 
@@ -1107,8 +1107,8 @@ mod tests {
                             let the_two = format!("{}\n{}", smart_dot, force_dot);
 
                             // std::fs::write("dot_output.dot", the_two_whole).expect("cannot write to file");
-                            std::fs::write("dot_output.dot", the_two)
-                                .expect("cannot write to file");
+                            // std::fs::write("dot_output.dot", the_two)
+                            //     .expect("cannot write to file");
 
                             assert_eq!(smart_dot, force_dot);
                             // if smart_dot != force_dot {
@@ -1128,6 +1128,12 @@ mod tests {
                                 };
                                 *those_that_neq.write().unwrap() = curr + 1;
                             }
+
+                            println!(
+                                "those_that_eq = {:?}, neq = {:?}",
+                                *those_that_eq.read().unwrap(),
+                                *those_that_neq.read().unwrap()
+                            );
                         },
                     )
                 });

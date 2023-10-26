@@ -171,16 +171,16 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
 
                 // todo this seems to be the problem; the result of this is nondeterministic
                 let sym_vars = domain.symbolic_variables();
-                println!("{:?}", sym_vars);
+                // println!("{:?}", sym_vars);
 
                 // todo yes this is the problem; the order of the variables is different
                 let vars = self.bdd_variable_set.0.variables();
-                println!("{:?}", vars);
+                // println!("{:?}", vars);
                 let named_variables = vars
                     .iter()
                     .map(|var| (self.bdd_variable_set.name_of(var.to_owned()), var))
                     .collect::<Vec<_>>();
-                println!("named variables {:?}", named_variables);
+                // println!("named variables {:?}", named_variables);
 
                 let vars_and_their_bits = domain
                     .symbolic_variables()
@@ -488,7 +488,7 @@ mod tests {
             .get("todo some existing name")
             .unwrap();
 
-        println!("line 184");
+        // println!("line 184");
         some_domain.encode_bits(&mut valuation, &1);
     }
 
@@ -503,14 +503,14 @@ mod tests {
         let system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
             super::SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load system update fn");
 
-        println!("system_update_fn: {:?}", system_update_fn);
+        // println!("system_update_fn: {:?}", system_update_fn);
 
         let mut valuation = system_update_fn.get_default_partial_valuation();
         let domain = system_update_fn.named_symbolic_domains.get("ORI").unwrap();
         domain.encode_bits(&mut valuation, &1);
 
         let succs = system_update_fn.get_successors(&valuation.try_into().unwrap());
-        println!("succs: {:?}", succs);
+        // println!("succs: {:?}", succs);
     }
 
     #[test]
