@@ -41,6 +41,17 @@ impl<D: SymbolicDomain<u8>> UpdateFnBdd<D> {
             .terms
             .iter()
             .map(|(val, expr)| {
+                // todo seems to be fine
+                // let bdd_from_expression =
+                //     bdd_from_expr(expr, named_symbolic_domains, bdd_variable_set);
+
+                // let bdd_string = format!("{:?}", bdd_from_expression);
+                // if bdd_string == "Bdd([BddNode { var: BddVariable(4), low_link: BddPointer(0), high_link: BddPointer(0) }, BddNode { var: BddVariable(4), low_link: BddPointer(1), high_link: BddPointer(1) }, BddNode { var: BddVariable(2), low_link: BddPointer(1), high_link: BddPointer(0) }, BddNode { var: BddVariable(0), low_link: BddPointer(2), high_link: BddPointer(0) }])" {
+                //     panic!("ok");
+                // } else {
+                //     panic!("not ok");
+                // }
+
                 (
                     val.to_owned(),
                     bdd_from_expr(expr.to_owned(), named_symbolic_domains, bdd_variable_set),

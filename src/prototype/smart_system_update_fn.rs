@@ -2,7 +2,7 @@
 
 // todo how to work with the "variables" that are not mentioned in the listOfTransitions?
 
-use std::{collections::HashMap, io::BufRead};
+use std::{collections::HashMap, fmt::Debug, io::BufRead};
 
 use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddVariableSet, BddVariableSetBuilder};
 use debug_ignore::DebugIgnore;
@@ -19,19 +19,27 @@ struct SmartSystemUpdateFn<D: SymbolicDomain<T>, T> {
     bdd_variable_set: DebugIgnore<BddVariableSet>,
 }
 
-impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
+impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
     /// expects the xml reader to be at the start of the <listOfTransitions> element
     pub fn try_from_xml<XR: XmlReader<BR>, BR: BufRead>(
         xml: &mut XR,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let var_names_and_upd_fns = load_all_update_fns(xml)?;
-        let ctx = vars_and_their_max_values(&var_names_and_upd_fns);
+        let sorted_ctx = {
+            let mut to_be_sorted = vars_and_their_max_values(&var_names_and_upd_fns)
+                .into_iter()
+                .collect::<Vec<_>>();
+            to_be_sorted.sort_unstable_by_key(|it| it.0.to_owned());
+            to_be_sorted
+        };
+        println!("ctx = {:?}", sorted_ctx);
 
         // todo currently, we have no way of adding those variables, that do not have their VariableUpdateFn
         // todo  (ie their qual:transition in the xml) into the named_symbolic_domains, even tho they migh
         // todo  be used as inputs to some functions, causing panic
         let mut bdd_variable_set_builder = BddVariableSetBuilder::new();
-        let named_symbolic_domains = ctx
+
+        let named_symbolic_domains = sorted_ctx
             .into_iter()
             .flat_map(|(name, max_value)| {
                 let original_name = name.clone();
@@ -59,18 +67,36 @@ impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
             .collect::<HashMap<_, _>>();
         let variable_set = bdd_variable_set_builder.build();
 
-        let update_fns = var_names_and_upd_fns
-            .into_values()
-            .map(|update_fn| {
+        // todo this should not be necessary but you never know; actually maybe the fact that we were doing `into_values` might have fcked stuff up
+        let sorted_var_names_and_upd_fns = {
+            let mut to_be_sorted = var_names_and_upd_fns.into_iter().collect::<Vec<_>>();
+            to_be_sorted.sort_unstable_by_key(|it| it.0.to_owned());
+            to_be_sorted
+        };
+
+        let update_fns = sorted_var_names_and_upd_fns
+            .into_iter()
+            .map(|(_, update_fn)| {
                 (
-                    update_fn.target_var_name.clone(),
+                    update_fn.target_var_name.clone(), // todo should have been ok to iterate unsorted; bcz target_var_name present here
                     UpdateFnBdd::from_update_fn(update_fn, &variable_set, &named_symbolic_domains)
                         .into(),
                 )
             })
             .collect::<HashMap<String, VariableUpdateFnCompiled<D, u8>>>();
 
-        let smart_update_fns = update_fns
+        let sorted_update_fns = {
+            let mut to_be_sorted = update_fns.into_iter().collect::<Vec<_>>();
+            to_be_sorted.sort_unstable_by_key(|it| it.0.to_owned());
+            to_be_sorted
+        };
+
+        println!(
+            "sorted_update_fns = {:?}",
+            sorted_update_fns.iter().map(|f| &f.0).collect::<Vec<_>>()
+        );
+
+        let smart_update_fns = sorted_update_fns
             .into_iter()
             // .map(|(target_variable_name, compiled_update_fn)| {
             .map(|tuple| {
@@ -87,11 +113,92 @@ impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
             })
             .collect::<HashMap<_, _>>();
 
+        // this seems to always be ok = is the same every time
+        // let bdd_variables = variable_set.variables();
+        // let bdd_vars_to_their_names = variable_set
+        //     .variables()
+        //     .into_iter()
+        //     .map(|var| variable_set.name_of(var))
+        //     .collect::<String>();
+
+        // let expected = "p_v1p'_v1q_v1q'_v1";
+
+        // if bdd_vars_to_their_names != expected {
+        //     panic!(
+        //         "bdd_vars_to_their_names = {:?}, expected = {:?}",
+        //         bdd_vars_to_their_names, expected
+        //     );
+        // } else {
+        //     panic!("ok");
+        // }
+
+        // this seems fine too
+
+        // let sorted_names = {
+        //     let mut to_be_sorted = smart_update_fns.keys().collect::<Vec<_>>();
+        //     to_be_sorted.sort_unstable();
+        //     to_be_sorted
+        // };
+
+        // let all_bdds = sorted_names
+        //     .into_iter()
+        //     .map(|name| {
+        //         let update_fn = smart_update_fns.get(name).unwrap().to_owned().to_owned();
+        //         let bdd_str = update_fn
+        //             .transition_function
+        //             .to_dot_string(&variable_set, false);
+        //         bdd_str
+        //     })
+        //     .collect::<String>();
+
+        // let expected = r#"digraph G {
+        //     init__ [label="", style=invis, height=0, width=0];
+        //     init__ -> 2;
+        //     0 [shape=box, label="0", style=filled, shape=box, height=0.3, width=0.3];
+        //     1 [shape=box, label="1", style=filled, shape=box, height=0.3, width=0.3];
+        //     2[label="p'_v1"];
+        //     2 -> 0 [style=filled];
+        //     2 -> 1 [style=dotted];
+        //     }
+        //     digraph G {
+        //     init__ [label="", style=invis, height=0, width=0];
+        //     init__ -> 4;
+        //     0 [shape=box, label="0", style=filled, shape=box, height=0.3, width=0.3];
+        //     1 [shape=box, label="1", style=filled, shape=box, height=0.3, width=0.3];
+        //     2[label="q'_v1"];
+        //     2 -> 1 [style=filled];
+        //     2 -> 0 [style=dotted];
+        //     3[label="q'_v1"];
+        //     3 -> 0 [style=filled];
+        //     3 -> 1 [style=dotted];
+        //     4[label="p_v1"];
+        //     4 -> 2 [style=filled];
+        //     4 -> 3 [style=dotted];
+        //     }
+        //     "#;
+
+        // let expected = Self::unindent(expected);
+
+        // if all_bdds != expected {
+        //     println!("{:?}", all_bdds);
+        //     println!("{:?}", expected);
+        //     panic!("nok");
+        // } else {
+        //     panic!("ok");
+        // }
+
         Ok(Self {
             update_fns: smart_update_fns,
             named_symbolic_domains,
             bdd_variable_set: variable_set.into(),
         })
+    }
+
+    fn unindent(s: &str) -> String {
+        s.lines()
+            .map(|line| line.trim_start())
+            .collect::<Vec<&str>>()
+            .join("\n")
     }
 
     /// returns valuation inicialized so that all the symbolic values are = 0
@@ -115,6 +222,19 @@ impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
             .update_fns
             .get(transitioned_variable_name)
             .expect("no such variable");
+
+        println!("var name = {:?}", transitioned_variable_name);
+
+        let str_used_transition_fn = format!("{:?}", used_transition_fn);
+
+        let expected = "SymbolicTransitionFn { transition_function: Bdd([BddNode { var: BddVariable(4), low_link: BddPointer(0), high_link: BddPointer(0) }, BddNode { var: BddVariable(4), low_link: BddPointer(1), high_link: BddPointer(1) }, BddNode { var: BddVariable(1), low_link: BddPointer(1), high_link: BddPointer(0) }]), penis: PhantomData<u8>, penis2: PhantomData<biodivine_lib_logical_models::symbolic_domain::UnaryIntegerDomain> }";
+
+        // if str_used_transition_fn != expected {
+        //     panic!("nok");
+        // } else {
+        //     panic!("ok");
+        // }
+
         let states_capable_of_performing_the_transition =
             used_transition_fn.transition_function.and(current_state);
 
@@ -134,6 +254,9 @@ impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
         }
 
         for bdd_variable in target_symbolic_domain.symbolic_variables() {
+            // todo getting random ordering here
+            println!("bdd_variable = {:?}", bdd_variable);
+
             let bdd_variable_primed = crate::prototype::utils::find_bdd_variables_prime(
                 &bdd_variable,
                 target_symbolic_domain,
@@ -365,6 +488,7 @@ fn get_max_val_of_var_in_all_transitions_including_their_own(
 
 #[cfg(test)]
 mod tests {
+    use biodivine_lib_bdd::BddVariableSetBuilder;
     use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
     use xml::EventReader;
 
@@ -376,6 +500,7 @@ mod tests {
 
     // use std:io::{BufRead, BufReader}
 
+    use core::panic;
     use std::{
         cell::RefCell,
         io::BufReader,
@@ -703,6 +828,94 @@ mod tests {
     }
 
     #[test]
+    fn test_handbook() {
+        let filepath = "data/manual/handbook_example.sbml";
+
+        let smart_system_update_fn = {
+            let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                std::fs::File::open(filepath.clone()).expect("cannot open the file"),
+            ));
+
+            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+
+            let smart_system_update_fn: SmartSystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
+                SmartSystemUpdateFn::try_from_xml(&mut xml)
+                    .expect("cannot load smart system update fn");
+
+            smart_system_update_fn
+        };
+
+        let force_system_update_fn = {
+            let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                std::fs::File::open(filepath).expect("cannot open the file"),
+            ));
+
+            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+
+            let force_system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
+                SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load smart system update fn");
+
+            force_system_update_fn
+        };
+
+        let smart_zero_bdd =
+            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
+        let smart_one_bdd =
+            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
+        let smart_zero_or_one_bdd = smart_zero_bdd.or(&smart_one_bdd);
+
+        let force_zero_bdd =
+            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
+        let force_one_bdd =
+            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
+        let force_zero_or_one_bdd = force_zero_bdd.or(&force_one_bdd);
+
+        let smart_transitioned =
+            smart_system_update_fn.transition_under_variable("p", &smart_zero_or_one_bdd);
+
+        let force_transitioned =
+            force_system_update_fn.transition_under_variable("p", &force_zero_or_one_bdd);
+
+        let the_two_transitioned = format!(
+            "{}\n{}",
+            smart_system_update_fn.bdd_to_dot_string(&smart_transitioned),
+            force_system_update_fn.bdd_to_dot_string(&force_transitioned)
+        );
+
+        std::fs::write("dot_output.dot", the_two_transitioned).expect("cannot write to file");
+
+        assert_eq!(
+            smart_system_update_fn.bdd_to_dot_string(&smart_transitioned),
+            force_system_update_fn.bdd_to_dot_string(&force_transitioned)
+        );
+
+        // let force_one = force_system_update_fn
+        //     .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 1);
+        // let force_two = force_system_update_fn
+        //     .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 2);
+        // let force_one_or_two = force_one.or(&force_two);
+
+        // std::fs::write(
+        //     "dot_output.dot",
+        //     force_system_update_fn.bdd_to_dot_string(&force_one_or_two),
+        // )
+        // .expect("cannot write to file");
+
+        // // std::fs::write(
+        // //     "dot_output.dot",
+        // //     force_system_update_fn.bdd_to_dot_string(&force_transitioned),
+        // // )
+        // // .expect("cannot write to file");
+
+        // assert!(
+        //     // force_transitioned.iff(&force_one_or_two).is_true(),
+        //     force_system_update_fn.bdd_to_dot_string(&force_transitioned)
+        //         == force_system_update_fn.bdd_to_dot_string(&force_one_or_two),
+        //     "should be set of [one, two]",
+        // );
+    }
+
+    #[test]
     fn test_handmade_larger_starting_set_and_includes_previous() {
         let filepath = "data/manual/single_variable_v3.sbml";
 
@@ -941,7 +1154,45 @@ mod tests {
     }
 
     #[test]
-    fn test_handmade_basic_xd() {
+    fn test_bdd_variable_set_ordering() {
+        for _ in 0..10000 {
+            let mut bdd_variable_set_builder = BddVariableSetBuilder::new();
+
+            ('a'..='z').for_each(|c| {
+                bdd_variable_set_builder.make_variable(&c.to_string());
+            });
+
+            let built = bdd_variable_set_builder.build();
+
+            let all_vars = ('a'..='z')
+                .map(|var| {
+                    let bdd_var = built.var_by_name(var.to_string().as_str()).unwrap();
+                    let string = format!("{}", bdd_var);
+                    string
+                })
+                .collect::<String>();
+
+            let exp = "012345678910111213141516171819202122232425";
+            assert_eq!(all_vars, exp);
+
+            let variables = format!("{:?}", built.variables());
+            let exp_variables = "[BddVariable(0), BddVariable(1), BddVariable(2), BddVariable(3), BddVariable(4), BddVariable(5), BddVariable(6), BddVariable(7), BddVariable(8), BddVariable(9), BddVariable(10), BddVariable(11), BddVariable(12), BddVariable(13), BddVariable(14), BddVariable(15), BddVariable(16), BddVariable(17), BddVariable(18), BddVariable(19), BddVariable(20), BddVariable(21), BddVariable(22), BddVariable(23), BddVariable(24), BddVariable(25)]";
+            assert_eq!(variables, exp_variables);
+
+            let bdd_vars_to_their_names = built
+                .variables()
+                .into_iter()
+                .map(|var| built.name_of(var))
+                .collect::<String>();
+
+            let expected_vars_to_their_names = "abcdefghijklmnopqrstuvwxyz";
+
+            assert_eq!(bdd_vars_to_their_names, expected_vars_to_their_names);
+        }
+    }
+
+    #[test]
+    fn test_handmade_basic_most_interesting() {
         let filepath = "data/manual/handbook_example.sbml";
 
         let smart_system_update_fn = {
@@ -988,6 +1239,55 @@ mod tests {
             .map(|(name, value, bdd)| (format!("{}{}", name, value), bdd))
             .collect::<HashMap<_, _>>();
 
+        let smart_triple_sorted = {
+            let mut smart_triple_sorted = smart_triple_hash_map
+                .clone()
+                .into_iter()
+                .collect::<Vec<_>>();
+            smart_triple_sorted
+                .sort_unstable_by_key(|(name_and_value, _smart_bdd)| name_and_value.to_string());
+            smart_triple_sorted
+        };
+
+        let force_triple_sorted = {
+            let mut force_triple_sorted = force_triple_hash_map
+                .clone()
+                .into_iter()
+                .collect::<Vec<_>>();
+            force_triple_sorted
+                .sort_unstable_by_key(|(name_and_value, _smart_bdd)| name_and_value.to_string());
+            force_triple_sorted
+        };
+
+        let smart_triple_sorted_string_expected =
+            "p0|4,0,0|4,1,1|0,1,0|p1|4,0,0|4,1,1|0,0,1|q0|4,0,0|4,1,1|2,1,0|q1|4,0,0|4,1,1|2,0,1|";
+
+        let smart_triple_sorted_string = smart_triple_sorted
+            .iter()
+            .map(|(name_and_value, bdd)| format!("{}{}", name_and_value, bdd))
+            .collect::<String>();
+
+        let force_triple_sorted_string = force_triple_sorted
+            .iter()
+            .map(|(name_and_value, bdd)| format!("{}{}", name_and_value, bdd))
+            .collect::<String>();
+
+        println!(
+            "smart_triple_sorted_string = {}",
+            smart_triple_sorted_string
+        );
+        println!(
+            "force_triple_sorted_string = {}",
+            force_triple_sorted_string
+        );
+
+        assert_eq!(
+            smart_triple_sorted_string,
+            smart_triple_sorted_string_expected
+        );
+
+        // panic!("okk");
+
         let smart_bdd_force_bdd_tuples = smart_triple_hash_map
             .into_iter()
             .map(|(name_and_value, smart_bdd)| {
@@ -1003,6 +1303,16 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
+        smart_triple_sorted
+            .iter()
+            .zip(force_triple_sorted.clone())
+            .for_each(|(smart_bdd, force_bdd)| {
+                assert_eq!(
+                    smart_system_update_fn.bdd_to_dot_string(&smart_bdd.1),
+                    force_system_update_fn.bdd_to_dot_string(&force_bdd.1)
+                );
+            });
+
         smart_bdd_force_bdd_tuples
             .iter()
             .for_each(|(variable_and_value, smart_bdd, force_bdd)| {
@@ -1012,6 +1322,8 @@ mod tests {
                     force_system_update_fn.bdd_to_dot_string(force_bdd)
                 );
             });
+
+        //todo
 
         let var_names = force_system_update_fn
             .named_symbolic_domains
@@ -1023,59 +1335,277 @@ mod tests {
         let those_that_eq = RwLock::new(0);
         let those_that_neq = RwLock::new(0);
 
-        // let res =
-        var_names.par_iter().for_each(|var_name| {
-            smart_bdd_force_bdd_tuples.par_iter().for_each(
-                |(name, smart_set_of_states, force_set_of_states)| {
-                    println!("comparing bdds of {}", name);
+        let sorted_smart_and_force_bdd_tuples = smart_triple_sorted
+            .iter()
+            .cloned()
+            .zip(force_triple_sorted.iter().cloned())
+            .map(|((_, smart_bdd), (_, force_bdd))| (smart_bdd, force_bdd))
+            .collect::<Vec<_>>();
+
+        let tuples_string = sorted_smart_and_force_bdd_tuples
+            .iter()
+            .map(|(smart_bdd, force_bdd)| {
+                format!(
+                    "{}\n{}",
+                    smart_system_update_fn.bdd_to_dot_string(smart_bdd),
+                    force_system_update_fn.bdd_to_dot_string(force_bdd)
+                )
+            })
+            .collect::<String>();
+
+        println!("tuples_string = {}\n#####", tuples_string);
+
+        let expected_tuples_string = r#"digraph G {
+            init__ [label="", style=invis, height=0, width=0];
+            init__ -> 2;
+            0 [shape=box, label="0", style=filled, shape=box, height=0.3, width=0.3];
+            1 [shape=box, label="1", style=filled, shape=box, height=0.3, width=0.3];
+            2[label="p_v1"];
+            2 -> 0 [style=filled];
+            2 -> 1 [style=dotted];
+            }
+            
+            digraph G {
+            init__ [label="", style=invis, height=0, width=0];
+            init__ -> 2;
+            0 [shape=box, label="0", style=filled, shape=box, height=0.3, width=0.3];
+            1 [shape=box, label="1", style=filled, shape=box, height=0.3, width=0.3];
+            2[label="p_v1"];
+            2 -> 0 [style=filled];
+            2 -> 1 [style=dotted];
+            }
+            digraph G {
+            init__ [label="", style=invis, height=0, width=0];
+            init__ -> 2;
+            0 [shape=box, label="0", style=filled, shape=box, height=0.3, width=0.3];
+            1 [shape=box, label="1", style=filled, shape=box, height=0.3, width=0.3];
+            2[label="p_v1"];
+            2 -> 1 [style=filled];
+            2 -> 0 [style=dotted];
+            }
+            
+            digraph G {
+            init__ [label="", style=invis, height=0, width=0];
+            init__ -> 2;
+            0 [shape=box, label="0", style=filled, shape=box, height=0.3, width=0.3];
+            1 [shape=box, label="1", style=filled, shape=box, height=0.3, width=0.3];
+            2[label="p_v1"];
+            2 -> 1 [style=filled];
+            2 -> 0 [style=dotted];
+            }
+            digraph G {
+            init__ [label="", style=invis, height=0, width=0];
+            init__ -> 2;
+            0 [shape=box, label="0", style=filled, shape=box, height=0.3, width=0.3];
+            1 [shape=box, label="1", style=filled, shape=box, height=0.3, width=0.3];
+            2[label="q_v1"];
+            2 -> 0 [style=filled];
+            2 -> 1 [style=dotted];
+            }
+            
+            digraph G {
+            init__ [label="", style=invis, height=0, width=0];
+            init__ -> 2;
+            0 [shape=box, label="0", style=filled, shape=box, height=0.3, width=0.3];
+            1 [shape=box, label="1", style=filled, shape=box, height=0.3, width=0.3];
+            2[label="q_v1"];
+            2 -> 0 [style=filled];
+            2 -> 1 [style=dotted];
+            }
+            digraph G {
+            init__ [label="", style=invis, height=0, width=0];
+            init__ -> 2;
+            0 [shape=box, label="0", style=filled, shape=box, height=0.3, width=0.3];
+            1 [shape=box, label="1", style=filled, shape=box, height=0.3, width=0.3];
+            2[label="q_v1"];
+            2 -> 1 [style=filled];
+            2 -> 0 [style=dotted];
+            }
+            
+            digraph G {
+            init__ [label="", style=invis, height=0, width=0];
+            init__ -> 2;
+            0 [shape=box, label="0", style=filled, shape=box, height=0.3, width=0.3];
+            1 [shape=box, label="1", style=filled, shape=box, height=0.3, width=0.3];
+            2[label="q_v1"];
+            2 -> 1 [style=filled];
+            2 -> 0 [style=dotted];
+            }
+            "#;
+
+        let expected_tuples_string = unindent(expected_tuples_string);
+
+        assert_eq!(tuples_string, expected_tuples_string);
+
+        // panic!("okk");
+
+        var_names.iter().take(1).for_each(|var_name| {
+            sorted_smart_and_force_bdd_tuples.iter().take(1).for_each(
+                |(smart_set_of_states, force_set_of_states)| {
                     let smart_transitioned = smart_system_update_fn
                         .transition_under_variable(var_name, smart_set_of_states);
-
                     let force_transitioned = force_system_update_fn
                         .transition_under_variable(var_name, force_set_of_states);
 
-                    let smart_dot = smart_system_update_fn.bdd_to_dot_string(&smart_transitioned);
+                    let formatted = format!(
+                        "{}\n{}",
+                        smart_system_update_fn.bdd_to_dot_string(&smart_set_of_states),
+                        force_system_update_fn.bdd_to_dot_string(&force_set_of_states)
+                    );
 
+                    let expected_formatted = r#"digraph G {
+                        init__ [label="", style=invis, height=0, width=0];
+                        init__ -> 2;
+                        0 [shape=box, label="0", style=filled, shape=box, height=0.3, width=0.3];
+                        1 [shape=box, label="1", style=filled, shape=box, height=0.3, width=0.3];
+                        2[label="p_v1"];
+                        2 -> 0 [style=filled];
+                        2 -> 1 [style=dotted];
+                        }
+                        
+                        digraph G {
+                        init__ [label="", style=invis, height=0, width=0];
+                        init__ -> 2;
+                        0 [shape=box, label="0", style=filled, shape=box, height=0.3, width=0.3];
+                        1 [shape=box, label="1", style=filled, shape=box, height=0.3, width=0.3];
+                        2[label="p_v1"];
+                        2 -> 0 [style=filled];
+                        2 -> 1 [style=dotted];
+                        }
+                        "#;
+
+                    let expected_formatted = unindent(expected_formatted);
+
+                    assert_eq!(formatted, expected_formatted, "expected formatted");
+
+                    let smart_dot = smart_system_update_fn.bdd_to_dot_string(&smart_transitioned);
                     let force_dot = force_system_update_fn.bdd_to_dot_string(&force_transitioned);
 
-                    // let the_two_whole = format!("{}\n{}", smart_whole_succs_dot, force_whole_succs_dot);
-                    let the_two = format!("{}\n{}", smart_dot, force_dot);
+                    // let the_two = format!("{}\n{}", smart_dot, force_dot);
 
-                    // std::fs::write("dot_output.dot", the_two_whole).expect("cannot write to file");
-                    std::fs::write("dot_output.dot", the_two).expect("cannot write to file");
+                    // std::fs::write("dot_output.dot", the_two).expect("cannot write to file");
 
-                    // assert_eq!(smart_dot, force_dot);
-                    // if smart_dot != force_dot {
-                    //     println!("neq");
-                    // };
+                    // assert_eq!(smart_dot, force_dot, "expected dot");
 
-                    if smart_dot == force_dot {
-                        let curr = {
-                            let xd = those_that_eq.read().unwrap().to_owned();
-                            xd
-                        };
-                        *those_that_eq.write().unwrap() = curr + 1;
-                    } else {
-                        let curr = {
-                            let xd = those_that_neq.read().unwrap().to_owned();
-                            xd
-                        };
-                        *those_that_neq.write().unwrap() = curr + 1;
-                    }
+                    // todo bruh what the fuck - any of the following asserts fail/pass nondeterministically -> transition_under_variable nondeterministic
+                    // println!("smart_dot = ~~~{}~~~`", smart_dot);
+
+                    // let expected_smart_dot = r#"digraph G {
+                    //     init__ [label="", style=invis, height=0, width=0];
+                    //     init__ -> 3;
+                    //     0 [shape=box, label="0", style=filled, shape=box, height=0.3, width=0.3];
+                    //     1 [shape=box, label="1", style=filled, shape=box, height=0.3, width=0.3];
+                    //     2[label="q_v1"];
+                    //     2 -> 0 [style=filled];
+                    //     2 -> 1 [style=dotted];
+                    //     3[label="p_v1"];
+                    //     3 -> 0 [style=filled];
+                    //     3 -> 2 [style=dotted];
+                    //     }
+                    //     "#;
+
+                    // let expected_smart_dot = unindent(expected_smart_dot);
+
+                    // assert_eq!(smart_dot, expected_smart_dot, "expected smart dot");
+
+                    // println!("force_dot = ~~~{}~~~`", force_dot);
+
+                    // let expected_force_dot = r#"digraph G {
+                    //     init__ [label="", style=invis, height=0, width=0];
+                    //     init__ -> 3;
+                    //     0 [shape=box, label="0", style=filled, shape=box, height=0.3, width=0.3];
+                    //     1 [shape=box, label="1", style=filled, shape=box, height=0.3, width=0.3];
+                    //     2[label="p_v1"];
+                    //     2 -> 0 [style=filled];
+                    //     2 -> 1 [style=dotted];
+                    //     3[label="q_v1"];
+                    //     3 -> 0 [style=filled];
+                    //     3 -> 2 [style=dotted];
+                    //     }
+                    //     "#;
+
+                    // let expected_force_dot = unindent(expected_force_dot);
+
+                    // assert_eq!(force_dot, expected_force_dot, "expected force dot");
+
+                    // let smart_bdd = format!("{}", smart_transitioned);
+
+                    // println!("smart_bdd = ~~~{}~~~", smart_bdd);
+
+                    // let expected_smart_bdd = r#"|4,0,0|4,1,1|0,1,0|"#;
+
+                    // assert_eq!(smart_bdd, expected_smart_bdd, "expected smart bdd");
+
+                    let force_bdd = format!("{}", force_transitioned);
+
+                    println!("force_bdd = ~~~{}~~~", force_bdd);
+
+                    let expected_force_bdd = r#"|2,0,0|2,1,1|1,1,0|"#;
+
+                    assert_eq!(force_bdd, expected_force_bdd, "expected force bdd");
                 },
             )
         });
-        // .count();
 
-        println!("those_that_eq = {:?}", *those_that_eq.read().unwrap());
-        println!("those_that_neq = {:?}", *those_that_neq.read().unwrap());
+        // // let res =
+        // var_names.iter().for_each(|var_name| {
+        //     sorted_smart_and_force_bdd_tuples.iter().for_each(
+        //         |(smart_set_of_states, force_set_of_states)| {
+        //             let smart_transitioned = smart_system_update_fn
+        //                 .transition_under_variable(var_name, smart_set_of_states);
 
-        assert_eq!(
-            *those_that_neq.read().unwrap(),
-            0,
-            "some bdds are not equal"
-        );
+        //             let force_transitioned = force_system_update_fn
+        //                 .transition_under_variable(var_name, force_set_of_states);
+
+        //             let smart_dot = smart_system_update_fn.bdd_to_dot_string(&smart_transitioned);
+
+        //             let force_dot = force_system_update_fn.bdd_to_dot_string(&force_transitioned);
+
+        //             // let the_two_whole = format!("{}\n{}", smart_whole_succs_dot, force_whole_succs_dot);
+        //             let the_two = format!("{}\n{}", smart_dot, force_dot);
+
+        //             // std::fs::write("dot_output.dot", the_two_whole).expect("cannot write to file");
+        //             std::fs::write("dot_output.dot", the_two).expect("cannot write to file");
+
+        //             // assert_eq!(smart_dot, force_dot);
+        //             // if smart_dot != force_dot {
+        //             //     println!("neq");
+        //             // };
+
+        //             if smart_dot == force_dot {
+        //                 let curr = {
+        //                     let xd = those_that_eq.read().unwrap().to_owned();
+        //                     xd
+        //                 };
+        //                 *those_that_eq.write().unwrap() = curr + 1;
+        //             } else {
+        //                 let curr = {
+        //                     let xd = those_that_neq.read().unwrap().to_owned();
+        //                     xd
+        //                 };
+        //                 *those_that_neq.write().unwrap() = curr + 1;
+        //             }
+        //         },
+        //     )
+        // });
+        // // .count();
+
+        // println!("those_that_eq = {:?}", *those_that_eq.read().unwrap());
+        // println!("those_that_neq = {:?}", *those_that_neq.read().unwrap());
+
+        // assert_eq!(
+        //     *those_that_neq.read().unwrap(),
+        //     0,
+        //     "some bdds are not equal"
+        // );
 
         // println!("{:?}", res);
+    }
+
+    fn unindent(s: &str) -> String {
+        s.lines()
+            .map(|line| line.trim_start())
+            .collect::<Vec<&str>>()
+            .join("\n")
     }
 }
