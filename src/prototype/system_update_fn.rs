@@ -24,13 +24,19 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
         xml: &mut XR,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let var_names_and_upd_fns = load_all_update_fns(xml)?;
-        let ctx = vars_and_their_max_values(&var_names_and_upd_fns);
+        let sorted_ctx = {
+            let mut to_be_sorted_ctx = vars_and_their_max_values(&var_names_and_upd_fns)
+                .into_iter()
+                .collect::<Vec<_>>();
+            to_be_sorted_ctx.sort_unstable_by_key(|it| it.0.to_owned());
+            to_be_sorted_ctx
+        };
 
         // todo currently, we have no way of adding those variables, that do not have their VariableUpdateFn
         // todo  (ie their qual:transition in the xml) into the named_symbolic_domains, even tho they migh
         // todo  be used as inputs to some functions, causing panic
         let mut bdd_variable_set_builder = BddVariableSetBuilder::new();
-        let named_symbolic_domains = ctx
+        let named_symbolic_domains = sorted_ctx
             .into_iter()
             .map(|(name, max_value)| {
                 (
@@ -133,11 +139,25 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
             .get(transitioned_variable_name.clone())
             .unwrap_or_else(|| panic!("could not find variable {}", transitioned_variable_name));
 
-        let const_false = current_state.and(&current_state.not()); // used as the start of the fold
+        // just weird but comfy way to create a constant false to start the fold
+        let const_false = current_state.and(&current_state.not());
         let var_upd_fn = self
             .update_fns
             .get(transitioned_variable_name.clone())
             .unwrap();
+
+        // seems legit
+
+        // println!("const false {:?}", const_false);
+
+        // let xd = domain
+        //     .get_all_possible_values(&self.bdd_variable_set)
+        //     .into_iter()
+        //     .map(|val| format!("{:?}", val))
+        //     .collect::<Vec<_>>()
+        //     .join(", ");
+
+        // println!("{}", xd);
 
         domain
             .get_all_possible_values(&self.bdd_variable_set)
@@ -145,7 +165,22 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
             .fold(const_false.clone(), |acc, possible_var_val| {
                 let bits_of_the_encoded_value = domain.encode_bits_into_vec(possible_var_val);
 
+                // println!("{:?}", bits_of_the_encoded_value);
+
                 // println!("possible value {}", possible_var_val);
+
+                // todo this seems to be the problem; the result of this is nondeterministic
+                let sym_vars = domain.symbolic_variables();
+                println!("{:?}", sym_vars);
+
+                // todo yes this is the problem; the order of the variables is different
+                let vars = self.bdd_variable_set.0.variables();
+                println!("{:?}", vars);
+                let named_variables = vars
+                    .iter()
+                    .map(|var| (self.bdd_variable_set.name_of(var.to_owned()), var))
+                    .collect::<Vec<_>>();
+                println!("named variables {:?}", named_variables);
 
                 let vars_and_their_bits = domain
                     .symbolic_variables()
@@ -153,18 +188,27 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                     .zip(bits_of_the_encoded_value.clone())
                     .collect::<Vec<_>>();
 
+                // println!("{:?}", vars_and_their_bits);
+
                 let const_true = current_state.or(&current_state.not());
-                // let any_where_var_has_target_value = const_true.restrict(&vars_and_their_bits);
-                // todo whaaat? ^this is wrong; `restrict` does not do what i thought it should
-                // let any_where_var_has_target_value = const_true.var_select(variable, value)
+
+                // this ok
+                // println!("{:?}", const_true);
+
                 let any_where_var_has_target_value = vars_and_their_bits
                     .iter()
                     .fold(const_true, |acc, (var, bit)| {
                         acc.var_select(var.to_owned(), bit.to_owned())
                     });
 
-                // let fold_base = current_state.and(&any_where_var_has_target_value.not());
-                // let fold_base = current_state.clone();
+                // let any_where_var_has_target_value = const_true.select(&vars_and_their_bits);
+
+                // println!(
+                //     "any_where_var_has_target_value {:?}",
+                //     any_where_var_has_target_value
+                // );
+
+                // panic!("ok");
 
                 let vars_and_their_updating_bdds = var_upd_fn
                     .bit_answering_bdds
@@ -189,86 +233,13 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                         .fold(
                             const_true,
                             |acc, (ith_bit_answering_bdd, ith_expected_bit)| {
-                                // println!("ith expected bit {}", ith_expected_bit);
-                                // println!(
-                                //     "   acc currently: is false: {}, is true: {}",
-                                //     acc.is_false(),
-                                //     acc.is_true()
-                                // );
-
-                                let new_acc = if ith_expected_bit {
+                                if ith_expected_bit {
                                     acc.and(ith_bit_answering_bdd)
                                 } else {
                                     acc.and(&ith_bit_answering_bdd.not())
-                                };
-
-                                // println!(
-                                //     "   ith_bit_answering_bdd is true: {}, is false: {}",
-                                //     ith_bit_answering_bdd.is_true(),
-                                //     ith_bit_answering_bdd.is_false()
-                                // );
-
-                                // let new_acc = acc.and(ith_bit_answering_bdd);
-
-                                // println!(
-                                //     "   updated acc: is false: {}, is true: {}",
-                                //     new_acc.is_false(),
-                                //     new_acc.is_true()
-                                // );
-
-                                new_acc
+                                }
                             },
                         );
-
-                // let states_capable_of_transitioning_into_given_value = var_upd_fn
-                //     .bit_answering_bdds
-                //     .iter()
-                //     .map(|(bit_answering_bdd, _)| bit_answering_bdd)
-                //     .zip(bits_of_the_encoded_value.iter().cloned())
-                //     .fold(
-                //         const_true,
-                //         |acc, (ith_bit_answering_bdd, ith_expected_bit)| {
-                //             println!("ith expected bit {}", ith_expected_bit);
-                //             println!(
-                //                 "   acc currently: is false: {}, is true: {}",
-                //                 acc.is_false(),
-                //                 acc.is_true()
-                //             );
-
-                //             let new_acc = if ith_expected_bit {
-                //                 acc.and(ith_bit_answering_bdd)
-                //             } else {
-                //                 acc.and(&ith_bit_answering_bdd.not())
-                //             };
-
-                //             println!(
-                //                 "   ith_bit_answering_bdd is true: {}",
-                //                 ith_bit_answering_bdd.is_true()
-                //             );
-
-                //             // let new_acc = acc.and(ith_bit_answering_bdd);
-
-                //             println!(
-                //                 "   updated acc: is false: {}, is true: {}",
-                //                 new_acc.is_false(),
-                //                 new_acc.is_true()
-                //             );
-
-                //             new_acc
-                //         },
-                //     );
-
-                // println!(
-                //     "intermediate_fold: is false: {}, is true: {}",
-                //     states_capable_of_transitioning_into_given_value.is_false(),
-                //     states_capable_of_transitioning_into_given_value.is_true()
-                // );
-
-                // println!(
-                //     "states_capable_of_transitioning_into_given_value: is false: {}, is true: {}",
-                //     states_capable_of_transitioning_into_given_value.is_false(),
-                //     states_capable_of_transitioning_into_given_value.is_true()
-                // );
 
                 let states_from_current_state_set_capable_of_transitioning_into_given_value =
                     current_state.and(&states_capable_of_transitioning_into_given_value);
@@ -285,26 +256,13 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                                 .collect::<Vec<_>>()[..],
                         );
 
-                // println!(
-                //     "states_forgot_the_value_of_target_sym_var: is false: {}, is true: {}",
-                //     states_forgot_the_value_of_target_sym_var.is_false(),
-                //     states_forgot_the_value_of_target_sym_var.is_true()
-                // );
-
                 let states_transitioned_into_given_value =
                     any_where_var_has_target_value.and(&states_forgot_the_value_of_target_sym_var);
 
-                // println!(
-                //     "-+------ any where var has target value: is false: {}, is true: {}",
-                //     any_where_var_has_target_value.is_false(),
-                //     any_where_var_has_target_value.is_true()
-                // );
-
-                // println!(
-                //     "states_transitioned_into_given_value: is false: {}, is true: {}",
-                //     states_transitioned_into_given_value.is_false(),
-                //     states_transitioned_into_given_value.is_true()
-                // );
+                // let res = acc.or(&states_transitioned_into_given_value);
+                // todo yes those start to differ
+                // println!("{:?}", res);
+                // res
 
                 acc.or(&states_transitioned_into_given_value)
             })

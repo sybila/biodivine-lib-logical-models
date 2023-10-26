@@ -32,7 +32,6 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             to_be_sorted.sort_unstable_by_key(|it| it.0.to_owned());
             to_be_sorted
         };
-        println!("ctx = {:?}", sorted_ctx);
 
         // todo currently, we have no way of adding those variables, that do not have their VariableUpdateFn
         // todo  (ie their qual:transition in the xml) into the named_symbolic_domains, even tho they migh
@@ -90,11 +89,6 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             to_be_sorted.sort_unstable_by_key(|it| it.0.to_owned());
             to_be_sorted
         };
-
-        println!(
-            "sorted_update_fns = {:?}",
-            sorted_update_fns.iter().map(|f| &f.0).collect::<Vec<_>>()
-        );
 
         let smart_update_fns = sorted_update_fns
             .into_iter()
@@ -223,9 +217,8 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             .get(transitioned_variable_name)
             .expect("no such variable");
 
-        println!("var name = {:?}", transitioned_variable_name);
-
         let str_used_transition_fn = format!("{:?}", used_transition_fn);
+        // println!("str_used_transition_fn = ~~~{}~~~", str_used_transition_fn);
 
         let expected = "SymbolicTransitionFn { transition_function: Bdd([BddNode { var: BddVariable(4), low_link: BddPointer(0), high_link: BddPointer(0) }, BddNode { var: BddVariable(4), low_link: BddPointer(1), high_link: BddPointer(1) }, BddNode { var: BddVariable(1), low_link: BddPointer(1), high_link: BddPointer(0) }]), penis: PhantomData<u8>, penis2: PhantomData<biodivine_lib_logical_models::symbolic_domain::UnaryIntegerDomain> }";
 
@@ -255,7 +248,7 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
 
         for bdd_variable in target_symbolic_domain.symbolic_variables() {
             // todo getting random ordering here
-            println!("bdd_variable = {:?}", bdd_variable);
+            // println!("bdd_variable = {:?}", bdd_variable);
 
             let bdd_variable_primed = crate::prototype::utils::find_bdd_variables_prime(
                 &bdd_variable,
@@ -1439,13 +1432,19 @@ mod tests {
 
         // panic!("okk");
 
-        var_names.iter().take(1).for_each(|var_name| {
+        let var_names_sorted = {
+            let mut var_names_sorted = var_names.clone();
+            var_names_sorted.sort_unstable();
+            var_names_sorted
+        };
+
+        var_names_sorted.iter().take(1).for_each(|var_name| {
             sorted_smart_and_force_bdd_tuples.iter().take(1).for_each(
                 |(smart_set_of_states, force_set_of_states)| {
-                    let smart_transitioned = smart_system_update_fn
-                        .transition_under_variable(var_name, smart_set_of_states);
                     let force_transitioned = force_system_update_fn
                         .transition_under_variable(var_name, force_set_of_states);
+                    let smart_transitioned = smart_system_update_fn
+                        .transition_under_variable(var_name, smart_set_of_states);
 
                     let formatted = format!(
                         "{}\n{}",
@@ -1476,16 +1475,16 @@ mod tests {
 
                     let expected_formatted = unindent(expected_formatted);
 
-                    assert_eq!(formatted, expected_formatted, "expected formatted");
+                    // assert_eq!(formatted, expected_formatted, "expected formatted");
 
                     let smart_dot = smart_system_update_fn.bdd_to_dot_string(&smart_transitioned);
                     let force_dot = force_system_update_fn.bdd_to_dot_string(&force_transitioned);
 
-                    // let the_two = format!("{}\n{}", smart_dot, force_dot);
+                    let the_two = format!("{}\n{}", smart_dot, force_dot);
 
-                    // std::fs::write("dot_output.dot", the_two).expect("cannot write to file");
+                    std::fs::write("dot_output.dot", the_two).expect("cannot write to file");
 
-                    // assert_eq!(smart_dot, force_dot, "expected dot");
+                    assert_eq!(smart_dot, force_dot, "expected dot");
 
                     // todo bruh what the fuck - any of the following asserts fail/pass nondeterministically -> transition_under_variable nondeterministic
                     // println!("smart_dot = ~~~{}~~~`", smart_dot);
@@ -1536,13 +1535,13 @@ mod tests {
 
                     // assert_eq!(smart_bdd, expected_smart_bdd, "expected smart bdd");
 
-                    let force_bdd = format!("{}", force_transitioned);
+                    // let force_bdd = format!("{}", force_transitioned);
 
-                    println!("force_bdd = ~~~{}~~~", force_bdd);
+                    // println!("force_bdd = ~~~{}~~~", force_bdd);
 
-                    let expected_force_bdd = r#"|2,0,0|2,1,1|1,1,0|"#;
+                    // let expected_force_bdd = r#"|2,0,0|2,1,1|1,1,0|"#;
 
-                    assert_eq!(force_bdd, expected_force_bdd, "expected force bdd");
+                    // assert_eq!(force_bdd, expected_force_bdd, "expected force bdd");
                 },
             )
         });
@@ -1600,6 +1599,138 @@ mod tests {
         // );
 
         // println!("{:?}", res);
+    }
+
+    #[test]
+    fn test_demonstrate_nondeterminism() {
+        let filepath = "data/manual/handbook_example.sbml";
+
+        let smart_system_update_fn = {
+            let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                std::fs::File::open(filepath.clone()).expect("cannot open the file"),
+            ));
+
+            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+
+            let smart_system_update_fn: SmartSystemUpdateFn<UnaryIntegerDomain, u8> =
+                SmartSystemUpdateFn::try_from_xml(&mut xml)
+                    .expect("cannot load smart system update fn");
+
+            smart_system_update_fn
+        };
+
+        let force_system_update_fn = {
+            let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                std::fs::File::open(filepath).expect("cannot open the file"),
+            ));
+
+            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+
+            let force_system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
+                SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load smart system update fn");
+
+            force_system_update_fn
+        };
+
+        let smart_triple = smart_system_update_fn
+            .get_bdd_for_each_value_of_each_variable_with_debug_but_only_not_primed();
+
+        let force_triple =
+            force_system_update_fn.get_bdd_for_each_value_of_each_variable_with_debug();
+
+        // the orderings might be fcked up -> pair the corresponding bdds of the two
+        let smart_triple_sorted = {
+            let mut smart_triple_sorted = smart_triple
+                .clone()
+                .into_iter()
+                .map(|(name, val, bdd)| (format!("{}-{}", name, val), bdd))
+                .collect::<Vec<_>>();
+            smart_triple_sorted
+                .sort_unstable_by_key(|(name_and_value, _smart_bdd)| name_and_value.to_string());
+            smart_triple_sorted
+        };
+
+        let force_triple_sorted = {
+            let mut force_triple_sorted = force_triple
+                .clone()
+                .into_iter()
+                .map(|(name, val, bdd)| (format!("{}-{}", name, val), bdd))
+                .collect::<Vec<_>>();
+            force_triple_sorted
+                .sort_unstable_by_key(|(name_and_value, _smart_bdd)| name_and_value.to_string());
+            force_triple_sorted
+        };
+
+        // those will not pass - smart has some extra variables - the primed ones -> must compare the structure using the dot string
+        // smart_triple_sorted
+        //     .iter()
+        //     .zip(force_triple_sorted.clone())
+        //     .for_each(|(smart_bdd, force_bdd)| {
+        //         assert_eq!(format!("{}", smart_bdd.1), format!("{}", force_bdd.1),);
+        //     });
+
+        smart_triple_sorted
+            .iter()
+            .zip(force_triple_sorted.clone())
+            .for_each(|(smart_bdd, force_bdd)| {
+                assert_eq!(
+                    smart_system_update_fn.bdd_to_dot_string(&smart_bdd.1),
+                    force_system_update_fn.bdd_to_dot_string(&force_bdd.1)
+                );
+            });
+
+        let sorted_smart_and_force_bdd_tuples = smart_triple_sorted
+            .iter()
+            .cloned()
+            .zip(force_triple_sorted.iter().cloned())
+            .map(|((_, smart_bdd), (_, force_bdd))| (smart_bdd, force_bdd))
+            .collect::<Vec<_>>();
+
+        let var_names = force_system_update_fn
+            .named_symbolic_domains
+            .keys()
+            .collect::<Vec<_>>();
+
+        let var_names_sorted = {
+            let mut var_names_sorted = var_names.clone();
+            var_names_sorted.sort_unstable();
+            var_names_sorted
+        };
+
+        // var_names_sorted.iter().for_each(|var_name| {
+        let res = var_names_sorted
+            .iter()
+            .flat_map(|var_name| {
+                sorted_smart_and_force_bdd_tuples
+                    .iter()
+                    .enumerate()
+                    // .for_each(|(idx, (smart_set_of_states, force_set_of_states))| {
+                    .map(|(idx, (smart_set_of_states, force_set_of_states))| {
+                        let force_transitioned = force_system_update_fn
+                            .transition_under_variable(var_name, force_set_of_states);
+                        let smart_transitioned = smart_system_update_fn
+                            .transition_under_variable(var_name, smart_set_of_states);
+
+                        let smart_dot =
+                            smart_system_update_fn.bdd_to_dot_string(&smart_transitioned);
+                        let force_dot =
+                            force_system_update_fn.bdd_to_dot_string(&force_transitioned);
+
+                        // todo odd thing is that if it fails, then it fails first at `variable p and idx 2`
+                        // assert_eq!(
+                        //     smart_dot, force_dot,
+                        //     "dots sometimes do equal, but not this time; failure at vairable {} and idx {}",
+                        //     var_name, idx
+                        // );
+
+                        // use this to show the results of all the cases here
+                        smart_dot == force_dot
+                    })
+            })
+            .collect::<Vec<_>>();
+
+        // todo interesting is that this is either all true xor `[true, true, false, false, false, false, false, false]`
+        println!("res = {:?}", res);
     }
 
     fn unindent(s: &str) -> String {
