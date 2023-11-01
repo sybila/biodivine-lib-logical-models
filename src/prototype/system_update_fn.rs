@@ -141,7 +141,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
 
         // just weird but comfy way to create a constant false to start the fold
         let const_false = current_state.and(&current_state.not());
-        let var_upd_fn = self
+        let var_upd_fn = self // todo here
             .update_fns
             .get(transitioned_variable_name.clone())
             .unwrap();
@@ -210,7 +210,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
 
                 // panic!("ok");
 
-                let vars_and_their_updating_bdds = var_upd_fn
+                let vars_and_their_updating_bdds = var_upd_fn // todo here
                     .bit_answering_bdds
                     .iter()
                     .map(|(bdd, variable)| (variable, bdd))
@@ -220,7 +220,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                 let correctly_ordered_bit_answered_bdds = vars_and_their_bits
                     .iter()
                     .map(|(bdd_variable, _)| {
-                        vars_and_their_updating_bdds.get(bdd_variable).unwrap()
+                        vars_and_their_updating_bdds.get(bdd_variable).unwrap() // todo here
                     })
                     .collect::<Vec<_>>();
 
@@ -266,6 +266,146 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
 
                 acc.or(&states_transitioned_into_given_value)
             })
+    }
+
+    pub fn predecessors_under_variable(
+        &self,
+        transitioned_variable_name: &str,
+        current_state: &Bdd,
+    ) -> Bdd {
+        // predecessors must have all the variables other than the target one set to the same values as `current_state`
+        // -> for `current_state`, find all states that are the same, but any value of target variable (as long as it encodes valid symbolic value)
+
+        // todo remove all the redundant cloning of transitioned_variable_name in the above funciton
+
+        let target_var_sym_dom = self
+            .named_symbolic_domains
+            .get(transitioned_variable_name)
+            .unwrap_or_else(|| panic!("could not find variable {}", transitioned_variable_name));
+
+        let bit_repr_of_all_the_possible_values_of_target_var = target_var_sym_dom
+            .get_all_possible_values(&self.bdd_variable_set)
+            .into_iter()
+            .map(|possible_value| target_var_sym_dom.encode_bits_into_vec(possible_value));
+
+        let const_false = current_state.and(&current_state.not());
+
+        // sets from `current_state`, but with any value of target variable // todo swap `current_state` with `current_state_with_specific` value
+        // let all_possible_states = bit_repr_of_all_the_possible_values_of_target_var.fold(
+        //     const_false,
+        //     |acc, bits_of_possible_value| {
+        //         let current_state_with_specific_value_of_target_var = target_var_sym_dom
+        //             .symbolic_variables()
+        //             .into_iter()
+        //             .zip(bits_of_possible_value)
+        //             .fold(current_state.clone(), |acc, (bdd_var, bit_val)| {
+        //                 acc.var_select(bdd_var, bit_val)
+        //             });
+
+        //         acc.or(&current_state_with_specific_value_of_target_var)
+        //     },
+        // );
+
+        // let bit_repr_of_all_the_possible_values_of_target_var_and_current_states_with_target_var_fixed_to_that =
+        let current_state_split_by_value_of_target_var =
+            bit_repr_of_all_the_possible_values_of_target_var
+                .clone()
+                .map(|bits_of_possible_value| {
+                    (
+                        bits_of_possible_value.clone(),
+                        target_var_sym_dom
+                            .symbolic_variables()
+                            .into_iter()
+                            .zip(bits_of_possible_value)
+                            .fold(current_state.clone(), |acc, (bdd_var, bit_val)| {
+                                acc.var_select(bdd_var, bit_val)
+                            }),
+                    )
+                });
+
+        let name = self.update_fns.get("");
+
+        let states_with_known_val_of_target_var_and_their_predecessors =
+            current_state_split_by_value_of_target_var.map(
+                |(fixed_val_bits, set_of_states_with_var_with_specific_bits)| {
+                    // get all possible predecessors of `set_of_states_with_var_with_specific_bits`
+                    let relaxed_value_of_target_var =
+                        bit_repr_of_all_the_possible_values_of_target_var
+                            .clone()
+                            .fold(const_false.clone(), |acc, bits_of_possible_value| {
+                                let current_state_with_specific_value_of_target_var =
+                                    target_var_sym_dom
+                                        .symbolic_variables()
+                                        .into_iter()
+                                        .zip(bits_of_possible_value)
+                                        .fold(
+                                            set_of_states_with_var_with_specific_bits.clone(),
+                                            // current_state.clone(),  // incorrect; must be specifically predecessors of that set with fixed value of target var
+                                            |acc, (bdd_var, bit_val)| {
+                                                acc.var_select(bdd_var, bit_val)
+                                            },
+                                        );
+
+                                acc.or(&current_state_with_specific_value_of_target_var)
+                            });
+
+                    // todo abstract the function `set_of_those_states_that_transition_to_specific_value_of_specific_variable`
+                    // let those_transitioning_to_target =
+                    target_var_sym_dom
+                        .symbolic_variables()
+                        .into_iter()
+                        .zip(fixed_val_bits)
+                        .fold(relaxed_value_of_target_var, |acc, (bdd_var, bit_val)| {
+                            let name_of_this_var = self.bdd_variable_set.name_of(bdd_var);
+                            let bdd_updating_bdd_var = {
+                                let aux = self.update_fns.get(&name_of_this_var);
+                                if aux.is_none() {
+                                    panic!(
+                                        "could not find variable `{}`; only available: `{}`",
+                                        name_of_this_var,
+                                        // self.bdd_variable_set
+                                        //     .0
+                                        //     .variables()
+                                        //     .iter()
+                                        //     .map(|var| self
+                                        //         .bdd_variable_set
+                                        //         .name_of(var.to_owned()))
+                                        //     .collect::<Vec<_>>()
+                                        //     .join(", ")
+                                        self.update_fns
+                                            .keys()
+                                            .cloned()
+                                            .collect::<Vec<_>>()
+                                            .join(", ")
+                                    );
+                                }
+                                aux.unwrap()
+                            };
+                            // todo this should already be zipped with the iterator -> would be O(n) instead of O(n^2)
+                            let bdd_updating_specific_bit = &bdd_updating_bdd_var
+                                .bit_answering_bdds
+                                .clone()
+                                .into_iter()
+                                .find_map(|(bdd, maybe_target_bdd_var)| {
+                                    if bdd_var == maybe_target_bdd_var {
+                                        Some(bdd)
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .unwrap();
+
+                            if bit_val {
+                                acc.and(bdd_updating_specific_bit)
+                            } else {
+                                acc.and(&bdd_updating_specific_bit.not())
+                            }
+                        })
+                },
+            );
+
+        states_with_known_val_of_target_var_and_their_predecessors
+            .fold(const_false.clone(), |acc, to_or| acc.or(&to_or))
     }
 
     pub fn get_empty_state_subset(&self) -> Bdd {

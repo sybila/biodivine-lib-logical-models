@@ -40,7 +40,12 @@ pub trait SymbolicDomain<T>: Clone {
     fn encode_bits(&self, bdd_valuation: &mut BddPartialValuation, value: &T);
 
     /// acts the same as `encode_bits` but instead of directly modifying `BddPartialValuation`
-    /// instance, lets us inspect...
+    /// instance, lets us inspect what the bit representation looks like (regardless how those bits are
+    /// laid out in the bdd)
+    ///
+    /// the result this function gives for given value must not change between calls within a single
+    /// run of the program. however, it might change with different versions of the library, as
+    /// the bit representation should be an implementation detail
     // todo restrict/define the behavior - should be coupled with encode_bits & get_bdd_variables ordering
     fn encode_bits_into_vec(&self, value: T) -> Vec<bool> {
         let value_encoded_into_partial_valuation = {
