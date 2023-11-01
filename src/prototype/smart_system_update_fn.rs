@@ -217,17 +217,6 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             .get(transitioned_variable_name)
             .expect("no such variable");
 
-        let str_used_transition_fn = format!("{:?}", used_transition_fn);
-        // println!("str_used_transition_fn = ~~~{}~~~", str_used_transition_fn);
-
-        let expected = "SymbolicTransitionFn { transition_function: Bdd([BddNode { var: BddVariable(4), low_link: BddPointer(0), high_link: BddPointer(0) }, BddNode { var: BddVariable(4), low_link: BddPointer(1), high_link: BddPointer(1) }, BddNode { var: BddVariable(1), low_link: BddPointer(1), high_link: BddPointer(0) }]), penis: PhantomData<u8>, penis2: PhantomData<biodivine_lib_logical_models::symbolic_domain::UnaryIntegerDomain> }";
-
-        // if str_used_transition_fn != expected {
-        //     panic!("nok");
-        // } else {
-        //     panic!("ok");
-        // }
-
         let states_capable_of_performing_the_transition =
             used_transition_fn.transition_function.and(current_state);
 
@@ -246,10 +235,14 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             acc = acc.var_exists(bdd_variable);
         }
 
-        for bdd_variable in target_symbolic_domain.symbolic_variables() {
-            // todo getting random ordering here
-            // println!("bdd_variable = {:?}", bdd_variable);
+        let correct_order_of_variables_to_be_renamed = {
+            let mut variables_to_be_ordered = target_symbolic_domain.symbolic_variables();
+            variables_to_be_ordered.sort_unstable();
+            // variables_to_be_ordered.reverse(); // not here
+            variables_to_be_ordered
+        };
 
+        for bdd_variable in correct_order_of_variables_to_be_renamed {
             let bdd_variable_primed = crate::prototype::utils::find_bdd_variables_prime(
                 &bdd_variable,
                 target_symbolic_domain,
@@ -262,6 +255,86 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
         }
 
         acc
+    }
+
+    pub fn predecessors_under_variable(
+        &self,
+        transitioned_variable_name: &str,
+        current_state: &Bdd,
+    ) -> Bdd {
+        // todo steps:
+        // prime the input state
+        // get the transition function for the given variable
+        // intersect the primed input state with the transition function
+        // existential projection on the primed variables of the intersected state
+
+        let used_transition_fn = self
+            .update_fns
+            .get(transitioned_variable_name)
+            .expect("no update function for given variable name");
+
+        let target_symbolic_domain = self
+            .named_symbolic_domains
+            .get(transitioned_variable_name)
+            .expect("no such variable");
+
+        let target_symbolic_domain_primed = self
+            .named_symbolic_domains
+            .get(&format!("{}'", transitioned_variable_name))
+            .expect("no such variable");
+
+        // forget primed
+        let current_state = target_symbolic_domain
+            .symbolic_variables()
+            .into_iter()
+            .fold(current_state.clone(), |acc, bdd_variable_to_be_primed| {
+                let bdd_variable_primed = crate::prototype::utils::find_bdd_variables_prime(
+                    &bdd_variable_to_be_primed,
+                    target_symbolic_domain,
+                    target_symbolic_domain_primed,
+                );
+
+                acc.var_exists(bdd_variable_primed) // todo could be done at once using acc.exists()
+            });
+
+        let symbolic_variables_sorted = {
+            let mut symbolic_variables_to_be_sorted = target_symbolic_domain.symbolic_variables();
+            symbolic_variables_to_be_sorted.sort_unstable();
+            symbolic_variables_to_be_sorted.reverse();
+            symbolic_variables_to_be_sorted
+        };
+
+        // let current_state_primed = target_symbolic_domain
+        //     .symbolic_variables()
+        let current_state_primed = symbolic_variables_sorted
+            .into_iter()
+            // .rev() // todo this `rev` fixes it -> must order the renaming of the variables properly -> must not rely on the order returned by symbolic_variables() -> must sort
+            .fold(
+                current_state.clone(),
+                |mut acc, bdd_variable_to_be_primed| {
+                    let bdd_variable_primed = crate::prototype::utils::find_bdd_variables_prime(
+                        &bdd_variable_to_be_primed,
+                        target_symbolic_domain,
+                        target_symbolic_domain_primed,
+                    );
+                    unsafe {
+                        acc.rename_variable(bdd_variable_to_be_primed, bdd_variable_primed);
+                    }
+                    acc
+                },
+            );
+
+        let states_capable_of_transitioning_into_current = used_transition_fn
+            .transition_function
+            .and(&current_state_primed);
+
+        target_symbolic_domain_primed
+            .symbolic_variables()
+            .into_iter()
+            .fold(
+                states_capable_of_transitioning_into_current,
+                |acc, primed_variable| acc.var_exists(primed_variable),
+            )
     }
 
     pub fn get_empty_state_subset(&self) -> Bdd {
@@ -1068,7 +1141,7 @@ mod tests {
 
                 smart_bdd_force_bdd_tuples.iter().for_each(
                     |(variable_and_value, smart_bdd, force_bdd)| {
-                        // println!("comparing bdds of {}", variable_and_value);
+                        // just asserting that we have matched the initial bdds (sets of states) correctly
                         assert_eq!(
                             smart_system_update_fn.bdd_to_dot_string(smart_bdd),
                             force_system_update_fn.bdd_to_dot_string(force_bdd)
@@ -1093,6 +1166,13 @@ mod tests {
                             // println!("comparing bdds of {}", name);
                             let smart_transitioned = smart_system_update_fn
                                 .transition_under_variable(var_name, smart_set_of_states);
+
+                            let smart_predecessors_of_successors = smart_system_update_fn
+                                .predecessors_under_variable(&var_name, &smart_transitioned);
+
+                            // assert!(smart_set_of_states
+                            //     .iff(&smart_predecessors_of_successors)
+                            //     .is_true());
 
                             let force_transitioned = force_system_update_fn
                                 .transition_under_variable(var_name, force_set_of_states);
