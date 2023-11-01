@@ -278,6 +278,31 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
 
         // todo remove all the redundant cloning of transitioned_variable_name in the above funciton
 
+        let var_upd_fn = self // todo here
+            .update_fns
+            .get(transitioned_variable_name.clone())
+            .unwrap();
+
+        let vars_and_their_updating_bdds = var_upd_fn // todo here
+            .bit_answering_bdds
+            .iter()
+            .map(|(bdd, variable)| (variable, bdd))
+            .collect::<HashMap<_, _>>();
+
+        // let vars_and_their_bits = domain
+        //     .symbolic_variables()
+        //     .into_iter()
+        //     .zip(bits_of_the_encoded_value.clone())
+        //     .collect::<Vec<_>>();
+
+        // // must order the bit-answering bdds the way the variables are ordered in the domain
+        // let correctly_ordered_bit_answered_bdds = vars_and_their_bits
+        //     .iter()
+        //     .map(|(bdd_variable, _)| {
+        //         vars_and_their_updating_bdds.get(bdd_variable).unwrap() // todo here
+        //     })
+        //     .collect::<Vec<_>>();
+
         let target_var_sym_dom = self
             .named_symbolic_domains
             .get(transitioned_variable_name)
@@ -323,8 +348,6 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                     )
                 });
 
-        let name = self.update_fns.get("");
-
         let states_with_known_val_of_target_var_and_their_predecessors =
             current_state_split_by_value_of_target_var.map(
                 |(fixed_val_bits, set_of_states_with_var_with_specific_bits)| {
@@ -349,58 +372,80 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                                 acc.or(&current_state_with_specific_value_of_target_var)
                             });
 
-                    // todo abstract the function `set_of_those_states_that_transition_to_specific_value_of_specific_variable`
-                    // let those_transitioning_to_target =
-                    target_var_sym_dom
+                    let vars_and_their_bits = target_var_sym_dom
+                        .clone()
                         .symbolic_variables()
                         .into_iter()
-                        .zip(fixed_val_bits)
-                        .fold(relaxed_value_of_target_var, |acc, (bdd_var, bit_val)| {
-                            let name_of_this_var = self.bdd_variable_set.name_of(bdd_var);
-                            let bdd_updating_bdd_var = {
-                                let aux = self.update_fns.get(&name_of_this_var);
-                                if aux.is_none() {
-                                    panic!(
-                                        "could not find variable `{}`; only available: `{}`",
-                                        name_of_this_var,
-                                        // self.bdd_variable_set
-                                        //     .0
-                                        //     .variables()
-                                        //     .iter()
-                                        //     .map(|var| self
-                                        //         .bdd_variable_set
-                                        //         .name_of(var.to_owned()))
-                                        //     .collect::<Vec<_>>()
-                                        //     .join(", ")
-                                        self.update_fns
-                                            .keys()
-                                            .cloned()
-                                            .collect::<Vec<_>>()
-                                            .join(", ")
-                                    );
-                                }
-                                aux.unwrap()
-                            };
-                            // todo this should already be zipped with the iterator -> would be O(n) instead of O(n^2)
-                            let bdd_updating_specific_bit = &bdd_updating_bdd_var
-                                .bit_answering_bdds
-                                .clone()
-                                .into_iter()
-                                .find_map(|(bdd, maybe_target_bdd_var)| {
-                                    if bdd_var == maybe_target_bdd_var {
-                                        Some(bdd)
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .unwrap();
+                        .zip(fixed_val_bits.clone())
+                        .collect::<Vec<_>>();
 
-                            if bit_val {
-                                acc.and(bdd_updating_specific_bit)
-                            } else {
-                                acc.and(&bdd_updating_specific_bit.not())
-                            }
+                    // must order the bit-answering bdds the way the variables are ordered in the domain
+                    let correctly_ordered_bit_answered_bdds = vars_and_their_bits
+                        .iter()
+                        .map(|(bdd_variable, _)| {
+                            vars_and_their_updating_bdds.get(bdd_variable).unwrap()
+                            // todo here
                         })
+                        .collect::<Vec<_>>();
+
+                    // todo abstract the function `set_of_those_states_that_transition_to_specific_value_of_specific_variable`
+                    // let those_transitioning_to_target =
+                    // target_var_sym_dom
+                    //     .symbolic_variables()
+                    //     .into_iter()
+                    //     .zip(fixed_val_bits)
+                    correctly_ordered_bit_answered_bdds
+                        .into_iter()
+                        .zip(fixed_val_bits)
+                        .fold(
+                            relaxed_value_of_target_var,
+                            |acc, (bit_updating_bdd, bit_val)| {
+                                // let name_of_this_var = self.bdd_variable_set.name_of(bdd_var);
+                                // let bdd_updating_bdd_var = {
+                                //     let aux = self.update_fns.get(&name_of_this_var);
+                                //     if aux.is_none() {
+                                //         panic!(
+                                //             "could not find variable `{}`; only available: `{}`",
+                                //             name_of_this_var,
+                                //             // self.bdd_variable_set
+                                //             //     .0
+                                //             //     .variables()
+                                //             //     .iter()
+                                //             //     .map(|var| self
+                                //             //         .bdd_variable_set
+                                //             //         .name_of(var.to_owned()))
+                                //             //     .collect::<Vec<_>>()
+                                //             //     .join(", ")
+                                //             self.update_fns
+                                //                 .keys()
+                                //                 .cloned()
+                                //                 .collect::<Vec<_>>()
+                                //                 .join(", ")
+                                //         );
+                                //     }
+                                //     aux.unwrap()
+                                // };
+                                // // todo this should already be zipped with the iterator -> would be O(n) instead of O(n^2)
+                                // let bdd_updating_specific_bit = &bdd_updating_bdd_var
+                                //     .bit_answering_bdds
+                                //     .clone()
+                                //     .into_iter()
+                                //     .find_map(|(bdd, maybe_target_bdd_var)| {
+                                //         if bdd_var == maybe_target_bdd_var {
+                                //             Some(bdd)
+                                //         } else {
+                                //             None
+                                //         }
+                                //     })
+                                //     .unwrap();
+
+                                if bit_val {
+                                    acc.and(bit_updating_bdd)
+                                } else {
+                                    acc.and(&bit_updating_bdd.not())
+                                }
+                            },
+                        )
                 },
             );
 

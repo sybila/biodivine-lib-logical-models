@@ -1003,7 +1003,7 @@ mod tests {
 
             crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
-            let smart_system_update_fn: SmartSystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
+            let smart_system_update_fn: SmartSystemUpdateFn<UnaryIntegerDomain, u8> =
                 SmartSystemUpdateFn::try_from_xml(&mut xml)
                     .expect("cannot load smart system update fn");
 
@@ -1017,29 +1017,80 @@ mod tests {
 
             crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
-            let force_system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
+            let force_system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
                 SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load smart system update fn");
 
             force_system_update_fn
         };
 
-        let smart_zero_bdd =
-            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
-        let smart_one_bdd =
-            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
-        let smart_zero_or_one_bdd = smart_zero_bdd.or(&smart_one_bdd);
+        // let smart_zero_bdd =
+        //     smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
+        // // let smart_one_bdd =
+        // //     smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
+        // // let smart_zero_or_one_bdd = smart_zero_bdd.or(&smart_one_bdd);
 
-        let force_zero_bdd =
+        // let force_zero_bdd =
+        //     force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
+        // // let force_one_bdd =
+        // //     force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
+        // // let force_zero_or_one_bdd = force_zero_bdd.or(&force_one_bdd);
+
+        let smart_zero_p =
+            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
+        let smart_zero_q =
+            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 0);
+        let smart_zero_p_and_q = smart_zero_p.and(&smart_zero_q);
+
+        let force_zero_p =
             force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
-        let force_one_bdd =
-            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
-        let force_zero_or_one_bdd = force_zero_bdd.or(&force_one_bdd);
+        let force_zero_q =
+            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 0);
+        let force_zero_p_and_q = force_zero_p.and(&force_zero_q);
+
+        // let smart_preds = smart_system_update_fn.predecessors_under_variable("p", &smart_zero_bdd);
+
+        // let force_preds = force_system_update_fn.predecessors_under_variable("p", &smart_zero_bdd);
 
         let smart_preds =
-            smart_system_update_fn.predecessors_under_variable("p", &smart_zero_or_one_bdd);
+            smart_system_update_fn.predecessors_under_variable("p", &smart_zero_p_and_q);
+        let force_preds =
+            force_system_update_fn.predecessors_under_variable("p", &force_zero_p_and_q);
+
+        let smart_one_p =
+            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
+        let smart_zero_q =
+            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 0);
+        let smart_one_p_and_zero_q = smart_one_p.and(&smart_zero_q);
+
+        let force_one_p =
+            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
+        let force_zero_q =
+            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 0);
+        let force_one_p_and_zero_q = force_one_p.and(&force_zero_q);
+
+        let smart_preds =
+            smart_system_update_fn.predecessors_under_variable("p", &smart_one_p_and_zero_q);
 
         let force_preds =
-            force_system_update_fn.predecessors_under_variable("p", &force_zero_or_one_bdd);
+            force_system_update_fn.predecessors_under_variable("p", &force_one_p_and_zero_q);
+
+        let smart_zero_p =
+            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
+        let smart_zero_q =
+            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 0);
+        let smart_zero_p_and_q = smart_zero_p.and(&smart_zero_q);
+
+        let force_zero_p =
+            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
+        let force_zero_q =
+            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 0);
+        let force_zero_p_and_q = force_zero_p.and(&force_zero_q);
+
+        let smart_preds =
+            smart_system_update_fn.predecessors_under_variable("p", &smart_zero_p_and_q);
+
+        let force_preds =
+            force_system_update_fn.predecessors_under_variable("p", &force_zero_p_and_q);
 
         let the_two_transitioned = format!(
             "{}\n{}",
@@ -1266,8 +1317,8 @@ mod tests {
                             let smart_transitioned = smart_system_update_fn
                                 .transition_under_variable(var_name, smart_set_of_states);
 
-                            let smart_predecessors_of_successors = smart_system_update_fn
-                                .predecessors_under_variable(&var_name, &smart_transitioned);
+                            // let smart_predecessors_of_successors = smart_system_update_fn
+                            //     .predecessors_under_variable(&var_name, &smart_transitioned);
 
                             // assert!(smart_set_of_states
                             //     .iff(&smart_predecessors_of_successors)
