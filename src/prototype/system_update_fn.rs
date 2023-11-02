@@ -356,18 +356,32 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                         bit_repr_of_all_the_possible_values_of_target_var
                             .clone()
                             .fold(const_false.clone(), |acc, bits_of_possible_value| {
+                                // let current_state_with_specific_value_of_target_var =
+                                //     target_var_sym_dom
+                                //         .symbolic_variables()
+                                //         .into_iter()
+                                //         .zip(bits_of_possible_value)
+                                //         .fold(
+                                //             set_of_states_with_var_with_specific_bits.clone(),
+                                //             // current_state.clone(),  // incorrect; must be specifically predecessors of that set with fixed value of target var
+                                //             |acc, (bdd_var, bit_val)| {
+                                //                 acc.var_select(bdd_var, bit_val)
+                                //             },
+                                //         );
+
+                                let const_true = const_false.not();
+                                let constraints = target_var_sym_dom
+                                    .symbolic_variables()
+                                    .into_iter()
+                                    .zip(bits_of_possible_value)
+                                    .collect::<Vec<_>>();
+                                let any_state_with_specific_value_of_target_var =
+                                    const_true.select(&constraints[..]);
+                                // set_of_states_with_var_with_specific_bits.clone();
+
                                 let current_state_with_specific_value_of_target_var =
-                                    target_var_sym_dom
-                                        .symbolic_variables()
-                                        .into_iter()
-                                        .zip(bits_of_possible_value)
-                                        .fold(
-                                            set_of_states_with_var_with_specific_bits.clone(),
-                                            // current_state.clone(),  // incorrect; must be specifically predecessors of that set with fixed value of target var
-                                            |acc, (bdd_var, bit_val)| {
-                                                acc.var_select(bdd_var, bit_val)
-                                            },
-                                        );
+                                    set_of_states_with_var_with_specific_bits
+                                        .and(&any_state_with_specific_value_of_target_var);
 
                                 acc.or(&current_state_with_specific_value_of_target_var)
                             });
