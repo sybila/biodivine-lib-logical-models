@@ -467,6 +467,93 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
             .fold(const_false.clone(), |acc, to_or| acc.or(&to_or))
     }
 
+    pub fn predecessors_attempt_2(
+        &self,
+        transitioned_variable_name: &str,
+        target_set_of_states: &Bdd,
+    ) -> Bdd {
+        let sym_dom = self
+            .named_symbolic_domains
+            .get(transitioned_variable_name)
+            .expect("unknown variable name");
+
+        let all_possible_values_of_target_var =
+            sym_dom.get_all_possible_values(&self.bdd_variable_set);
+
+        let all_possible_values_and_their_bits = all_possible_values_of_target_var
+            .clone()
+            .into_iter()
+            .map(|val| (val, sym_dom.encode_bits_into_vec(val)))
+            .collect::<Vec<_>>();
+
+        let const_false = target_set_of_states.and(&target_set_of_states.not());
+
+        all_possible_values_and_their_bits.clone().into_iter().fold(
+            const_false.clone(),
+            |acc, (_, its_bits)| {
+                let vars_and_their_bits = sym_dom
+                    .symbolic_variables()
+                    .into_iter()
+                    .zip(its_bits)
+                    .collect::<Vec<_>>();
+                let target_set_of_states_with_known_value_of_target_var =
+                    target_set_of_states.select(&vars_and_their_bits[..]);
+
+                let target_set_of_states_with_known_value_but_relaxed =
+                    target_set_of_states_with_known_value_of_target_var
+                        .exists(&sym_dom.symbolic_variables()[..]);
+
+                // relaxed has any value at the position of target var
+                let relaxed = all_possible_values_and_their_bits.clone().into_iter().fold(
+                    const_false.clone(),
+                    |acc, (_, bits)| {
+                        // make the spot empty
+                        let target_set_of_states_with_known_value_but_relaxed =
+                            target_set_of_states_with_known_value_but_relaxed.clone();
+
+                        let vars_and_their_bits = sym_dom
+                            .symbolic_variables()
+                            .into_iter()
+                            .zip(bits)
+                            .collect::<Vec<_>>();
+
+                        // fill the spot with possible value
+                        let with_specific_value = target_set_of_states_with_known_value_but_relaxed
+                            .select(&vars_and_their_bits[..]);
+
+                        acc.or(&with_specific_value)
+                    },
+                );
+
+                // filter those states, that are capable of transitioning into the given value
+                let vars_and_their_updating_bdds = self
+                    .update_fns
+                    .get(transitioned_variable_name)
+                    .unwrap()
+                    .bit_answering_bdds
+                    .iter()
+                    .map(|(bdd, variable)| (variable, bdd))
+                    .collect::<HashMap<_, _>>();
+
+                let correctly_matched_bits_and_their_updating_bdds =
+                    vars_and_their_bits.iter().map(|(bdd_variable, bit)| {
+                        (vars_and_their_updating_bdds.get(bdd_variable).unwrap(), bit)
+                    });
+
+                let those_that_can_transition = correctly_matched_bits_and_their_updating_bdds
+                    .fold(relaxed, |acc, (updating_bdd, bit)| {
+                        if *bit {
+                            acc.and(updating_bdd)
+                        } else {
+                            acc.and(&updating_bdd.not())
+                        }
+                    });
+
+                acc.or(&those_that_can_transition)
+            },
+        )
+    }
+
     pub fn get_empty_state_subset(&self) -> Bdd {
         self.bdd_variable_set.0.mk_false()
     }

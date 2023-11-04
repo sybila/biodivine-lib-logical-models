@@ -1,0 +1,72 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<!-- basis system of one entity;
+    the entity only has two states - 0 & 1
+    the only transition is from 0 to 1 (condition being true)
+    so for states tarting in the {(0)} set of states, the successors shall be {(1)}
+    for states starting in the {(1)} set of states, the successors shall be {(1)}
+    for the states starting in the {(0), (1)} set of states, the successors shall be {(1)} -->
+<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" layout:required="false" level="3"
+    qual:required="true" xmlns:layout="http://www.sbml.org/sbml/level3/version1/layout/version1"
+    version="1" xmlns:qual="http://www.sbml.org/sbml/level3/version1/qual/version1">
+    <model metaid="_174907b7-8e1c-47f3-9a50-bb8e4c6ebd0d" id="model_id">
+        <qual:listOfTransitions xmlns:qual="http://www.sbml.org/sbml/level3/version1/qual/version1">
+            <qual:transition qual:id="the_only_variable">
+                <qual:listOfInputs>
+                    <qual:input qual:qualitativeSpecies="the_only_variable"
+                        qual:transitionEffect="none"
+                        qual:sign="negative" qual:id="tr_p53_in_2" />
+                    <!-- <qual:input qual:qualitativeSpecies="renamed" qual:transitionEffect="none"
+                        qual:sign="negative" qual:id="tr_p53_in_2" />
+                    <qual:input qual:qualitativeSpecies="renamed" qual:transitionEffect="none"
+                        qual:sign="negative" qual:id="tr_p53_in_2" /> -->
+                </qual:listOfInputs>
+                <qual:listOfOutputs>
+                    <qual:output qual:qualitativeSpecies="the_only_variable"
+                        qual:transitionEffect="assignmentLevel"
+                        qual:id="tr_p53_out" />
+                </qual:listOfOutputs>
+                <qual:listOfFunctionTerms>
+                    <!-- 255 is the maximum accepted value; limit of u8 -->
+                    <qual:defaultTerm qual:resultLevel="0">
+                    </qual:defaultTerm>
+                    <qual:functionTerm qual:resultLevel="1">
+                        <math xmlns="http://www.w3.org/1998/Math/MathML">
+                            <apply>
+                                <eq />
+                                <ci> the_only_variable </ci>
+                                <cn type="integer"> 0 </cn>
+                            </apply>
+                        </math>
+                    </qual:functionTerm>
+                    <qual:functionTerm qual:resultLevel="2">
+                        <math xmlns="http://www.w3.org/1998/Math/MathML">
+                            <apply>
+                                <eq />
+                                <ci> the_only_variable </ci>
+                                <cn type="integer"> 1 </cn>
+                            </apply>
+                        </math>
+                    </qual:functionTerm>
+                    <qual:functionTerm qual:resultLevel="3">
+                        <math xmlns="http://www.w3.org/1998/Math/MathML">
+                            <apply>
+                                <eq />
+                                <ci> the_only_variable </ci>
+                                <cn type="integer"> 2 </cn>
+                            </apply>
+                        </math>
+                    </qual:functionTerm>
+                    <qual:functionTerm qual:resultLevel="0">
+                        <math xmlns="http://www.w3.org/1998/Math/MathML">
+                            <apply>
+                                <eq />
+                                <ci> the_only_variable </ci>
+                                <cn type="integer"> 3 </cn>
+                            </apply>
+                        </math>
+                    </qual:functionTerm>
+                </qual:listOfFunctionTerms>
+            </qual:transition>
+        </qual:listOfTransitions>
+    </model>
+</sbml>

@@ -283,7 +283,7 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             .get(&format!("{}'", transitioned_variable_name))
             .expect("no such variable");
 
-        // forget primed
+        // forget primed // todo should not be necessary; input should not depend on primed variables
         let current_state = target_symbolic_domain
             .symbolic_variables()
             .into_iter()
@@ -566,7 +566,7 @@ fn get_max_val_of_var_in_all_transitions_including_their_own(
 #[cfg(test)]
 mod tests {
     use biodivine_lib_bdd::BddVariableSetBuilder;
-    use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
+    use rayon::prelude::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
     use xml::EventReader;
 
     use crate::{
@@ -1023,68 +1023,26 @@ mod tests {
             force_system_update_fn
         };
 
-        // let smart_zero_bdd =
-        //     smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
-        // // let smart_one_bdd =
-        // //     smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
-        // // let smart_zero_or_one_bdd = smart_zero_bdd.or(&smart_one_bdd);
-
-        // let force_zero_bdd =
-        //     force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
-        // // let force_one_bdd =
-        // //     force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
-        // // let force_zero_or_one_bdd = force_zero_bdd.or(&force_one_bdd);
-
-        let smart_zero_p =
+        let smart_p_zero =
             smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
-        let smart_zero_q =
-            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 0);
-        let smart_zero_p_and_q = smart_zero_p.and(&smart_zero_q);
-
-        let force_zero_p =
-            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
-        let force_zero_q =
-            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 0);
-        let force_zero_p_and_q = force_zero_p.and(&force_zero_q);
-
-        // let smart_preds = smart_system_update_fn.predecessors_under_variable("p", &smart_zero_bdd);
-
-        // let force_preds = force_system_update_fn.predecessors_under_variable("p", &smart_zero_bdd);
-
-        let smart_preds =
-            smart_system_update_fn.predecessors_under_variable("p", &smart_zero_p_and_q);
-        let force_preds =
-            force_system_update_fn.predecessors_under_variable("p", &force_zero_p_and_q);
-
-        let smart_one_p =
+        let smart_p_one =
             smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
-        let smart_zero_q =
+        let smart_q_zero =
             smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 0);
-        let smart_one_p_and_zero_q = smart_one_p.and(&smart_zero_q);
+        let smart_q_one =
+            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 1);
 
-        let force_one_p =
-            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
-        let force_zero_q =
-            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 0);
-        let force_one_p_and_zero_q = force_one_p.and(&force_zero_q);
-
-        let smart_preds =
-            smart_system_update_fn.predecessors_under_variable("p", &smart_one_p_and_zero_q);
-
-        let force_preds =
-            force_system_update_fn.predecessors_under_variable("p", &force_one_p_and_zero_q);
-
-        let smart_zero_p =
-            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
-        let smart_zero_q =
-            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 0);
-        let smart_zero_p_and_q = smart_zero_p.and(&smart_zero_q);
-
-        let force_zero_p =
+        let force_p_zero =
             force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
-        let force_zero_q =
+        let force_p_one =
+            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
+        let force_q_zero =
             force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 0);
-        let force_zero_p_and_q = force_zero_p.and(&force_zero_q);
+        let force_q_one =
+            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 1);
+
+        let smart_zero_p_and_q = smart_p_one.and(&smart_q_one);
+        let force_zero_p_and_q = force_p_one.and(&force_q_one);
 
         let smart_preds =
             smart_system_update_fn.predecessors_under_variable("p", &smart_zero_p_and_q);
@@ -1105,30 +1063,241 @@ mod tests {
             force_system_update_fn.bdd_to_dot_string(&force_preds)
         );
 
-        // let force_one = force_system_update_fn
-        //     .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 1);
-        // let force_two = force_system_update_fn
-        //     .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 2);
-        // let force_one_or_two = force_one.or(&force_two);
+        let smart_triple = smart_system_update_fn
+            .get_bdd_for_each_value_of_each_variable_with_debug_but_only_not_primed();
 
-        // std::fs::write(
-        //     "dot_output.dot",
-        //     force_system_update_fn.bdd_to_dot_string(&force_one_or_two),
-        // )
-        // .expect("cannot write to file");
+        let force_triple =
+            force_system_update_fn.get_bdd_for_each_value_of_each_variable_with_debug();
 
-        // // std::fs::write(
-        // //     "dot_output.dot",
-        // //     force_system_update_fn.bdd_to_dot_string(&force_transitioned),
-        // // )
-        // // .expect("cannot write to file");
+        // the orderings might be fcked up -> pair the corresponding bdds of the two
+        let smart_triple_hash_map = smart_triple
+            .into_iter()
+            .map(|(name, value, bdd)| (format!("{}{}", name, value), bdd))
+            .collect::<HashMap<_, _>>();
 
-        // assert!(
-        //     // force_transitioned.iff(&force_one_or_two).is_true(),
-        //     force_system_update_fn.bdd_to_dot_string(&force_transitioned)
-        //         == force_system_update_fn.bdd_to_dot_string(&force_one_or_two),
-        //     "should be set of [one, two]",
-        // );
+        let force_triple_hash_map = force_triple
+            .into_iter()
+            .map(|(name, value, bdd)| (format!("{}{}", name, value), bdd))
+            .collect::<HashMap<_, _>>();
+
+        let smart_bdd_force_bdd_tuples = smart_triple_hash_map
+            .into_iter()
+            .map(|(name_and_value, smart_bdd)| {
+                // println!("name_and_value = {}", name_and_value);
+                (
+                    name_and_value.clone(),
+                    smart_bdd,
+                    force_triple_hash_map
+                        .get(&name_and_value)
+                        .expect("no such bdd")
+                        .clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        smart_bdd_force_bdd_tuples
+            .iter()
+            .for_each(|(variable_and_value, smart_bdd, force_bdd)| {
+                // just asserting that we have matched the initial bdds (sets of states) correctly
+                assert_eq!(
+                    smart_system_update_fn.bdd_to_dot_string(smart_bdd),
+                    force_system_update_fn.bdd_to_dot_string(force_bdd)
+                );
+            });
+
+        let var_names = force_system_update_fn
+            .named_symbolic_domains
+            .keys()
+            .collect::<Vec<_>>();
+
+        // println!("var_names = {:?}", var_names.len());
+
+        let those_that_eq = RwLock::new(0);
+        let those_that_neq = RwLock::new(0);
+
+        // let res =
+        var_names.par_iter().take(1).for_each(|var_name| {
+            smart_bdd_force_bdd_tuples.par_iter().take(1).for_each(
+                |(name, smart_set_of_states, force_set_of_states)| {
+                    // println!("comparing bdds of {}", name);
+                    let smart_transitioned = smart_system_update_fn
+                        .predecessors_under_variable(var_name, smart_set_of_states);
+
+                    let force_transitioned = force_system_update_fn
+                        .predecessors_under_variable(var_name, force_set_of_states);
+
+                    let smart_dot = smart_system_update_fn.bdd_to_dot_string(&smart_transitioned);
+
+                    let force_dot = force_system_update_fn.bdd_to_dot_string(&force_transitioned);
+
+                    // let the_two_whole = format!("{}\n{}", smart_whole_succs_dot, force_whole_succs_dot);
+                    let the_two = format!("{}\n{}", smart_dot, force_dot);
+
+                    std::fs::write("dot_output.dot", the_two).expect("cannot write to file");
+
+                    // assert_eq!(smart_dot, force_dot);
+
+                    if smart_dot == force_dot {
+                        let mut writer = those_that_eq.write().unwrap();
+                        *writer = writer.add(1);
+                    } else {
+                        let mut writer = those_that_neq.write().unwrap();
+                        *writer = writer.add(1);
+                    }
+
+                    println!(
+                        "those_that_eq = {:?}, neq = {:?}",
+                        *those_that_eq.read().unwrap(),
+                        *those_that_neq.read().unwrap()
+                    );
+                },
+            )
+        });
+        // .count();
+
+        println!("those_that_eq = {:?}", *those_that_eq.read().unwrap());
+        println!("those_that_neq = {:?}", *those_that_neq.read().unwrap());
+
+        assert_eq!(
+            *those_that_neq.read().unwrap(),
+            0,
+            "some bdds are not equal"
+        );
+
+        // println!("{:?}", res);
+    }
+
+    #[test]
+    fn test_preds_loop() {
+        let filepath = "data/manual/single_var_loop.sbml";
+
+        let smart_system_update_fn = {
+            let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                std::fs::File::open(filepath.clone()).expect("cannot open the file"),
+            ));
+
+            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+
+            let smart_system_update_fn: SmartSystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
+                SmartSystemUpdateFn::try_from_xml(&mut xml)
+                    .expect("cannot load smart system update fn");
+
+            smart_system_update_fn
+        };
+
+        let force_system_update_fn = {
+            let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                std::fs::File::open(filepath).expect("cannot open the file"),
+            ));
+
+            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+
+            let force_system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
+                SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load smart system update fn");
+
+            force_system_update_fn
+        };
+
+        let smart_0 = smart_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 0);
+        let smart_1 = smart_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 1);
+        let smart_2 = smart_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 2);
+        let smart_3 = smart_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 3);
+
+        let force_0 = force_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 0);
+        let force_1 = force_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 1);
+        let force_2 = force_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 2);
+        let force_3 = force_system_update_fn
+            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 3);
+
+        println!("############ 0");
+        let smart_preds =
+            smart_system_update_fn.predecessors_under_variable("the_only_variable", &smart_0);
+
+        let force_preds =
+            force_system_update_fn.predecessors_attempt_2("the_only_variable", &force_0);
+
+        let the_two_transitioned = format!(
+            "{}\n{}",
+            smart_system_update_fn.bdd_to_dot_string(&smart_preds),
+            force_system_update_fn.bdd_to_dot_string(&force_preds)
+        );
+
+        std::fs::write("dot_output.dot", the_two_transitioned).expect("cannot write to file");
+
+        assert_eq!(
+            smart_system_update_fn.bdd_to_dot_string(&smart_preds),
+            force_system_update_fn.bdd_to_dot_string(&force_preds)
+        );
+
+        // 1
+        println!("############ 1");
+        let smart_preds =
+            smart_system_update_fn.predecessors_under_variable("the_only_variable", &smart_1);
+
+        let force_preds =
+            force_system_update_fn.predecessors_attempt_2("the_only_variable", &force_1);
+
+        let the_two_transitioned = format!(
+            "{}\n{}",
+            smart_system_update_fn.bdd_to_dot_string(&smart_preds),
+            force_system_update_fn.bdd_to_dot_string(&force_preds)
+        );
+
+        std::fs::write("dot_output.dot", the_two_transitioned).expect("cannot write to file");
+
+        assert_eq!(
+            smart_system_update_fn.bdd_to_dot_string(&smart_preds),
+            force_system_update_fn.bdd_to_dot_string(&force_preds)
+        );
+
+        // 2
+        println!("############ 2");
+        let smart_preds =
+            smart_system_update_fn.predecessors_under_variable("the_only_variable", &smart_2);
+
+        let force_preds =
+            force_system_update_fn.predecessors_attempt_2("the_only_variable", &force_2);
+
+        let the_two_transitioned = format!(
+            "{}\n{}",
+            smart_system_update_fn.bdd_to_dot_string(&smart_preds),
+            force_system_update_fn.bdd_to_dot_string(&force_preds)
+        );
+
+        std::fs::write("dot_output.dot", the_two_transitioned).expect("cannot write to file");
+
+        assert_eq!(
+            smart_system_update_fn.bdd_to_dot_string(&smart_preds),
+            force_system_update_fn.bdd_to_dot_string(&force_preds)
+        );
+
+        // 3
+        println!("############ 3");
+        let smart_preds =
+            smart_system_update_fn.predecessors_under_variable("the_only_variable", &smart_3);
+
+        let force_preds =
+            force_system_update_fn.predecessors_attempt_2("the_only_variable", &force_3);
+
+        let the_two_transitioned = format!(
+            "{}\n{}",
+            smart_system_update_fn.bdd_to_dot_string(&smart_preds),
+            force_system_update_fn.bdd_to_dot_string(&force_preds)
+        );
+
+        std::fs::write("dot_output.dot", the_two_transitioned).expect("cannot write to file");
+
+        assert_eq!(
+            smart_system_update_fn.bdd_to_dot_string(&smart_preds),
+            force_system_update_fn.bdd_to_dot_string(&force_preds)
+        );
     }
 
     #[test]
@@ -1346,17 +1515,11 @@ mod tests {
                             // };
 
                             if smart_dot == force_dot {
-                                let curr = {
-                                    let xd = those_that_eq.read().unwrap().to_owned();
-                                    xd
-                                };
-                                *those_that_eq.write().unwrap() = curr + 1;
+                                let mut writer = those_that_eq.write().unwrap();
+                                *writer = writer.add(1);
                             } else {
-                                let curr = {
-                                    let xd = those_that_neq.read().unwrap().to_owned();
-                                    xd
-                                };
-                                *those_that_neq.write().unwrap() = curr + 1;
+                                let mut writer = those_that_neq.write().unwrap();
+                                *writer = writer.add(1);
                             }
 
                             println!(
@@ -1475,17 +1638,17 @@ mod tests {
                 // let res =
                 // let var_names = &var_names[..1];
                 // var_names.par_iter().for_each(|var_name| {
-                var_names.iter().for_each(|var_name| {
+                var_names.iter().skip(1).take(1).for_each(|var_name| {
                     // let smart_bdd_force_bdd_tuples = &smart_bdd_force_bdd_tuples[..1];
                     // smart_bdd_force_bdd_tuples.par_iter().for_each(
-                    smart_bdd_force_bdd_tuples.iter().for_each(
+                    smart_bdd_force_bdd_tuples.iter().take(1).for_each(
                         |(name, smart_set_of_states, force_set_of_states)| {
                             // println!("comparing bdds of {}", name);
                             let smart_preds = smart_system_update_fn
                                 .predecessors_under_variable(var_name, smart_set_of_states);
 
                             let force_preds = force_system_update_fn
-                                .transition_under_variable(var_name, force_set_of_states);
+                                .predecessors_attempt_2(var_name, force_set_of_states);
 
                             let smart_dot = smart_system_update_fn.bdd_to_dot_string(&smart_preds);
 
