@@ -1549,8 +1549,6 @@ mod tests {
     fn test_preds_kinda_inclusive() {
         std::fs::read_dir("data/large")
             .expect("could not read dir")
-            .skip(4)
-            .take(1)
             .for_each(|dirent| {
                 println!("dirent = {:?}", dirent);
                 let filepath = dirent.expect("could not read file").path();
@@ -1638,10 +1636,10 @@ mod tests {
                 // let res =
                 // let var_names = &var_names[..1];
                 // var_names.par_iter().for_each(|var_name| {
-                var_names.iter().skip(1).take(1).for_each(|var_name| {
+                var_names.iter().for_each(|var_name| {
                     // let smart_bdd_force_bdd_tuples = &smart_bdd_force_bdd_tuples[..1];
                     // smart_bdd_force_bdd_tuples.par_iter().for_each(
-                    smart_bdd_force_bdd_tuples.iter().take(1).for_each(
+                    smart_bdd_force_bdd_tuples.iter().for_each(
                         |(name, smart_set_of_states, force_set_of_states)| {
                             // println!("comparing bdds of {}", name);
                             let smart_preds = smart_system_update_fn

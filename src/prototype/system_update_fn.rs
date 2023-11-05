@@ -497,7 +497,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                     .zip(its_bits)
                     .collect::<Vec<_>>();
                 let target_set_of_states_with_known_value_of_target_var =
-                    target_set_of_states.select(&vars_and_their_bits[..]);
+                    target_set_of_states.restrict(&vars_and_their_bits[..]);
 
                 let target_set_of_states_with_known_value_but_relaxed =
                     target_set_of_states_with_known_value_of_target_var
@@ -519,7 +519,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
 
                         // fill the spot with possible value
                         let with_specific_value = target_set_of_states_with_known_value_but_relaxed
-                            .select(&vars_and_their_bits[..]);
+                            .restrict(&vars_and_their_bits[..]);
 
                         acc.or(&with_specific_value)
                     },
@@ -552,6 +552,50 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                 acc.or(&those_that_can_transition)
             },
         )
+    }
+
+    pub fn predecessors_attempt_3(
+        &self,
+        transitioned_variable_name: &str,
+        target_set_of_states: &Bdd,
+    ) -> Bdd {
+        let sym_dom = self
+            .named_symbolic_domains
+            .get(transitioned_variable_name)
+            .expect("unknown variable name");
+
+        let bit_updating_bdds = self
+            .update_fns
+            .get(transitioned_variable_name)
+            .unwrap()
+            .bit_answering_bdds
+            .iter()
+            .map(|(bdd, var)| (var, bdd))
+            .collect::<HashMap<_, _>>();
+
+        let ordered_vars_and_bdds = sym_dom
+            .symbolic_variables()
+            .into_iter()
+            .map(|var| (var, (*bit_updating_bdds.get(&var).unwrap()).clone()));
+
+        let const_false = target_set_of_states.and(&target_set_of_states.not());
+
+        sym_dom
+            .get_all_possible_values(&self.bdd_variable_set)
+            .into_iter()
+            .fold(const_false.clone(), |acc, one_of_possible_values| {
+                let bits = sym_dom.encode_bits_into_vec(one_of_possible_values);
+                let target_set_of_states_with_known_value_of_target_var = target_set_of_states
+                    .select(
+                        &ordered_vars_and_bdds
+                            .clone()
+                            .map(|(var, _)| var)
+                            .zip(bits)
+                            .collect::<Vec<_>>()[..],
+                    );
+
+                todo!()
+            })
     }
 
     pub fn get_empty_state_subset(&self) -> Bdd {
