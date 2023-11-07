@@ -399,7 +399,7 @@ impl SymbolicDomain<u8> for PetriNetIntegerDomain {
         for i in 0..self.variables.len() {
             let mut allowed_i = variables.mk_var(self.variables[i]);
 
-            for j in 0..=self.variables.len() {
+            for j in 0..self.variables.len() {
                 if j == i {
                     continue;
                 }
