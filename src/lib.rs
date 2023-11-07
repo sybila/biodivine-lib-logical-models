@@ -11,6 +11,9 @@ pub use symbolic_domain::{
     // GenericStateSpaceDomain,
     SymbolicDomain,
     UnaryIntegerDomain,
+    PetriNetIntegerDomain,
+    BinaryIntegerDomain,
+    GrayCodeIntegerDomain,
 };
 
 pub fn add(x: i32, y: i32) -> i32 {

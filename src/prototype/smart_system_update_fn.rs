@@ -4,7 +4,7 @@
 
 use std::{collections::HashMap, fmt::Debug, io::BufRead};
 
-use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddVariableSet, BddVariableSetBuilder};
+use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddVariable, BddVariableSet, BddVariableSetBuilder};
 use debug_ignore::DebugIgnore;
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-struct SmartSystemUpdateFn<D: SymbolicDomain<T>, T> {
+pub struct SmartSystemUpdateFn<D: SymbolicDomain<T>, T> {
     pub update_fns: HashMap<String, SymbolicTransitionFn<D, T>>,
     pub named_symbolic_domains: HashMap<String, D>,
     bdd_variable_set: DebugIgnore<BddVariableSet>,
@@ -328,10 +328,10 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             .transition_function
             .and(&current_state_primed);
 
-        println!(
+        /*println!(
             "is true {}",
             states_capable_of_transitioning_into_current.is_true()
-        );
+        );*/
 
         target_symbolic_domain_primed
             .symbolic_variables()
@@ -339,10 +339,10 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             .fold(
                 states_capable_of_transitioning_into_current,
                 |acc, primed_variable| {
-                    println!(
+                    /*println!(
                         "restricting variable with name {}",
                         self.bdd_variable_set.name_of(primed_variable)
-                    );
+                    );*/
                     acc.var_exists(primed_variable)
                 },
             )
@@ -425,6 +425,40 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
 
         // constrain this specific sym variable to its specific value (& leave others unrestricted)
         vars_and_bits.fold(const_true, |acc, (var, bit)| acc.var_select(var, bit))
+    }
+
+    /// The list of system variables, sorted in ascending order (i.e. the order in which they
+    /// also appear within the BDDs).
+    pub fn get_system_variables(&self) -> Vec<String> {
+        let mut variables = self.update_fns.keys()
+            .cloned()
+            .collect::<Vec<_>>();
+        variables.sort();
+        variables
+    }
+
+    /// Returns a list of [BddVariable]-s corresponding to the encoding of the "primed"
+    /// system variables.
+    pub fn primed_variables(&self) -> Vec<BddVariable> {
+        let mut result = Vec::new();
+        for (name, domain) in &self.named_symbolic_domains {
+            if name.contains("\'") {
+                result.append(&mut domain.symbolic_variables());
+            }
+        }
+        result
+    }
+
+    /// Returns a list of [BddVariable]-s corresponding to the encoding of the standard
+    /// (i.e. "un-primed") system variables.
+    pub fn standard_variables(&self) -> Vec<BddVariable> {
+        let mut result = Vec::new();
+        for (name, domain) in &self.named_symbolic_domains {
+            if !name.contains("\'") {
+                result.append(&mut domain.symbolic_variables());
+            }
+        }
+        result
     }
 }
 
