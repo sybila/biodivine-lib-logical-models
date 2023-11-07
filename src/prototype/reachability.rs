@@ -1,5 +1,7 @@
 use std::fmt::Debug;
+use std::ops::Shr;
 use biodivine_lib_bdd::{Bdd, BddPartialValuation};
+use num_bigint::BigInt;
 use crate::{SmartSystemUpdateFn, SymbolicDomain};
 
 pub fn reachability_benchmark<D: SymbolicDomain<u8> + Debug>(sbml_path: &str) {
@@ -140,4 +142,14 @@ pub fn count_states<D: SymbolicDomain<u8> + Debug>(system: &SmartSystemUpdateFn<
     assert_eq!(symbolic_var_count % 2, 0);
     let primed_vars = symbolic_var_count / 2;
     set.cardinality() / 2.0f64.powi(primed_vars)
+}
+
+pub fn count_states_exact<D: SymbolicDomain<u8> + Debug>(system: &SmartSystemUpdateFn<D, u8>, set: &Bdd) -> BigInt {
+    let symbolic_var_count = system.get_bdd_variable_set().num_vars() as i32;
+    // TODO:
+    //   Here we assume that exactly half of the variables are primed, which may not be true
+    //   in the future, but should be good enough for now.
+    assert_eq!(symbolic_var_count % 2, 0);
+    let primed_vars = symbolic_var_count / 2;
+    set.exact_cardinality().shr(primed_vars)
 }

@@ -67,6 +67,12 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             .collect::<HashMap<_, _>>();
         let variable_set = bdd_variable_set_builder.build();
 
+        let mut unit_set = variable_set.mk_true();
+        for var in var_names_and_upd_fns.keys() {
+            let domain = named_symbolic_domains.get(var).unwrap();
+            unit_set = unit_set.and(&domain.unit_collection(&variable_set));
+        }
+
         // todo this should not be necessary but you never know; actually maybe the fact that we were doing `into_values` might have fcked stuff up
         let sorted_var_names_and_upd_fns = {
             let mut to_be_sorted = var_names_and_upd_fns.into_iter().collect::<Vec<_>>();
@@ -97,14 +103,23 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             .map(|tuple| {
                 let target_variable_name = tuple.0;
                 let compiled_update_fn = tuple.1;
-                (
+                let mut pair = (
                     target_variable_name.clone(),
                     SymbolicTransitionFn::from_update_fn_compiled(
                         &compiled_update_fn,
                         &variable_set,
                         &target_variable_name,
                     ),
-                )
+                );
+                // TODO:
+                //   Here, we normalize the transition relation to only include valid states.
+                //   In theory, this normalization could be also performed at some other location
+                //   (e.g. in `from_update_fn_compiled`). It also does not need the whole
+                //   `unit_set`: it only requires the unit sets of the symbolic domains that are
+                //   relevant for this update function. But AFAIK, this seems to be the most
+                //   "convenient" place to do it unless we refactor a lot of stuff.
+                pair.1.transition_function = pair.1.transition_function.and(&unit_set);
+                pair
             })
             .collect::<HashMap<_, _>>();
 
@@ -463,7 +478,7 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
         let mut result = self.bdd_variable_set.mk_true();
         for var in &self.get_system_variables() {
             let domain = self.named_symbolic_domains.get(var).unwrap();
-            result.and(&domain.unit_collection(&self.bdd_variable_set));
+            result = result.and(&domain.unit_collection(&self.bdd_variable_set));
         }
         result
     }
