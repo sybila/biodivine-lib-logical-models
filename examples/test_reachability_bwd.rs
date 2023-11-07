@@ -44,7 +44,7 @@ fn bwd_step<D: SymbolicDomain<u8> + Debug>(system: &SmartSystemUpdateFn<D, u8>, 
     let sorted_variables = system.get_system_variables();
 
     for var in sorted_variables.iter().rev() {
-        let predecessors = system.transition_under_variable(var.as_str(), set);
+        let predecessors = system.predecessors_under_variable(var.as_str(), set);
 
         // Should be equivalent to "predecessors \not\subseteq result".
         if !predecessors.imp(set).is_true() {
