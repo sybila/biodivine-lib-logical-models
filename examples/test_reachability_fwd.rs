@@ -19,7 +19,7 @@ fn main() {
     while !cmp.is_done() {
         cmp.initialize();
         while !cmp.can_initialize() {
-            cmp.perform_bwd_step();
+            cmp.perform_fwd_step();
             cmp.check_consistency();
         }
         println!("Completed one wave of reachability. Reinitializing...")
