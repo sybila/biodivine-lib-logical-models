@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use biodivine_lib_bdd::{
-    Bdd, BddPartialValuation, BddValuation, BddVariableSet, BddVariableSetBuilder,
+    Bdd, BddPartialValuation, BddValuation, BddVariableSet,
 };
 
 use crate::{Expression, SymbolicDomain, UpdateFn};

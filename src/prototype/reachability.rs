@@ -1,8 +1,6 @@
 use std::fmt::Debug;
-use std::ops::Shr;
-use biodivine_lib_bdd::{Bdd, BddPartialValuation};
-use num_bigint::BigInt;
-use crate::{SmartSystemUpdateFn, SymbolicDomain};
+use biodivine_lib_bdd::Bdd;
+use crate::{count_states, log_percent, pick_state_bdd, SmartSystemUpdateFn, SymbolicDomain};
 
 pub fn reachability_benchmark<D: SymbolicDomain<u8> + Debug>(sbml_path: &str) {
     let smart_system_update_fn = {
@@ -26,7 +24,7 @@ pub fn reachability_benchmark<D: SymbolicDomain<u8> + Debug>(sbml_path: &str) {
     println!("Computed state count: {}", count_states(&smart_system_update_fn, &unit));
     let mut universe = unit.clone();
     while !universe.is_false() {
-        let mut weak_scc = pick_state(&smart_system_update_fn, &universe);
+        let mut weak_scc = pick_state_bdd(&smart_system_update_fn, &universe);
         loop {
             let bwd_reachable = reach_bwd(&smart_system_update_fn, &weak_scc, &universe);
             let fwd_bwd_reachable = reach_fwd(&smart_system_update_fn, &bwd_reachable, &universe);
@@ -112,44 +110,4 @@ pub fn reach_bwd<D: SymbolicDomain<u8> + Debug>(system: &SmartSystemUpdateFn<D, 
         println!(" >> Done. (states={}, size={})", count_states(system, &result), result.size());
         return result;
     }
-}
-
-/// Compute a [Bdd] which represents a single (un-primed) state within the given symbolic `set`.
-pub fn pick_state<D: SymbolicDomain<u8> + Debug>(system: &SmartSystemUpdateFn<D, u8>, set: &Bdd) -> Bdd {
-    // Unfortunately, this is now a bit more complicated than it needs to be, because
-    // we have to ignore the primed variables, but it shouldn't bottleneck anything outside of
-    // truly extreme cases.
-    let standard_variables = system.standard_variables();
-    let valuation = set.sat_witness()
-        .expect("Cannot pick state from an empty set.");
-    let mut state_data = BddPartialValuation::empty();
-    for var in standard_variables {
-        state_data.set_value(var, valuation.value(var))
-    }
-    system.get_bdd_variable_set().mk_conjunctive_clause(&state_data)
-}
-
-pub fn log_percent(set: &Bdd, universe: &Bdd) -> f64 {
-    set.cardinality().log2() / universe.cardinality().log2() * 100.0
-}
-
-/// Compute an (approximate) count of state in the given `set` using the encoding of `system`.
-pub fn count_states<D: SymbolicDomain<u8> + Debug>(system: &SmartSystemUpdateFn<D, u8>, set: &Bdd) -> f64 {
-    let symbolic_var_count = system.get_bdd_variable_set().num_vars() as i32;
-    // TODO:
-    //   Here we assume that exactly half of the variables are primed, which may not be true
-    //   in the future, but should be good enough for now.
-    assert_eq!(symbolic_var_count % 2, 0);
-    let primed_vars = symbolic_var_count / 2;
-    set.cardinality() / 2.0f64.powi(primed_vars)
-}
-
-pub fn count_states_exact<D: SymbolicDomain<u8> + Debug>(system: &SmartSystemUpdateFn<D, u8>, set: &Bdd) -> BigInt {
-    let symbolic_var_count = system.get_bdd_variable_set().num_vars() as i32;
-    // TODO:
-    //   Here we assume that exactly half of the variables are primed, which may not be true
-    //   in the future, but should be good enough for now.
-    assert_eq!(symbolic_var_count % 2, 0);
-    let primed_vars = symbolic_var_count / 2;
-    set.exact_cardinality().shr(primed_vars)
 }

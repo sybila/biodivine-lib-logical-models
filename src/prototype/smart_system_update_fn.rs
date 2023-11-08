@@ -376,7 +376,7 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
     pub fn get_bdd_for_each_value_of_each_variable(&self) -> Vec<Bdd> {
         self.named_symbolic_domains
             .iter()
-            .flat_map(|(var_name, sym_dom)| {
+            .flat_map(|(_var_name, sym_dom)| {
                 let all_possible_values = sym_dom.get_all_possible_values(&self.bdd_variable_set.0);
                 all_possible_values.into_iter().map(|possible_value| {
                     let bits = sym_dom.encode_bits_into_vec(possible_value);
@@ -508,7 +508,7 @@ fn load_all_update_fns<XR: XmlReader<BR>, BR: BufRead>(
 
     for name in input_names {
         if !function_map.contains_key(&name) {
-            // This variable is an input. For now, we just fix all inputs to `true`.
+            // This variable is an input. For now, we just fix all inputs to `false`.
             // TODO: We need to handle inputs properly in the future, but not today.
             let update = UpdateFn::new(
                 Vec::new(),

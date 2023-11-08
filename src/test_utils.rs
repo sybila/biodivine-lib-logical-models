@@ -1,7 +1,7 @@
-use std::collections::HashMap;
 use std::fmt::Debug;
-use biodivine_lib_bdd::{Bdd, BddPartialValuation};
-use crate::{BinaryIntegerDomain, count_states_exact, find_start_of, GrayCodeIntegerDomain, PetriNetIntegerDomain, SmartSystemUpdateFn, SymbolicDomain, UnaryIntegerDomain};
+use biodivine_lib_bdd::Bdd;
+use num_bigint::BigInt;
+use crate::{BinaryIntegerDomain, count_states_exact, encode_state_map, find_start_of, GrayCodeIntegerDomain, PetriNetIntegerDomain, pick_state_map, SmartSystemUpdateFn, SymbolicDomain, UnaryIntegerDomain};
 
 pub struct ComputationStep {
     steps: usize,
@@ -70,38 +70,6 @@ fn build_update_fn<D: SymbolicDomain<u8> + Debug>(sbml_path: &str) -> SmartSyste
     smart_system_update_fn
 }
 
-/// Pick a state from a symbolic set and "decode" it into normal integers.
-fn pick_state<D: SymbolicDomain<u8> + Debug>(system: &SmartSystemUpdateFn<D, u8>, set: &Bdd) -> HashMap<String, u8> {
-    let valuation = set.sat_witness()
-        .expect("The set is empty.");
-    let valuation = BddPartialValuation::from(valuation);
-    let mut result = HashMap::new();
-    for var in system.get_system_variables() {
-        let Some(domain) = system.named_symbolic_domains.get(&var) else {
-            unreachable!("Variable exists but has no symbolic domain.")
-        };
-        let value = domain.decode_bits(&valuation);
-        result.insert(var, value);
-    }
-    result
-}
-
-/// Encode a "state" (assignment of integer values to all variables) into a [Bdd] that is valid
-/// within the provided [SmartSystemUpdateFn].
-fn encode_state<D: SymbolicDomain<u8> + Debug>(system: &SmartSystemUpdateFn<D, u8>, state: &HashMap<String, u8>) -> Bdd {
-    let mut result  = BddPartialValuation::empty();
-    for var in system.get_system_variables() {
-        let Some(value) = state.get(&var) else {
-            panic!("Value for {var} missing.");
-        };
-        let Some(domain) = system.named_symbolic_domains.get(&var) else {
-            unreachable!("Variable exists but has no symbolic domain.")
-        };
-        domain.encode_bits(&mut result, value);
-    }
-    system.get_bdd_variable_set().mk_conjunctive_clause(&result)
-}
-
 impl ComputationStep {
 
     pub fn new(sbml_path: &str) -> ComputationStep {
@@ -136,17 +104,21 @@ impl ComputationStep {
         self.result_unary.is_none()
     }
 
+    pub fn remaining(&self) -> BigInt {
+        count_states_exact(&self.system_unary, &self.universe_unary)
+    }
+
     /// Setup a new initial state from the remaining universe of states. The intermediate result
     /// must be `None` and the computation must not be done (see [ComputationStep::is_done]).
     pub fn initialize(&mut self) {
         assert!(!self.is_done());
         assert!(self.can_initialize());
-        let state = pick_state::<UnaryIntegerDomain>(&self.system_unary, &self.universe_unary);
+        let state = pick_state_map::<UnaryIntegerDomain>(&self.system_unary, &self.universe_unary);
         self.steps = 0;
-        self.result_unary = Some(encode_state(&self.system_unary, &state));
-        self.result_binary = Some(encode_state(&self.system_binary, &state));
-        self.result_gray = Some(encode_state(&self.system_gray, &state));
-        self.result_petri_net = Some(encode_state(&self.system_petri_net, &state));
+        self.result_unary = Some(encode_state_map(&self.system_unary, &state));
+        self.result_binary = Some(encode_state_map(&self.system_binary, &state));
+        self.result_gray = Some(encode_state_map(&self.system_gray, &state));
+        self.result_petri_net = Some(encode_state_map(&self.system_petri_net, &state));
     }
 
     pub fn perform_bwd_step(&mut self) {

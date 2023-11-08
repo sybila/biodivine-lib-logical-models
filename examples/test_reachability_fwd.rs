@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-use biodivine_lib_logical_models::SymbolicDomain;
 use biodivine_lib_logical_models::test_utils::ComputationStep;
 
 
@@ -22,7 +20,7 @@ fn main() {
             cmp.perform_fwd_step();
             cmp.check_consistency();
         }
-        println!("Completed one wave of reachability. Reinitializing...")
+        println!("Completed one wave of reachability. Reinitializing with {} states remaining.", cmp.remaining());
     }
     println!("Test completed successfully. Whole state space explored.");
 }

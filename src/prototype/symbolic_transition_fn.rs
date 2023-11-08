@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use biodivine_lib_bdd::{Bdd, BddVariable, BddVariableSet};
+use biodivine_lib_bdd::{Bdd, BddVariableSet};
 
 use crate::{SymbolicDomain, VariableUpdateFnCompiled};
 

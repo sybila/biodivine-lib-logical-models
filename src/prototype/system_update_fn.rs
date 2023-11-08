@@ -170,16 +170,16 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                 // println!("possible value {}", possible_var_val);
 
                 // todo this seems to be the problem; the result of this is nondeterministic
-                let sym_vars = domain.symbolic_variables();
+                // let sym_vars = domain.symbolic_variables();
                 // println!("{:?}", sym_vars);
 
                 // todo yes this is the problem; the order of the variables is different
-                let vars = self.bdd_variable_set.0.variables();
+                // let vars = self.bdd_variable_set.0.variables();
                 // println!("{:?}", vars);
-                let named_variables = vars
-                    .iter()
-                    .map(|var| (self.bdd_variable_set.name_of(var.to_owned()), var))
-                    .collect::<Vec<_>>();
+                // let named_variables = vars
+                //     .iter()
+                //     .map(|var| (self.bdd_variable_set.name_of(var.to_owned()), var))
+                //     .collect::<Vec<_>>();
                 // println!("named variables {:?}", named_variables);
 
                 let vars_and_their_bits = domain
@@ -583,7 +583,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
         sym_dom
             .get_all_possible_values(&self.bdd_variable_set)
             .into_iter()
-            .fold(const_false.clone(), |acc, one_of_possible_values| {
+            .fold(const_false.clone(), |_acc, one_of_possible_values| {
                 let bits = sym_dom.encode_bits_into_vec(one_of_possible_values);
                 let target_set_of_states_with_known_value_of_target_var = target_set_of_states
                     .select(
@@ -594,7 +594,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                             .collect::<Vec<_>>()[..],
                     );
 
-                todo!()
+                todo!("{:?}", target_set_of_states_with_known_value_of_target_var)
             })
     }
 
