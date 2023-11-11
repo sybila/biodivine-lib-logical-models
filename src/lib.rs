@@ -5,12 +5,20 @@
 ///     In the final library, we should re-export the relevant types from this module here.
 mod symbolic_domain;
 
+// TODO:
+//   Once this becomes a library, this needs to become private, but for now it is convenient
+//   to have it accessible from outside binaries.
+pub mod test_utils;
+
 pub use symbolic_domain::{
     // todo uncomment one those working
     // GenericIntegerDomain,
     // GenericStateSpaceDomain,
     SymbolicDomain,
     UnaryIntegerDomain,
+    PetriNetIntegerDomain,
+    BinaryIntegerDomain,
+    GrayCodeIntegerDomain,
 };
 
 pub fn add(x: i32, y: i32) -> i32 {

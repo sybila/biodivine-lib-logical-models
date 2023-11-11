@@ -3,8 +3,9 @@
 // todo how to work with the "variables" that are not mentioned in the listOfTransitions?
 
 use std::{collections::HashMap, fmt::Debug, io::BufRead};
+use std::collections::HashSet;
 
-use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddVariableSet, BddVariableSetBuilder};
+use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddVariable, BddVariableSet, BddVariableSetBuilder};
 use debug_ignore::DebugIgnore;
 
 use crate::{
@@ -13,7 +14,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-struct SmartSystemUpdateFn<D: SymbolicDomain<T>, T> {
+pub struct SmartSystemUpdateFn<D: SymbolicDomain<T>, T> {
     pub update_fns: HashMap<String, SymbolicTransitionFn<D, T>>,
     pub named_symbolic_domains: HashMap<String, D>,
     bdd_variable_set: DebugIgnore<BddVariableSet>,
@@ -66,6 +67,12 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             .collect::<HashMap<_, _>>();
         let variable_set = bdd_variable_set_builder.build();
 
+        let mut unit_set = variable_set.mk_true();
+        for var in var_names_and_upd_fns.keys() {
+            let domain = named_symbolic_domains.get(var).unwrap();
+            unit_set = unit_set.and(&domain.unit_collection(&variable_set));
+        }
+
         // todo this should not be necessary but you never know; actually maybe the fact that we were doing `into_values` might have fcked stuff up
         let sorted_var_names_and_upd_fns = {
             let mut to_be_sorted = var_names_and_upd_fns.into_iter().collect::<Vec<_>>();
@@ -96,14 +103,23 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             .map(|tuple| {
                 let target_variable_name = tuple.0;
                 let compiled_update_fn = tuple.1;
-                (
+                let mut pair = (
                     target_variable_name.clone(),
                     SymbolicTransitionFn::from_update_fn_compiled(
                         &compiled_update_fn,
                         &variable_set,
                         &target_variable_name,
                     ),
-                )
+                );
+                // TODO:
+                //   Here, we normalize the transition relation to only include valid states.
+                //   In theory, this normalization could be also performed at some other location
+                //   (e.g. in `from_update_fn_compiled`). It also does not need the whole
+                //   `unit_set`: it only requires the unit sets of the symbolic domains that are
+                //   relevant for this update function. But AFAIK, this seems to be the most
+                //   "convenient" place to do it unless we refactor a lot of stuff.
+                pair.1.transition_function = pair.1.transition_function.and(&unit_set);
+                pair
             })
             .collect::<HashMap<_, _>>();
 
@@ -283,19 +299,10 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             .get(&format!("{}'", transitioned_variable_name))
             .expect("no such variable");
 
-        // forget primed // todo should not be necessary; input should not depend on primed variables
-        let current_state = target_symbolic_domain
-            .symbolic_variables()
-            .into_iter()
-            .fold(current_state.clone(), |acc, bdd_variable_to_be_primed| {
-                let bdd_variable_primed = crate::prototype::utils::find_bdd_variables_prime(
-                    &bdd_variable_to_be_primed,
-                    target_symbolic_domain,
-                    target_symbolic_domain_primed,
-                );
-
-                acc.var_exists(bdd_variable_primed) // todo could be done at once using acc.exists()
-            });
+        // Check that no primed variable is used in `current_state`.
+        let primed = self.primed_variables();
+        let support_set = current_state.support_set();
+        assert!(primed.iter().all(|v| !support_set.contains(v)));
 
         let symbolic_variables_sorted = {
             let mut symbolic_variables_to_be_sorted = target_symbolic_domain.symbolic_variables();
@@ -328,10 +335,10 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             .transition_function
             .and(&current_state_primed);
 
-        println!(
+        /*println!(
             "is true {}",
             states_capable_of_transitioning_into_current.is_true()
-        );
+        );*/
 
         target_symbolic_domain_primed
             .symbolic_variables()
@@ -339,10 +346,10 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             .fold(
                 states_capable_of_transitioning_into_current,
                 |acc, primed_variable| {
-                    println!(
+                    /*println!(
                         "restricting variable with name {}",
                         self.bdd_variable_set.name_of(primed_variable)
-                    );
+                    );*/
                     acc.var_exists(primed_variable)
                 },
             )
@@ -362,14 +369,14 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
     }
 
     // todo this should likely not be part of the api; there are the primed variables - implementation detail
-    pub fn get_bdd_variable_set(&self) -> BddVariableSet {
-        self.bdd_variable_set.0.clone()
+    pub fn get_bdd_variable_set(&self) -> &BddVariableSet {
+        &self.bdd_variable_set.0
     }
 
     pub fn get_bdd_for_each_value_of_each_variable(&self) -> Vec<Bdd> {
         self.named_symbolic_domains
             .iter()
-            .flat_map(|(var_name, sym_dom)| {
+            .flat_map(|(_var_name, sym_dom)| {
                 let all_possible_values = sym_dom.get_all_possible_values(&self.bdd_variable_set.0);
                 all_possible_values.into_iter().map(|possible_value| {
                     let bits = sym_dom.encode_bits_into_vec(possible_value);
@@ -426,6 +433,55 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
         // constrain this specific sym variable to its specific value (& leave others unrestricted)
         vars_and_bits.fold(const_true, |acc, (var, bit)| acc.var_select(var, bit))
     }
+
+    /// The list of system variables, sorted in ascending order (i.e. the order in which they
+    /// also appear within the BDDs).
+    pub fn get_system_variables(&self) -> Vec<String> {
+        let mut variables = self.update_fns.keys()
+            .cloned()
+            .collect::<Vec<_>>();
+        variables.sort();
+        variables
+    }
+
+    /// Returns a list of [BddVariable]-s corresponding to the encoding of the "primed"
+    /// system variables.
+    pub fn primed_variables(&self) -> Vec<BddVariable> {
+        let mut result = Vec::new();
+        for (name, domain) in &self.named_symbolic_domains {
+            if name.contains("\'") {
+                result.append(&mut domain.symbolic_variables());
+            }
+        }
+        result
+    }
+
+    /// Returns a list of [BddVariable]-s corresponding to the encoding of the standard
+    /// (i.e. "un-primed") system variables.
+    pub fn standard_variables(&self) -> Vec<BddVariable> {
+        let mut result = Vec::new();
+        for (name, domain) in &self.named_symbolic_domains {
+            if !name.contains("\'") {
+                result.append(&mut domain.symbolic_variables());
+            }
+        }
+        result
+    }
+
+    /// Compute the [Bdd] which represents the set of all vertices admissible in this
+    /// [SmartSystemUpdateFn]. Normally, this would just be the `true` BDD, but if the
+    /// encoding contains some invalid values, these need to be excluded.
+    ///
+    /// Note that this only concerns the "standard" system variables. The resulting BDD
+    /// does not depend on the "primed" system variables.
+    pub fn unit_vertex_set(&self) -> Bdd {
+        let mut result = self.bdd_variable_set.mk_true();
+        for var in &self.get_system_variables() {
+            let domain = self.named_symbolic_domains.get(var).unwrap();
+            result = result.and(&domain.unit_collection(&self.bdd_variable_set));
+        }
+        result
+    }
 }
 
 /// expects the xml reader to be at the start of the <listOfTransitions> element
@@ -433,17 +489,38 @@ fn load_all_update_fns<XR: XmlReader<BR>, BR: BufRead>(
     xml: &mut XR,
     // todo generic
 ) -> Result<HashMap<String, UpdateFn<u8>>, Box<dyn std::error::Error>> {
-    Ok(crate::process_list(
+    let mut function_map: HashMap<String, UpdateFn<u8>> = crate::process_list(
         "listOfTransitions",
         "transition",
         |xml, _unused_opening_tag| UpdateFn::<u8>::try_from_xml(xml),
         xml,
     )?
-    // todo this might not be the smartest nor useful; the name is already in the fn
-    //  but this will allow us to access the appropriate fn quickly
-    .into_iter()
-    .map(|upd_fn| (upd_fn.target_var_name.clone(), upd_fn))
-    .collect())
+        // todo this might not be the smartest nor useful; the name is already in the fn
+        //  but this will allow us to access the appropriate fn quickly
+        .into_iter()
+        .map(|upd_fn| (upd_fn.target_var_name.clone(), upd_fn))
+        .collect();
+
+    let input_names: HashSet<String> = function_map
+        .values()
+        .flat_map(|it| it.input_vars_names.clone())
+        .collect::<HashSet<_>>();
+
+    for name in input_names {
+        if !function_map.contains_key(&name) {
+            // This variable is an input. For now, we just fix all inputs to `false`.
+            // TODO: We need to handle inputs properly in the future, but not today.
+            let update = UpdateFn::new(
+                Vec::new(),
+                name.clone(),
+                Vec::new(),
+                0u8
+            );
+            function_map.insert(name, update);
+        }
+    }
+
+    Ok(function_map)
 }
 
 // todo this might not be the best way; it cannot detect that some values are unreachable;

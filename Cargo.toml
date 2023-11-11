@@ -10,7 +10,7 @@ name = "biodivine_lib_logical_models"
 path = "src/lib.rs"
 
 [dependencies]
-biodivine-lib-bdd = "0.5.1"
+biodivine-lib-bdd = "0.5.3"
 debug-ignore = "1.0.5"
 dyn-clonable = "0.9.0"
 rayon = "1.8.0"
@@ -18,3 +18,4 @@ serde = { version = "1.0", features = ["derive"] }
 serde-xml-rs = "0.6.0"
 thiserror = "1.0.40"
 xml-rs = "0.8.14"
+num-bigint = "0.4.4"

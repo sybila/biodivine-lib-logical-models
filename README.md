@@ -21,3 +21,34 @@ A Rust library for working with logical models (Boolean/multi-valued networks) i
 - [ ] Can represent unknown/uncertain behaviour within the logical model.
 - [ ] Can represent and manipulate the state-transition graph of a logical model symbolically (maybe using multiple different encodings?).
 - [ ] Provides some basic utility algorithms for (a) exploring the structural properties of the model (feedback vertex sets, cycles, etc.) (b) exploring the model dynamics (reachability, fixed-points, trap spaces, etc.).
+
+
+### Running reachability integration test
+
+To test the correctness of the implementation, we now have a simple reachability consistency check.
+This check compares the results of all symbolic representations on a basic reachability exploration.
+To run the test, execute the following:
+
+```bash
+# First argument is a timeout, here 1 minute. This uses standard unix `timeout`.
+# Second argument is fwd/bwd to indicate which reachability direction you want to test.
+python3 reachability_integration_test.py 1m fwd
+```
+
+The process dumps all results into an appropriate `./data/results-*` directory.
+The script will not overwrite existing results, 
+so you have to delete the directory manually before running the test again.
+
+You should see an output similar to the following:
+
+```
+[PASS] No error discovered in `146_BUDDING-YEAST-FAURE-2009.sbml` in less than 1m.
+[PASS] No error discovered in `148_AGS-cell-fate-decision.sbml` in less than 1m.
+[PASS] No error discovered in `151_TCR-REDOX-METABOLISM.sbml` in less than 1m.
+[PASS] No error discovered in `155_CONTROL-OF-TH1-TH2-TH17-TREG-DIFFERENTATION.sbml` in less than 1m.
+[PASS] No error discovered in `157_CONTROL-OF-TH-DIFFERENTATION.sbml` in less than 1m.
+...
+```
+
+If you see a `[FAIL]` somewhere, it means an inconsistency has been detected.
+You can then check the results to examine the specific case.

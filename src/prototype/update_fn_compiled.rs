@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use biodivine_lib_bdd::{
-    Bdd, BddPartialValuation, BddValuation, BddVariable, BddVariableSet, BddVariableSetBuilder,
+    Bdd, BddPartialValuation, BddValuation, BddVariable,
 };
 
 use crate::{SymbolicDomain, UpdateFnBdd};

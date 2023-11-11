@@ -393,24 +393,8 @@ impl SymbolicDomain<u8> for PetriNetIntegerDomain {
     }
 
     fn unit_collection(&self, variables: &BddVariableSet) -> Bdd {
-        // i do not think there is some similar clever way to do this, as there was in Unary
-        let mut allowed = variables.mk_false();
-
-        for i in 0..self.variables.len() {
-            let mut allowed_i = variables.mk_var(self.variables[i]);
-
-            for j in 0..self.variables.len() {
-                if j == i {
-                    continue;
-                }
-
-                allowed_i = allowed_i.and(&variables.mk_var(self.variables[j]).not());
-            }
-
-            allowed = allowed.or(&allowed_i);
-        }
-
-        allowed
+        // Coincidentally, there is already a function that implements exactly this.
+        variables.mk_sat_exactly_k(1, &self.variables)
     }
 }
 
