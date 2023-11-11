@@ -1,12 +1,12 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use biodivine_lib_bdd::{
-    Bdd, BddPartialValuation, BddValuation, BddVariableSet,
-};
+use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddValuation, BddVariableSet};
 
-use crate::{Expression, SymbolicDomain, UpdateFn};
+// use crate::{Expression, SymbolicDomain, UpdateFn};
 
-use super::expression::Proposition;
+use crate::SymbolicDomain;
+
+use super::{expression::Proposition, Expression, UpdateFn};
 
 // todo this should be abstacted into a geeneric parameter
 // todo but that would require

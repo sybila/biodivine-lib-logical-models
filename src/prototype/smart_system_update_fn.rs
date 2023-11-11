@@ -2,16 +2,24 @@
 
 // todo how to work with the "variables" that are not mentioned in the listOfTransitions?
 
-use std::{collections::HashMap, fmt::Debug, io::BufRead};
 use std::collections::HashSet;
+use std::{collections::HashMap, fmt::Debug, io::BufRead};
 
-use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddVariable, BddVariableSet, BddVariableSetBuilder};
+use biodivine_lib_bdd::{
+    Bdd, BddPartialValuation, BddVariable, BddVariableSet, BddVariableSetBuilder,
+};
 use debug_ignore::DebugIgnore;
 
-use crate::{
-    SymbolicDomain, SymbolicTransitionFn, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled,
-    XmlReader,
+use crate::SymbolicDomain;
+
+use super::{
+    process_list, SymbolicTransitionFn, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled, XmlReader,
 };
+
+// use crate::{
+//     SymbolicDomain, SymbolicTransitionFn, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled,
+//     XmlReader,
+// };
 
 #[derive(Debug)]
 pub struct SmartSystemUpdateFn<D: SymbolicDomain<T>, T> {
@@ -437,9 +445,7 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
     /// The list of system variables, sorted in ascending order (i.e. the order in which they
     /// also appear within the BDDs).
     pub fn get_system_variables(&self) -> Vec<String> {
-        let mut variables = self.update_fns.keys()
-            .cloned()
-            .collect::<Vec<_>>();
+        let mut variables = self.update_fns.keys().cloned().collect::<Vec<_>>();
         variables.sort();
         variables
     }
@@ -489,17 +495,17 @@ fn load_all_update_fns<XR: XmlReader<BR>, BR: BufRead>(
     xml: &mut XR,
     // todo generic
 ) -> Result<HashMap<String, UpdateFn<u8>>, Box<dyn std::error::Error>> {
-    let mut function_map: HashMap<String, UpdateFn<u8>> = crate::process_list(
+    let mut function_map: HashMap<String, UpdateFn<u8>> = process_list(
         "listOfTransitions",
         "transition",
         |xml, _unused_opening_tag| UpdateFn::<u8>::try_from_xml(xml),
         xml,
     )?
-        // todo this might not be the smartest nor useful; the name is already in the fn
-        //  but this will allow us to access the appropriate fn quickly
-        .into_iter()
-        .map(|upd_fn| (upd_fn.target_var_name.clone(), upd_fn))
-        .collect();
+    // todo this might not be the smartest nor useful; the name is already in the fn
+    //  but this will allow us to access the appropriate fn quickly
+    .into_iter()
+    .map(|upd_fn| (upd_fn.target_var_name.clone(), upd_fn))
+    .collect();
 
     let input_names: HashSet<String> = function_map
         .values()
@@ -510,12 +516,7 @@ fn load_all_update_fns<XR: XmlReader<BR>, BR: BufRead>(
         if !function_map.contains_key(&name) {
             // This variable is an input. For now, we just fix all inputs to `false`.
             // TODO: We need to handle inputs properly in the future, but not today.
-            let update = UpdateFn::new(
-                Vec::new(),
-                name.clone(),
-                Vec::new(),
-                0u8
-            );
+            let update = UpdateFn::new(Vec::new(), name.clone(), Vec::new(), 0u8);
             function_map.insert(name, update);
         }
     }
@@ -642,26 +643,15 @@ fn get_max_val_of_var_in_all_transitions_including_their_own(
 
 #[cfg(test)]
 mod tests {
+    use std::{collections::HashMap, ops::Add, sync::RwLock};
+
     use biodivine_lib_bdd::BddVariableSetBuilder;
     use rayon::prelude::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
-    use xml::EventReader;
 
     use crate::{
-        prototype::smart_system_update_fn::{self, SmartSystemUpdateFn},
-        symbolic_domain::{BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain},
-        SymbolicDomain, SystemUpdateFn, UnaryIntegerDomain, XmlReader,
+        prototype::{find_start_of, SmartSystemUpdateFn, SystemUpdateFn},
+        BinaryIntegerDomain, UnaryIntegerDomain,
     };
-
-    // use std:io::{BufRead, BufReader}
-
-    use core::panic;
-    use std::{
-        cell::RefCell,
-        io::BufReader,
-        ops::Add,
-        sync::{Arc, RwLock},
-    };
-    use std::{collections::HashMap, io::BufRead};
 
     // use super::SystemUpdateFn;
 
@@ -707,7 +697,7 @@ mod tests {
                         std::fs::File::open(dirent.path()).unwrap(),
                     ));
 
-                    crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+                    find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
                     let smart_system_update_fn: SmartSystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
                         SmartSystemUpdateFn::try_from_xml(&mut xml)
@@ -748,7 +738,7 @@ mod tests {
                         std::fs::File::open(dirent.path()).unwrap(),
                     ));
 
-                    crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+                    find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
                     let force_system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
                         SystemUpdateFn::try_from_xml(&mut xml)
@@ -815,7 +805,7 @@ mod tests {
                     .expect("cannot open the file"),
             ));
 
-            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+            find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
             let smart_system_update_fn: SmartSystemUpdateFn<UnaryIntegerDomain, u8> =
                 SmartSystemUpdateFn::try_from_xml(&mut xml)
@@ -862,7 +852,7 @@ mod tests {
 
             println!("---force");
 
-            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+            find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
             let force_system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
                 SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load smart system update fn");
@@ -916,7 +906,7 @@ mod tests {
                 std::fs::File::open(filepath.clone()).expect("cannot open the file"),
             ));
 
-            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+            find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
             let smart_system_update_fn: SmartSystemUpdateFn<UnaryIntegerDomain, u8> =
                 SmartSystemUpdateFn::try_from_xml(&mut xml)
@@ -930,7 +920,7 @@ mod tests {
                 std::fs::File::open(filepath).expect("cannot open the file"),
             ));
 
-            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+            find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
             let force_system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
                 SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load smart system update fn");
@@ -990,7 +980,7 @@ mod tests {
                 std::fs::File::open(filepath.clone()).expect("cannot open the file"),
             ));
 
-            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+            find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
             let smart_system_update_fn: SmartSystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
                 SmartSystemUpdateFn::try_from_xml(&mut xml)
@@ -1004,7 +994,7 @@ mod tests {
                 std::fs::File::open(filepath).expect("cannot open the file"),
             ));
 
-            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+            find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
             let force_system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
                 SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load smart system update fn");
@@ -1078,7 +1068,7 @@ mod tests {
                 std::fs::File::open(filepath.clone()).expect("cannot open the file"),
             ));
 
-            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+            find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
             let smart_system_update_fn: SmartSystemUpdateFn<UnaryIntegerDomain, u8> =
                 SmartSystemUpdateFn::try_from_xml(&mut xml)
@@ -1092,7 +1082,7 @@ mod tests {
                 std::fs::File::open(filepath).expect("cannot open the file"),
             ));
 
-            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+            find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
             let force_system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
                 SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load smart system update fn");
@@ -1253,7 +1243,7 @@ mod tests {
                 std::fs::File::open(filepath.clone()).expect("cannot open the file"),
             ));
 
-            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+            find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
             let smart_system_update_fn: SmartSystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
                 SmartSystemUpdateFn::try_from_xml(&mut xml)
@@ -1267,7 +1257,7 @@ mod tests {
                 std::fs::File::open(filepath).expect("cannot open the file"),
             ));
 
-            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+            find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
             let force_system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
                 SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load smart system update fn");
@@ -1386,7 +1376,7 @@ mod tests {
                 std::fs::File::open(filepath.clone()).expect("cannot open the file"),
             ));
 
-            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+            find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
             let smart_system_update_fn: SmartSystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
                 SmartSystemUpdateFn::try_from_xml(&mut xml)
@@ -1400,7 +1390,7 @@ mod tests {
                 std::fs::File::open(filepath).expect("cannot open the file"),
             ));
 
-            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+            find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
             let force_system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
                 SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load smart system update fn");
@@ -1480,7 +1470,7 @@ mod tests {
                         std::fs::File::open(filepath.clone()).expect("cannot open the file"),
                     ));
 
-                    crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+                    find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
                     let smart_system_update_fn: SmartSystemUpdateFn<UnaryIntegerDomain, u8> =
                         SmartSystemUpdateFn::try_from_xml(&mut xml)
@@ -1494,7 +1484,7 @@ mod tests {
                         std::fs::File::open(filepath).expect("cannot open the file"),
                     ));
 
-                    crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+                    find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
                     let force_system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
                         SystemUpdateFn::try_from_xml(&mut xml)
@@ -1635,7 +1625,7 @@ mod tests {
                         std::fs::File::open(filepath.clone()).expect("cannot open the file"),
                     ));
 
-                    crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+                    find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
                     let smart_system_update_fn: SmartSystemUpdateFn<UnaryIntegerDomain, u8> =
                         SmartSystemUpdateFn::try_from_xml(&mut xml)
@@ -1649,7 +1639,7 @@ mod tests {
                         std::fs::File::open(filepath).expect("cannot open the file"),
                     ));
 
-                    crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+                    find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
                     let force_system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
                         SystemUpdateFn::try_from_xml(&mut xml)
@@ -1825,7 +1815,7 @@ mod tests {
                 std::fs::File::open(filepath.clone()).expect("cannot open the file"),
             ));
 
-            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+            find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
             let smart_system_update_fn: SmartSystemUpdateFn<UnaryIntegerDomain, u8> =
                 SmartSystemUpdateFn::try_from_xml(&mut xml)
@@ -1839,7 +1829,7 @@ mod tests {
                 std::fs::File::open(filepath).expect("cannot open the file"),
             ));
 
-            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+            find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
             let force_system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
                 SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load smart system update fn");
@@ -2242,7 +2232,7 @@ mod tests {
                 std::fs::File::open(filepath.clone()).expect("cannot open the file"),
             ));
 
-            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+            find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
             let smart_system_update_fn: SmartSystemUpdateFn<UnaryIntegerDomain, u8> =
                 SmartSystemUpdateFn::try_from_xml(&mut xml)
@@ -2256,7 +2246,7 @@ mod tests {
                 std::fs::File::open(filepath).expect("cannot open the file"),
             ));
 
-            crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+            find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
 
             let force_system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
                 SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load smart system update fn");

@@ -1,4 +1,7 @@
-use biodivine_lib_logical_models::{BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain, reachability_benchmark, UnaryIntegerDomain};
+use biodivine_lib_logical_models::{
+    reachability_benchmark, BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain,
+    UnaryIntegerDomain,
+};
 
 fn main() {
     let args = std::env::args().collect::<Vec<_>>();

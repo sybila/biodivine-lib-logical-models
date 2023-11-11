@@ -2,7 +2,7 @@ use std::{fmt::Debug, io::BufRead, str::FromStr};
 use thiserror::Error;
 use xml::reader::XmlEvent;
 
-use crate::{expect_closure_of, expect_opening, expect_opening_of, XmlReader};
+use super::{expect_closure_of, expect_opening, expect_opening_of, XmlReader};
 
 #[derive(Debug)]
 pub enum Expression<T> {

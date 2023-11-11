@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
-use biodivine_lib_bdd::{
-    Bdd, BddPartialValuation, BddValuation, BddVariable,
-};
+use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddValuation, BddVariable};
 
-use crate::{SymbolicDomain, UpdateFnBdd};
+use crate::SymbolicDomain;
+
+use super::UpdateFnBdd;
+
+// use crate::{SymbolicDomain, UpdateFnBdd};
 
 // type ValueType = u8;
 
@@ -143,12 +145,7 @@ impl<D: SymbolicDomain<T>, T> VariableUpdateFnCompiled<D, T> {
 mod tests {
     use biodivine_lib_bdd::{BddPartialValuation, BddVariableSetBuilder};
 
-    use crate::{
-        get_test_update_fn,
-        prototype::update_fn_compiled::VariableUpdateFnCompiled,
-        symbolic_domain::{BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain},
-        SymbolicDomain, UnaryIntegerDomain, UpdateFnBdd,
-    };
+    use crate::SymbolicDomain;
 
     #[derive(Clone)]
     struct FakeDomain;

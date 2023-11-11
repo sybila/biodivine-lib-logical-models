@@ -1,3 +1,5 @@
+pub use prototype::reachability_benchmark; // this is the only one that should be publicly exported for now
+
 /// A private module which stores the implementation of the traits/structures relevant for
 /// symbolic encoding of logical models.
 ///
@@ -11,14 +13,14 @@ mod symbolic_domain;
 pub mod test_utils;
 
 pub use symbolic_domain::{
+    BinaryIntegerDomain,
+    GrayCodeIntegerDomain,
+    PetriNetIntegerDomain,
     // todo uncomment one those working
     // GenericIntegerDomain,
     // GenericStateSpaceDomain,
     SymbolicDomain,
     UnaryIntegerDomain,
-    PetriNetIntegerDomain,
-    BinaryIntegerDomain,
-    GrayCodeIntegerDomain,
 };
 
 pub fn add(x: i32, y: i32) -> i32 {
@@ -27,10 +29,11 @@ pub fn add(x: i32, y: i32) -> i32 {
 
 // expose the prototype module
 mod prototype;
-pub use prototype::*;
 
 #[cfg(test)]
 mod tests {
+    use crate::prototype::{Expression, UpdateFn};
+
     use super::add;
 
     #[test]
@@ -138,7 +141,7 @@ mod tests {
                     println!("start element {:?}", name);
                     if name.local_name == "apply" {
                         println!("parsing apply");
-                        let expression = super::Expression::<u8>::try_from_xml(&mut xml);
+                        let expression = Expression::<u8>::try_from_xml(&mut xml);
                         println!("parsed apply {:?}", expression);
                     }
                 }
@@ -173,7 +176,7 @@ mod tests {
                     indent += 1;
                     if name.local_name == "transition" {
                         println!("parsing transition");
-                        let update_fn = super::UpdateFn::<u8>::try_from_xml(&mut xml);
+                        let update_fn = UpdateFn::<u8>::try_from_xml(&mut xml);
                         println!("update fn: {:?}", update_fn);
                         return;
                     }

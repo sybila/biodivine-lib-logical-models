@@ -9,7 +9,11 @@ use biodivine_lib_bdd::{
 };
 use debug_ignore::DebugIgnore;
 
-use crate::{SymbolicDomain, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled, XmlReader};
+use crate::SymbolicDomain;
+
+use super::{process_list, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled, XmlReader};
+
+// use crate::{SymbolicDomain, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled, XmlReader};
 
 #[derive(Debug)]
 pub struct SystemUpdateFn<D: SymbolicDomain<T>, T> {
@@ -656,7 +660,7 @@ fn load_all_update_fns<XR: XmlReader<BR>, BR: BufRead>(
     xml: &mut XR,
     // todo generic
 ) -> Result<HashMap<String, UpdateFn<u8>>, Box<dyn std::error::Error>> {
-    Ok(crate::process_list(
+    Ok(process_list(
         "listOfTransitions",
         "transition",
         |xml, _unused_opening_tag| UpdateFn::<u8>::try_from_xml(xml),
@@ -788,15 +792,20 @@ fn get_max_val_of_var_in_all_transitions_including_their_own_and_detect_where_co
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        symbolic_domain::{BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain},
-        SymbolicDomain, UnaryIntegerDomain, XmlReader,
-    };
+    // use crate::{
+    //     symbolic_domain::{BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain},
+    //     SymbolicDomain, UnaryIntegerDomain, XmlReader,
+    // };
 
     // use std:io::{BufRead, BufReader}
 
-    use std::io::BufRead;
-    use std::io::BufReader;
+    // use std::io::BufRead;
+    // use std::io::BufReader;
+
+    use crate::{
+        prototype::{find_start_of, CountingReader, DebuggingReader, LoudReader, XmlReader},
+        BinaryIntegerDomain, SymbolicDomain, UnaryIntegerDomain,
+    };
 
     use super::SystemUpdateFn;
 
@@ -806,9 +815,9 @@ mod tests {
         let br = std::io::BufReader::new(file);
 
         let reader = xml::reader::EventReader::new(br);
-        let mut reader = crate::LoudReader::new(reader); // uncomment to see how xml is loaded
+        let mut reader = LoudReader::new(reader); // uncomment to see how xml is loaded
 
-        crate::find_start_of(&mut reader, "listOfTransitions").expect("cannot find start of list");
+        find_start_of(&mut reader, "listOfTransitions").expect("cannot find start of list");
         let system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
             super::SystemUpdateFn::try_from_xml(&mut reader).unwrap();
 
@@ -828,7 +837,7 @@ mod tests {
             std::fs::File::open("data/bigger.sbml").unwrap(),
         ));
 
-        crate::find_start_of(&mut xml, "listOfTransitions").expect("cannot find start of list");
+        find_start_of(&mut xml, "listOfTransitions").expect("cannot find start of list");
 
         let system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
             super::SystemUpdateFn::try_from_xml(&mut xml).expect("cannot load system update fn");
@@ -855,10 +864,9 @@ mod tests {
                     std::fs::File::open(dirent.path()).unwrap(),
                 ));
 
-                let mut counting = crate::CountingReader::new(xml);
+                let mut counting = CountingReader::new(xml);
 
-                crate::find_start_of(&mut counting, "listOfTransitions")
-                    .expect("could not find list");
+                find_start_of(&mut counting, "listOfTransitions").expect("could not find list");
 
                 let start = counting.curr_line;
 
@@ -888,10 +896,9 @@ mod tests {
                     std::fs::File::open(dirent.path()).unwrap(),
                 ));
 
-                let mut counting = crate::CountingReader::new(xml);
+                let mut counting = CountingReader::new(xml);
 
-                crate::find_start_of(&mut counting, "listOfTransitions")
-                    .expect("could not find list");
+                find_start_of(&mut counting, "listOfTransitions").expect("could not find list");
 
                 let all_update_fns = super::load_all_update_fns(&mut counting)
                     .expect("could not even load the damn thing");
@@ -899,7 +906,7 @@ mod tests {
                 let xml = xml::reader::EventReader::new(std::io::BufReader::new(
                     std::fs::File::open(dirent.path()).unwrap(),
                 ));
-                let mut debug_xml = crate::DebuggingReader::new(xml, &all_update_fns, true, true);
+                let mut debug_xml = DebuggingReader::new(xml, &all_update_fns, true, true);
 
                 // while let Ok(_) = debug_xml.next() {}
 
@@ -929,7 +936,7 @@ mod tests {
             std::fs::File::open("data/update_fn_test.sbml").unwrap(),
         ));
 
-        crate::find_start_of(&mut reader, "listOfTransitions").expect("cannot find start of list");
+        find_start_of(&mut reader, "listOfTransitions").expect("cannot find start of list");
         let system_update_fn: SystemUpdateFn<UnaryIntegerDomain, u8> =
             super::SystemUpdateFn::try_from_xml(&mut reader).unwrap();
 

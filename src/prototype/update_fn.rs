@@ -1,7 +1,6 @@
-use crate::{expect_closure_of, expect_opening_of, process_list, StartElementWrapper, XmlReader};
-
-use super::expression::Expression;
 use super::utils::expect_opening;
+use super::{expect_closure_of, expect_opening_of, process_list, StartElementWrapper};
+use super::{expression::Expression, XmlReader};
 use std::{io::BufRead, str::FromStr};
 
 /// represents collection of tuples of the result values and the associated conditions. there is also the default value.
