@@ -1,5 +1,5 @@
-pub use prototype::reachability_benchmark; // this is the only one that should be publicly exported for now
-
+// pub use prototype::reachability_benchmark; // this is the only one that should be publicly exported for now
+pub mod benchmarks;
 pub mod prelude; // not `prelude::*`; we want to be explicit about what we import
 mod prototype;
 mod symbolic_domain;

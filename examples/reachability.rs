@@ -1,8 +1,6 @@
-use biodivine_lib_logical_models::{
-    prelude::{
-        BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain, UnaryIntegerDomain,
-    },
-    reachability_benchmark,
+use biodivine_lib_logical_models::benchmarks::reachability::reachability_benchmark;
+use biodivine_lib_logical_models::prelude::{
+    BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain, UnaryIntegerDomain,
 };
 
 fn main() {
