@@ -235,17 +235,20 @@ where
 pub fn find_start_of<XR: XmlReader<BR>, BR: BufRead>(
     xml: &mut XR,
     expected_name: &str,
-) -> Result<(), String> {
+) -> Result<(), XmlReadingError> {
     loop {
-        match xml.next() {
-            Ok(xml::reader::XmlEvent::StartElement { name: n, .. })
+        match xml.next()? {
+            xml::reader::XmlEvent::StartElement { name: n, .. }
                 if n.local_name == expected_name =>
             {
-                return Ok(());
+                return Ok(())
             }
-            Ok(xml::reader::XmlEvent::EndElement { .. }) => continue,
-            Ok(xml::reader::XmlEvent::EndDocument) => return Err("end of document".to_string()),
-            Err(e) => return Err(format!("error: {:?}", e)),
+            xml::reader::XmlEvent::EndDocument => {
+                return Err(XmlReadingError::UnexpectedEvent {
+                    expected: ExpectedXmlEvent::Start(expected_name.into()),
+                    got: XmlEvent::EndDocument,
+                })
+            }
             _ => continue, // should be uninteresting
         }
     }
