@@ -2,11 +2,9 @@ use std::fmt::Debug;
 
 use biodivine_lib_bdd::{Bdd, BddVariableSet};
 
-use crate::SymbolicDomain;
+use crate::symbolic_domain::SymbolicDomain;
 
 use super::VariableUpdateFnCompiled;
-
-// use crate::{SymbolicDomain, VariableUpdateFnCompiled};
 
 #[derive(Debug)]
 pub struct SymbolicTransitionFn<D: SymbolicDomain<T>, T> {

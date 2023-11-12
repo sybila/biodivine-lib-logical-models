@@ -4,7 +4,7 @@ use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddValuation, BddVariableSet};
 
 // use crate::{Expression, SymbolicDomain, UpdateFn};
 
-use crate::SymbolicDomain;
+use crate::symbolic_domain::SymbolicDomain;
 
 use super::{expression::Proposition, Expression, UpdateFn};
 

@@ -1,27 +1,12 @@
 pub use prototype::reachability_benchmark; // this is the only one that should be publicly exported for now
 
-/// A private module which stores the implementation of the traits/structures relevant for
-/// symbolic encoding of logical models.
-///
-/// TODO:
-///     In the final library, we should re-export the relevant types from this module here.
+pub mod prelude; // not `prelude::*`; we want to be explicit about what we import
 mod symbolic_domain;
 
 // TODO:
 //   Once this becomes a library, this needs to become private, but for now it is convenient
 //   to have it accessible from outside binaries.
 pub mod test_utils;
-
-pub use symbolic_domain::{
-    BinaryIntegerDomain,
-    GrayCodeIntegerDomain,
-    PetriNetIntegerDomain,
-    // todo uncomment one those working
-    // GenericIntegerDomain,
-    // GenericStateSpaceDomain,
-    SymbolicDomain,
-    UnaryIntegerDomain,
-};
 
 pub fn add(x: i32, y: i32) -> i32 {
     x + y

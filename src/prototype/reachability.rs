@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use crate::{
     prototype::{count_states, find_start_of, log_percent, pick_state_bdd, SmartSystemUpdateFn},
-    SymbolicDomain,
+    symbolic_domain::SymbolicDomain,
 };
 
 pub fn reachability_benchmark<D: SymbolicDomain<u8> + Debug>(sbml_path: &str) {

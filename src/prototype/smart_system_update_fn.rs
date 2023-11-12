@@ -10,7 +10,7 @@ use biodivine_lib_bdd::{
 };
 use debug_ignore::DebugIgnore;
 
-use crate::SymbolicDomain;
+use crate::symbolic_domain::SymbolicDomain;
 
 use super::{
     process_list, SymbolicTransitionFn, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled, XmlReader,
@@ -653,7 +653,7 @@ mod tests {
 
     use crate::{
         prototype::{find_start_of, SmartSystemUpdateFn, SystemUpdateFn},
-        BinaryIntegerDomain, UnaryIntegerDomain,
+        symbolic_domain::{BinaryIntegerDomain, UnaryIntegerDomain},
     };
 
     // use super::SystemUpdateFn;

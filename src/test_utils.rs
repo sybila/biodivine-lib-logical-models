@@ -6,8 +6,10 @@ use crate::{
     prototype::{
         count_states_exact, encode_state_map, find_start_of, pick_state_map, SmartSystemUpdateFn,
     },
-    BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain, SymbolicDomain,
-    UnaryIntegerDomain,
+    symbolic_domain::{
+        BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain, SymbolicDomain,
+        UnaryIntegerDomain,
+    },
 };
 // use crate::{BinaryIntegerDomain, count_states_exact, encode_state_map, find_start_of, GrayCodeIntegerDomain, PetriNetIntegerDomain, pick_state_map, SmartSystemUpdateFn, SymbolicDomain, UnaryIntegerDomain};
 
