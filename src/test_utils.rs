@@ -40,7 +40,7 @@ fn bwd_step<D: SymbolicDomain<u8> + Debug>(
 
         // Should be equivalent to "predecessors \not\subseteq result".
         if !predecessors.imp(set).is_true() {
-            let result = predecessors.or(&set);
+            let result = predecessors.or(set);
             return Some(result);
         }
     }
@@ -60,7 +60,7 @@ fn fwd_step<D: SymbolicDomain<u8> + Debug>(
 
         // Should be equivalent to "predecessors \not\subseteq result".
         if !successors.imp(set).is_true() {
-            let result = successors.or(&set);
+            let result = successors.or(set);
             return Some(result);
         }
     }
@@ -183,19 +183,19 @@ impl ComputationStep {
         let count_unary = self
             .result_unary
             .as_ref()
-            .map(|it| count_states_exact(&self.system_unary, &it));
+            .map(|it| count_states_exact(&self.system_unary, it));
         let count_binary = self
             .result_binary
             .as_ref()
-            .map(|it| count_states_exact(&self.system_binary, &it));
+            .map(|it| count_states_exact(&self.system_binary, it));
         let count_gray = self
             .result_gray
             .as_ref()
-            .map(|it| count_states_exact(&self.system_gray, &it));
+            .map(|it| count_states_exact(&self.system_gray, it));
         let count_petri_net = self
             .result_petri_net
             .as_ref()
-            .map(|it| count_states_exact(&self.system_petri_net, &it));
+            .map(|it| count_states_exact(&self.system_petri_net, it));
         if count_unary != count_binary
             || count_binary != count_gray
             || count_gray != count_petri_net

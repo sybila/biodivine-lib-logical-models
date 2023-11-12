@@ -179,6 +179,7 @@ impl<D: SymbolicDomain<u8>> UpdateFnBdd<D> {
     /// todo and instead can just specify the values of symbolic variables
     /// todo for now, i know what is the underlying representation of the symbolic variables
     /// todo -> good enough for testing
+    #[allow(dead_code)] // todo maybe remove -> unused
     pub fn eval_in(&self, valuation: &BddValuation) -> u8 {
         self.terms
             .iter()
@@ -194,6 +195,7 @@ impl<D: SymbolicDomain<u8>> UpdateFnBdd<D> {
     /// but also this valuation is partial, so that it can be updated later
     /// since all are set, you can build BddValuation from it at any time and
     /// evaluate the update function using this
+    #[allow(dead_code)] // todo maybe remove -> unused
     pub fn get_default_valuation_but_partial(&self) -> BddPartialValuation {
         self.named_symbolic_domains.values().fold(
             BddPartialValuation::empty(),

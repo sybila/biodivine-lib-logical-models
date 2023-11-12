@@ -848,7 +848,7 @@ mod tests {
         let domain = system_update_fn.named_symbolic_domains.get("ORI").unwrap();
         domain.encode_bits(&mut valuation, &1);
 
-        let succs = system_update_fn.get_successors(&valuation.try_into().unwrap());
+        let _succs = system_update_fn.get_successors(&valuation.try_into().unwrap());
         // println!("succs: {:?}", succs);
     }
 

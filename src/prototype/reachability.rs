@@ -93,7 +93,7 @@ pub fn reach_fwd<D: SymbolicDomain<u8> + Debug>(
                 result = result.or(&successors);
                 println!(
                     " >> (progress={:.2}%%, states={}, size={})",
-                    log_percent(&result, &universe),
+                    log_percent(&result, universe),
                     count_states(system, &result),
                     result.size()
                 );
@@ -136,7 +136,7 @@ pub fn reach_bwd<D: SymbolicDomain<u8> + Debug>(
                 result = result.or(&predecessors);
                 println!(
                     " >> (progress={:.2}%%, states={}, size={})",
-                    log_percent(&result, &universe),
+                    log_percent(&result, universe),
                     count_states(system, &result),
                     result.size()
                 );

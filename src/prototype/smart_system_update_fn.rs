@@ -455,7 +455,7 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
     pub fn primed_variables(&self) -> Vec<BddVariable> {
         let mut result = Vec::new();
         for (name, domain) in &self.named_symbolic_domains {
-            if name.contains("\'") {
+            if name.contains('\'') {
                 result.append(&mut domain.symbolic_variables());
             }
         }
@@ -467,7 +467,7 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
     pub fn standard_variables(&self) -> Vec<BddVariable> {
         let mut result = Vec::new();
         for (name, domain) in &self.named_symbolic_domains {
-            if !name.contains("\'") {
+            if !name.contains('\'') {
                 result.append(&mut domain.symbolic_variables());
             }
         }
@@ -513,12 +513,15 @@ fn load_all_update_fns<XR: XmlReader<BR>, BR: BufRead>(
         .collect::<HashSet<_>>();
 
     for name in input_names {
-        if !function_map.contains_key(&name) {
-            // This variable is an input. For now, we just fix all inputs to `false`.
-            // TODO: We need to handle inputs properly in the future, but not today.
-            let update = UpdateFn::new(Vec::new(), name.clone(), Vec::new(), 0u8);
-            function_map.insert(name, update);
-        }
+        // if !function_map.contains_key(&name) {
+        //     // This variable is an input. For now, we just fix all inputs to `false`.
+        //     // TODO: We need to handle inputs properly in the future, but not today.
+        //     let update = UpdateFn::new(Vec::new(), name.clone(), Vec::new(), 0u8);
+        //     function_map.insert(name, update);
+        // }
+        function_map
+            .entry(name.clone())
+            .or_insert_with(|| UpdateFn::new(Vec::new(), name, Vec::new(), 0u8));
     }
 
     Ok(function_map)
@@ -797,7 +800,7 @@ mod tests {
         let (
             smart_empty_succs_dot,
             smart_whole_succs_dot,
-            smart_empty_succs_bdd,
+            _smart_empty_succs_bdd,
             smart_whole_succs_bdd,
         ) = {
             let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
@@ -842,7 +845,7 @@ mod tests {
         let (
             force_empty_succs_dot,
             force_whole_succs_dot,
-            force_empty_succs_bdd,
+            _force_empty_succs_bdd,
             force_whole_succs_bdd,
         ) = {
             let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
@@ -1090,20 +1093,20 @@ mod tests {
             force_system_update_fn
         };
 
-        let smart_p_zero =
+        let _smart_p_zero =
             smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
         let smart_p_one =
             smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
-        let smart_q_zero =
+        let _smart_q_zero =
             smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 0);
         let smart_q_one =
             smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 1);
 
-        let force_p_zero =
+        let _force_p_zero =
             force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
         let force_p_one =
             force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
-        let force_q_zero =
+        let _force_q_zero =
             force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 0);
         let force_q_one =
             force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 1);
@@ -1162,15 +1165,15 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        smart_bdd_force_bdd_tuples
-            .iter()
-            .for_each(|(variable_and_value, smart_bdd, force_bdd)| {
+        smart_bdd_force_bdd_tuples.iter().for_each(
+            |(_variable_and_value, smart_bdd, force_bdd)| {
                 // just asserting that we have matched the initial bdds (sets of states) correctly
                 assert_eq!(
                     smart_system_update_fn.bdd_to_dot_string(smart_bdd),
                     force_system_update_fn.bdd_to_dot_string(force_bdd)
                 );
-            });
+            },
+        );
 
         let var_names = force_system_update_fn
             .named_symbolic_domains
@@ -1185,7 +1188,7 @@ mod tests {
         // let res =
         var_names.par_iter().take(1).for_each(|var_name| {
             smart_bdd_force_bdd_tuples.par_iter().take(1).for_each(
-                |(name, smart_set_of_states, force_set_of_states)| {
+                |(_name, smart_set_of_states, force_set_of_states)| {
                     // println!("comparing bdds of {}", name);
                     let smart_transitioned = smart_system_update_fn
                         .predecessors_under_variable(var_name, smart_set_of_states);
@@ -1526,7 +1529,7 @@ mod tests {
                     .collect::<Vec<_>>();
 
                 smart_bdd_force_bdd_tuples.iter().for_each(
-                    |(variable_and_value, smart_bdd, force_bdd)| {
+                    |(_variable_and_value, smart_bdd, force_bdd)| {
                         // just asserting that we have matched the initial bdds (sets of states) correctly
                         assert_eq!(
                             smart_system_update_fn.bdd_to_dot_string(smart_bdd),
@@ -1548,7 +1551,7 @@ mod tests {
                 // let res =
                 var_names.par_iter().for_each(|var_name| {
                     smart_bdd_force_bdd_tuples.par_iter().for_each(
-                        |(name, smart_set_of_states, force_set_of_states)| {
+                        |(_name, smart_set_of_states, force_set_of_states)| {
                             // println!("comparing bdds of {}", name);
                             let smart_transitioned = smart_system_update_fn
                                 .transition_under_variable(var_name, smart_set_of_states);
@@ -1570,7 +1573,7 @@ mod tests {
                                 force_system_update_fn.bdd_to_dot_string(&force_transitioned);
 
                             // let the_two_whole = format!("{}\n{}", smart_whole_succs_dot, force_whole_succs_dot);
-                            let the_two = format!("{}\n{}", smart_dot, force_dot);
+                            let _the_two = format!("{}\n{}", smart_dot, force_dot);
 
                             // std::fs::write("dot_output.dot", the_two_whole).expect("cannot write to file");
                             // std::fs::write("dot_output.dot", the_two)
@@ -1681,7 +1684,7 @@ mod tests {
                     .collect::<Vec<_>>();
 
                 smart_bdd_force_bdd_tuples.iter().for_each(
-                    |(variable_and_value, smart_bdd, force_bdd)| {
+                    |(_variable_and_value, smart_bdd, force_bdd)| {
                         // just asserting that we have matched the initial bdds (sets of states) correctly
                         assert_eq!(
                             smart_system_update_fn.bdd_to_dot_string(smart_bdd),
@@ -1707,7 +1710,7 @@ mod tests {
                     // let smart_bdd_force_bdd_tuples = &smart_bdd_force_bdd_tuples[..1];
                     // smart_bdd_force_bdd_tuples.par_iter().for_each(
                     smart_bdd_force_bdd_tuples.iter().for_each(
-                        |(name, smart_set_of_states, force_set_of_states)| {
+                        |(_name, smart_set_of_states, force_set_of_states)| {
                             // println!("comparing bdds of {}", name);
                             let smart_preds = smart_system_update_fn
                                 .predecessors_under_variable(var_name, smart_set_of_states);
@@ -1947,8 +1950,8 @@ mod tests {
 
         println!("var_names = {:?}", var_names.len());
 
-        let those_that_eq = RwLock::new(0);
-        let those_that_neq = RwLock::new(0);
+        let _those_that_eq = RwLock::new(0);
+        let _those_that_neq = RwLock::new(0);
 
         let sorted_smart_and_force_bdd_tuples = smart_triple_sorted
             .iter()
@@ -2068,10 +2071,10 @@ mod tests {
                     let smart_transitioned = smart_system_update_fn
                         .transition_under_variable(var_name, smart_set_of_states);
 
-                    let formatted = format!(
+                    let _formatted = format!(
                         "{}\n{}",
-                        smart_system_update_fn.bdd_to_dot_string(&smart_set_of_states),
-                        force_system_update_fn.bdd_to_dot_string(&force_set_of_states)
+                        smart_system_update_fn.bdd_to_dot_string(smart_set_of_states),
+                        force_system_update_fn.bdd_to_dot_string(force_set_of_states)
                     );
 
                     let expected_formatted = r#"digraph G {
@@ -2095,7 +2098,7 @@ mod tests {
                         }
                         "#;
 
-                    let expected_formatted = unindent(expected_formatted);
+                    let _expected_formatted = unindent(expected_formatted);
 
                     // assert_eq!(formatted, expected_formatted, "expected formatted");
 
@@ -2327,7 +2330,7 @@ mod tests {
                     .iter()
                     .enumerate()
                     // .for_each(|(idx, (smart_set_of_states, force_set_of_states))| {
-                    .map(|(idx, (smart_set_of_states, force_set_of_states))| {
+                    .map(|(_idx, (smart_set_of_states, force_set_of_states))| {
                         let force_transitioned = force_system_update_fn
                             .transition_under_variable(var_name, force_set_of_states);
                         let smart_transitioned = smart_system_update_fn

@@ -170,6 +170,7 @@ where
 
 /// get the update fn from "data/update_fn_test.sbml"
 /// used in tests / to play around with the code
+#[allow(dead_code)]
 pub fn get_test_update_fn<T: FromStr>() -> UpdateFn<T> {
     use std::fs::File;
     use std::io::BufReader;
@@ -296,6 +297,7 @@ pub struct DebuggingReader<BR: BufRead> {
 }
 
 impl<BR: BufRead> DebuggingReader<BR> {
+    #[allow(dead_code)]
     pub fn new(
         xml: EventReader<BR>,
         update_fns: &HashMap<String, UpdateFn<u8>>,
@@ -415,6 +417,7 @@ pub struct CountingReader<BR: BufRead> {
 }
 
 impl<BR: BufRead> CountingReader<BR> {
+    #[allow(dead_code)]
     pub fn new(xml: EventReader<BR>) -> Self {
         Self { xml, curr_line: 0 }
     }
