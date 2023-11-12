@@ -23,3 +23,6 @@ pub use smart_system_update_fn::*;
 
 mod symbolic_transition_fn;
 pub use symbolic_transition_fn::*;
+
+pub mod symbolic_domain;
+pub use symbolic_domain::*;

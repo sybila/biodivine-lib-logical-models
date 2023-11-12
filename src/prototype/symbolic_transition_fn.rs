@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use biodivine_lib_bdd::{Bdd, BddVariableSet};
 
-use crate::symbolic_domain::SymbolicDomain;
+use crate::prototype::symbolic_domain::SymbolicDomain;
 
 use super::VariableUpdateFnCompiled;
 

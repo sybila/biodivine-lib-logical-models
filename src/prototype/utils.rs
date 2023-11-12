@@ -10,7 +10,7 @@ use xml::{
     reader::{EventReader, XmlEvent},
 };
 
-use crate::symbolic_domain::SymbolicDomain;
+use crate::prototype::symbolic_domain::SymbolicDomain;
 
 use super::{SmartSystemUpdateFn, UpdateFn};
 

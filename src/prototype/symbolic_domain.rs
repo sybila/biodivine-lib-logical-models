@@ -724,7 +724,7 @@ impl SymbolicDomain<u8> for GrayCodeIntegerDomain<u8> {
 
 #[cfg(test)]
 mod tests {
-    use crate::symbolic_domain::{
+    use crate::prototype::symbolic_domain::{
         // GenericStateSpaceDomain,
         SymbolicDomain,
         UnaryIntegerDomain,

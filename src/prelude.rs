@@ -1,4 +1,5 @@
-pub use crate::symbolic_domain::{
+// todo should be replaced by the actual implementation
+pub use crate::prototype::symbolic_domain::{
     BinaryIntegerDomain,
     GrayCodeIntegerDomain,
     PetriNetIntegerDomain,

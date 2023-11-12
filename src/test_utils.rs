@@ -3,12 +3,12 @@ use num_bigint::BigInt;
 use std::fmt::Debug;
 
 use crate::{
-    prototype::{
-        count_states_exact, encode_state_map, find_start_of, pick_state_map, SmartSystemUpdateFn,
-    },
-    symbolic_domain::{
+    prototype::symbolic_domain::{
         BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain, SymbolicDomain,
         UnaryIntegerDomain,
+    },
+    prototype::{
+        count_states_exact, encode_state_map, find_start_of, pick_state_map, SmartSystemUpdateFn,
     },
 };
 // use crate::{BinaryIntegerDomain, count_states_exact, encode_state_map, find_start_of, GrayCodeIntegerDomain, PetriNetIntegerDomain, pick_state_map, SmartSystemUpdateFn, SymbolicDomain, UnaryIntegerDomain};

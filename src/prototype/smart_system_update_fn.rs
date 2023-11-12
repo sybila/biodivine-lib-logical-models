@@ -10,7 +10,7 @@ use biodivine_lib_bdd::{
 };
 use debug_ignore::DebugIgnore;
 
-use crate::symbolic_domain::SymbolicDomain;
+use crate::prototype::symbolic_domain::SymbolicDomain;
 
 use super::{
     process_list, SymbolicTransitionFn, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled, XmlReader,
@@ -652,8 +652,8 @@ mod tests {
     use rayon::prelude::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
     use crate::{
+        prototype::symbolic_domain::{BinaryIntegerDomain, UnaryIntegerDomain},
         prototype::{find_start_of, SmartSystemUpdateFn, SystemUpdateFn},
-        symbolic_domain::{BinaryIntegerDomain, UnaryIntegerDomain},
     };
 
     // use super::SystemUpdateFn;

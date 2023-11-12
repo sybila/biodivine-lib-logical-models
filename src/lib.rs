@@ -1,12 +1,9 @@
-// pub use prototype::reachability_benchmark; // this is the only one that should be publicly exported for now
 pub mod benchmarks;
 pub mod prelude; // not `prelude::*`; we want to be explicit about what we import
-mod prototype;
-mod symbolic_domain;
-// TODO:
-//   Once this becomes a library, this needs to become private, but for now it is convenient
-//   to have it accessible from outside binaries.
-pub mod test_utils;
+mod prototype; // not public; will be replaced by legit
+pub mod test_utils; // TODO:
+                    //   Once this becomes a library, this needs to become private, but for now it is convenient
+                    //   to have it accessible from outside binaries.
 
 #[cfg(test)]
 mod tests {
