@@ -1,30 +1,16 @@
 pub use prototype::reachability_benchmark; // this is the only one that should be publicly exported for now
 
 pub mod prelude; // not `prelude::*`; we want to be explicit about what we import
+mod prototype;
 mod symbolic_domain;
-
 // TODO:
 //   Once this becomes a library, this needs to become private, but for now it is convenient
 //   to have it accessible from outside binaries.
 pub mod test_utils;
 
-pub fn add(x: i32, y: i32) -> i32 {
-    x + y
-}
-
-// expose the prototype module
-mod prototype;
-
 #[cfg(test)]
 mod tests {
     use crate::prototype::{Expression, UpdateFn};
-
-    use super::add;
-
-    #[test]
-    pub fn test() {
-        assert_eq!(5, add(2, 3));
-    }
 
     #[test]
     pub fn test_expression() {
