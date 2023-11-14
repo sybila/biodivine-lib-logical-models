@@ -374,6 +374,7 @@ pub enum CmpOp {
     Geq,
 }
 
+// todo this should be impl FromStr & impl ToString
 impl CmpOp {
     pub fn try_from_str(s: &str) -> Result<Self, ParseCmpOpError> {
         match s {
@@ -426,6 +427,7 @@ impl<T> Proposition<T> {
     /// if the input terminal operands are flipped, the returning value will flip the operands as well
     /// as the comparison operator in order to normalize the proposition
     pub fn new(cmp_op: CmpOp, ops: TerminalOps<T>) -> Self {
+        // todo `TerminalOps` are specific for xml loading; this struct should not care about it
         match ops {
             TerminalOps::Standard(lhs, rhs) => Self {
                 cmp: cmp_op,

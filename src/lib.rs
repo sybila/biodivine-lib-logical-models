@@ -4,7 +4,7 @@ mod prototype; // not public; will be replaced by legit
 pub mod test_utils; // TODO:
                     //   Once this becomes a library, this needs to become private, but for now it is convenient
                     //   to have it accessible from outside binaries.
-mod expression;
+mod expression_components;
 mod xml_parsing;
 
 #[cfg(test)]
