@@ -1,18 +1,5 @@
 #![allow(dead_code)]
 
-// todo this should likely be only inside the xml parser
-enum LogicOp {
-    Not,
-    And,
-    Or,
-    Xor,
-    Implies,
-}
-
-use std::{io::BufRead, str::FromStr};
-
-use crate::xml_parsing::xml_reader::XmlReader;
-
 use super::proposition::Proposition;
 
 /// Represents a recursive expression. Leaf nodes are propositions. Join `Expression::Terminal`s
@@ -52,15 +39,15 @@ impl<T: PartialOrd> Expression<T> {
     }
 }
 
-// todo
-//  really torn apart between keeping this here, moving it to a separate file within
-//  this module, and moving it into the `xml_parsing` module
-impl<T: FromStr> Expression<T> {
-    pub fn try_from_xml<XR, BR>(_xml: &mut XR)
-    where
-        XR: XmlReader<BR>,
-        BR: BufRead,
-    {
-        unimplemented!()
-    }
-}
+// // todo
+// //  really torn apart between keeping this here, moving it to a separate file within
+// //  this module, and moving it into the `xml_parsing` module
+// impl<T: FromStr> Expression<T> {
+//     pub fn try_from_xml<XR, BR>(_xml: &mut XR)
+//     where
+//         XR: XmlReader<BR>,
+//         BR: BufRead,
+//     {
+//         unimplemented!()
+//     }
+// }

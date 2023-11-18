@@ -14,6 +14,7 @@ pub enum ExpectedXmlEvent {
     End(String),
     AnyStart,
     AnyEnd,
+    Characters,
 }
 
 #[derive(Error, Debug)]
@@ -23,6 +24,7 @@ pub enum XmlReadingError {
         got: XmlEvent,
     },
     UnderlyingReaderError(#[from] xml::reader::Error),
+    ParsingError(String),
 }
 
 impl Display for XmlReadingError {
@@ -36,6 +38,7 @@ impl Display for XmlReadingError {
             XmlReadingError::UnderlyingReaderError(e) => {
                 write!(f, "Underlying reader error: {}", e)
             }
+            XmlReadingError::ParsingError(s) => write!(f, "Parsing error; could not parse {}", s),
         }
     }
 }
