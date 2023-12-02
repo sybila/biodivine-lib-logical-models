@@ -10,7 +10,7 @@ use std::{io::BufRead, str::FromStr};
 #[derive(Debug)]
 pub struct UpdateFn<T> {
     pub input_vars_names: Vec<String>,
-    pub target_var_name: String,
+    pub target_var_name: String, // todo maybe not here; the owner of this struct should know the name of the target var
     // todo should likely be in bdd repr already;
     // that should be done for the intermediate repr of Expression as well;
     // will do that once i can parse the whole xml

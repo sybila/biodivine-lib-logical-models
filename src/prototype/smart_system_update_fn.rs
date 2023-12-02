@@ -31,7 +31,7 @@ pub struct SmartSystemUpdateFn<D: SymbolicDomain<T>, T> {
 impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
     /// expects the xml reader to be at the start of the <listOfTransitions> element
     pub fn try_from_xml<XR: XmlReader<BR>, BR: BufRead>(
-        xml: &mut XR,
+        xml: &mut XR, // todo shoudl not take care of loading the vars_and_their_max_values; those should be provided instead of the xml parameter
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let var_names_and_upd_fns = load_all_update_fns(xml)?;
         let sorted_ctx = {
@@ -47,6 +47,7 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
         // todo  be used as inputs to some functions, causing panic
         let mut bdd_variable_set_builder = BddVariableSetBuilder::new();
 
+        // todo first, create a iterator of primed & unprimed, only then map them to the symbolic domains
         let named_symbolic_domains = sorted_ctx
             .into_iter()
             .flat_map(|(name, max_value)| {
@@ -75,6 +76,7 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             .collect::<HashMap<_, _>>();
         let variable_set = bdd_variable_set_builder.build();
 
+        // todo better loop; over the tuples directly; also, use fold
         let mut unit_set = variable_set.mk_true();
         for var in var_names_and_upd_fns.keys() {
             let domain = named_symbolic_domains.get(var).unwrap();
@@ -105,7 +107,7 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             to_be_sorted
         };
 
-        let smart_update_fns = sorted_update_fns
+        let smart_update_fns = sorted_update_fns // todo likely should cache the bdd variables (raw-its_prime) tuples here
             .into_iter()
             // .map(|(target_variable_name, compiled_update_fn)| {
             .map(|tuple| {
@@ -254,6 +256,7 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             .get(&format!("{}'", transitioned_variable_name))
             .expect("no such variable");
 
+        // forget the old value of the variable
         let mut acc = states_capable_of_performing_the_transition;
         for bdd_variable in target_symbolic_domain.symbolic_variables() {
             acc = acc.var_exists(bdd_variable);
@@ -267,6 +270,8 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
         };
 
         for bdd_variable in correct_order_of_variables_to_be_renamed {
+            // todo might want to cache this somewhere (tuples of (var, var')) instead of recomputing it every time in O(n)
+            // todo it could really only be variables.zip(primed_variables).foreach(|_| ...)
             let bdd_variable_primed = crate::prototype::utils::find_bdd_variables_prime(
                 &bdd_variable,
                 target_symbolic_domain,

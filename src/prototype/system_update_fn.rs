@@ -248,7 +248,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                 let states_from_current_state_set_capable_of_transitioning_into_given_value =
                     current_state.and(&states_capable_of_transitioning_into_given_value);
 
-                // this restriction should "perform the transition"
+                // forget the current value of the variable, to set it in the next step
                 let states_forgot_the_value_of_target_sym_var =
                     states_from_current_state_set_capable_of_transitioning_into_given_value
                         // .restrict(&vars_and_their_bits[..]);
@@ -260,6 +260,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                                 .collect::<Vec<_>>()[..],
                         );
 
+                // set the value of the variable to its target value
                 let states_transitioned_into_given_value =
                     any_where_var_has_target_value.and(&states_forgot_the_value_of_target_sym_var);
 
