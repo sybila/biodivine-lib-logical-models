@@ -25,6 +25,7 @@ pub enum XmlReadingError {
     },
     UnderlyingReaderError(#[from] xml::reader::Error),
     ParsingError(String),
+    NoSuchAttribute(String),
 }
 
 impl Display for XmlReadingError {
@@ -39,6 +40,7 @@ impl Display for XmlReadingError {
                 write!(f, "Underlying reader error: {}", e)
             }
             XmlReadingError::ParsingError(s) => write!(f, "Parsing error; could not parse {}", s),
+            XmlReadingError::NoSuchAttribute(s) => write!(f, "No such attribute: {}", s),
         }
     }
 }
