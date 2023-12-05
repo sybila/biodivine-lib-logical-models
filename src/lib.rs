@@ -7,6 +7,7 @@ pub mod test_utils; // TODO:
 mod expression_components;
 mod symbolic_domains;
 mod system;
+mod update;
 mod xml_parsing;
 
 #[cfg(test)]

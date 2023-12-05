@@ -147,14 +147,10 @@ fn lt<D: SymbolicDomain<u8>>(
     bdd_variable_set: &BddVariableSet,
     lower_than_this: u8,
 ) -> Bdd {
-    let mut bdd = symbolic_domain.empty_collection(bdd_variable_set);
-
-    (0..lower_than_this).for_each(|i| {
-        let bdd_i = symbolic_domain.encode_one(bdd_variable_set, &i);
-        bdd = bdd.or(&bdd_i);
-    });
-
-    bdd
+    (0..lower_than_this).fold(
+        symbolic_domain.empty_collection(bdd_variable_set),
+        |acc, val| acc.or(&symbolic_domain.encode_one(bdd_variable_set, &val)),
+    )
 }
 
 fn leq<D: SymbolicDomain<u8>>(

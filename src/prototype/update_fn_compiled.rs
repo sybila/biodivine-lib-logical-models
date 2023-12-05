@@ -18,7 +18,7 @@ use super::UpdateFnBdd;
 pub struct VariableUpdateFnCompiled<D: SymbolicDomain<T>, T> {
     penis: std::marker::PhantomData<T>,
     pub bit_answering_bdds: Vec<(Bdd, BddVariable)>,
-    pub named_symbolic_domains: HashMap<String, D>,
+    pub named_symbolic_domains: HashMap<String, D>, // todo this should be moved outside; caller should keep track of that
 }
 
 // todo directly from UpdateFn (not UpdateFnBdd)
