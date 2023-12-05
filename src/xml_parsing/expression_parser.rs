@@ -54,7 +54,6 @@ impl ToString for LogicalOperator {
 }
 
 impl<T: FromStr> Expression<T> {
-    // todo likely should not be an associated fn - or make it consistant with `variable_update_fn` - from-xml-parser
     pub fn try_from_xml<XR, BR>(xml: &mut XR) -> Result<Self, XmlReadingError>
     where
         XR: XmlReader<BR>,
