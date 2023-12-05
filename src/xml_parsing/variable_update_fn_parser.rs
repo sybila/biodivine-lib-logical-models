@@ -1,3 +1,5 @@
+#![allow(dead_code)] // todo remove
+
 use std::{io::BufRead, str::FromStr};
 
 use xml::reader::XmlEvent;
@@ -13,72 +15,64 @@ use super::{
     xml_reader::XmlReader,
 };
 
-/// expects the xml reader to be at the start of the <transition> element
-impl<T: FromStr> VariableUpdateFn<T> {
-    pub fn try_from_xml<XR: XmlReader<BR>, BR: BufRead>(
-        xml: &mut XR,
-    ) -> Result<Self, XmlReadingError> {
-        let some_start_element = expect_opening(xml)?;
-        if !matches!(
-            some_start_element.name.local_name.as_str(),
-            "listOfInputs" | "listOfOutputs"
-        ) {
-            return Err(XmlReadingError::UnexpectedEvent {
-                expected: super::utils::ExpectedXmlEvent::Start(
-                    "listOfInputs or listOfOutputs".to_string(),
-                ),
-                got: XmlEvent::StartElement {
-                    name: some_start_element.name,
-                    attributes: some_start_element.attributes,
-                    namespace: some_start_element.namespace,
-                },
-            });
-        }
-
-        // listOfInputs might not be present at all
-        let input_vars_names = if some_start_element.name.local_name == "listOfInputs" {
-            let aux = map_list(xml, "listOfInputs", "input", process_input_var_name_item)?;
-            expect_closure_of(xml, "listOfOutputs")?; // must be followed by listOfOutputs
-            aux
-        } else {
-            Vec::new()
-        };
-
-        // listOfOutputs must be present
-        let target_vars_names =
-            map_list(xml, "listOfOutputs", "output", process_output_var_name_item)?;
-        let mut target_vars_names = target_vars_names.iter();
-        let head = target_vars_names // todo head must be used; caller has no way of knowing which variable is the target otherwise
-            .next()
-            .ok_or(XmlReadingError::UnexpectedEvent {
-                expected: super::utils::ExpectedXmlEvent::Start("target var name".to_string()),
-                got: XmlEvent::EndElement {
-                    name: some_start_element.name,
-                },
-            });
-        target_vars_names.next().map_or_else(
-            || Ok::<(), ()>(()),
-            |_elem| {
-                // Err(XmlReadingError::UnexpectedEvent {
-                //     expected: super::utils::ExpectedXmlEvent::End("list of vars names".to_string()),
-                //     got: // ...,
-                // })
-                panic!("expected only one target var but found multiple; todo might want to change this")
+/// Parses the <transition> XML element into a VariableUpdateFn struct.
+/// Expects the parameter `xml` to be at the start of the <transition> XML element.
+pub fn try_variable_update_fn_from_xml<XR, BR, T>(
+    xml: &mut XR,
+) -> Result<VariableUpdateFn<T>, XmlReadingError>
+where
+    XR: XmlReader<BR>,
+    BR: BufRead,
+    T: FromStr,
+{
+    let some_start_element = expect_opening(xml)?;
+    if !matches!(
+        some_start_element.name.local_name.as_str(),
+        "listOfInputs" | "listOfOutputs"
+    ) {
+        return Err(XmlReadingError::UnexpectedEvent {
+            expected: super::utils::ExpectedXmlEvent::Start(
+                "listOfInputs or listOfOutputs".to_string(),
+            ),
+            got: XmlEvent::StartElement {
+                name: some_start_element.name,
+                attributes: some_start_element.attributes,
+                namespace: some_start_element.namespace,
             },
-        );
-        // .ok_or(XmlReadingError::UnexpectedEvent { expected: super::utils::ExpectedXmlEvent::End("listOfOutputs".to_string()), got: () })
-
-        expect_opening_of(xml, "listOfFunctionTerms")?;
-        let (default, terms) = get_default_and_list_of_terms(xml)?;
-
-        expect_closure_of(xml, "transition")?;
-        // Ok(Self::new(input_vars_names, head.into(), terms, default))
-        // Ok(VariableUpdateFn::new(terms, default))
-
-        let xd = VariableUpdateFn::new(terms, default);
-
-        Ok(xd)
+        });
     }
+
+    // listOfInputs may or may not be present - either case is accepted
+    let input_vars_names = if some_start_element.name.local_name == "listOfInputs" {
+        let aux = map_list(xml, "listOfInputs", "input", process_input_var_name_item)?;
+        expect_opening_of(xml, "listOfOutputs")?; // must be followed by listOfOutputs
+        aux
+    } else {
+        Vec::new()
+    };
+
+    let target_vars_names = map_list(xml, "listOfOutputs", "output", process_output_var_name_item)?;
+    let target_variable_name = match target_vars_names.as_slice() {
+        [single_target_variable_name] => single_target_variable_name.clone(),
+        _ => {
+            return Err(XmlReadingError::WrongAmountOfElements {
+                expected_amount: 1,
+                found_items_string: target_vars_names.join(", "),
+            })
+        }
+    };
+
+    expect_opening_of(xml, "listOfFunctionTerms")?;
+    let (default, terms) = get_default_and_list_of_terms(xml)?;
+
+    expect_closure_of(xml, "transition")?;
+
+    Ok(VariableUpdateFn::new(
+        input_vars_names,
+        target_variable_name,
+        terms,
+        default,
+    ))
 }
 
 fn process_input_var_name_item<XR: XmlReader<BR>, BR: BufRead>(
@@ -95,7 +89,6 @@ fn process_input_var_name_item<XR: XmlReader<BR>, BR: BufRead>(
 
     let item = qualitative_species
         .next()
-        // .ok_or("expected \"qualitativeSpecies\" arg in input, but none found")?;
         .ok_or(XmlReadingError::NoSuchAttribute(
             "qualitativeSpecies".to_string(),
         ))?; // todo
@@ -133,19 +126,18 @@ type Out<T> = (T, Vec<(T, Expression<T>)>);
 fn get_default_and_list_of_terms<T: FromStr, XR: XmlReader<BR>, BR: BufRead>(
     xml: &mut XR,
 ) -> Result<Out<T>, XmlReadingError> {
-    // firs should be the default
     let default_element = expect_opening_of(xml, "defaultTerm")?;
 
     let default_val = result_level_from_attributes(&default_element)?;
 
     expect_closure_of(xml, "defaultTerm")?;
 
-    // expect_opening_of("functionTerms", xml)?; // already inside "functionTerms" List; first item was default element
+    // expect_opening_of("listOfFunctionTerms", xml)?; // already inside "listOfFunctionTerms"; first item was the default element
     let values_and_expressions = map_list(
         xml,
         "listOfFunctionTerms",
         "functionTerm",
-        process_function_term_item,
+        |xml, current| process_function_term_item(xml, &current),
     )?;
 
     Ok((default_val, values_and_expressions))
@@ -153,14 +145,13 @@ fn get_default_and_list_of_terms<T: FromStr, XR: XmlReader<BR>, BR: BufRead>(
 
 fn process_function_term_item<T: FromStr, XR: XmlReader<BR>, BR: BufRead>(
     xml: &mut XR,
-    current: StartElementWrapper,
+    current: &StartElementWrapper,
 ) -> Result<(T, Expression<T>), XmlReadingError> {
-    let res_lvl = result_level_from_attributes(&current)?;
+    let res_lvl = result_level_from_attributes(current)?;
 
     expect_opening_of(xml, "math")?;
-    // try_from_xml expects to have the first apply already opened
-    expect_opening_of(xml, "apply")?;
 
+    expect_opening_of(xml, "apply")?; // open this tag to satisfy `Expression::try_from_xml`s precondition
     let exp = Expression::try_from_xml(xml)?;
 
     expect_closure_of(xml, "math")?;
@@ -181,5 +172,5 @@ fn result_level_from_attributes<T: FromStr>(
     attribute_with_result_lvl
         .value
         .parse::<T>()
-        .map_err(|_| XmlReadingError::ParsingError(attribute_with_result_lvl.value))
+        .map_err(|_| XmlReadingError::ParsingError(attribute_with_result_lvl.value.clone()))
 }

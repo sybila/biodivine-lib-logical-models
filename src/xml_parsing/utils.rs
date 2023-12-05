@@ -26,6 +26,10 @@ pub enum XmlReadingError {
     UnderlyingReaderError(#[from] xml::reader::Error),
     ParsingError(String),
     NoSuchAttribute(String),
+    WrongAmountOfElements {
+        expected_amount: usize,
+        found_items_string: String,
+    },
 }
 
 impl Display for XmlReadingError {
@@ -41,6 +45,16 @@ impl Display for XmlReadingError {
             }
             XmlReadingError::ParsingError(s) => write!(f, "Parsing error; could not parse {}", s),
             XmlReadingError::NoSuchAttribute(s) => write!(f, "No such attribute: {}", s),
+            XmlReadingError::WrongAmountOfElements {
+                expected_amount,
+                found_items_string,
+            } => {
+                write!(
+                    f,
+                    "Wrong amount of elements. Expected: {}, found elements: [{}]",
+                    expected_amount, found_items_string
+                )
+            }
         }
     }
 }
@@ -237,10 +251,11 @@ where
 
 /// iterates through the xml until it finds the first opening tag with the given name
 /// (specifically, opening_element.name.local_name == expected_name)
-pub fn find_start_of<XR: XmlReader<BR>, BR: BufRead>(
-    xml: &mut XR,
-    expected_name: &str,
-) -> Result<(), XmlReadingError> {
+pub fn find_start_of<XR, BR>(xml: &mut XR, expected_name: &str) -> Result<(), XmlReadingError>
+where
+    XR: XmlReader<BR>,
+    BR: BufRead,
+{
     loop {
         match xml.next()? {
             xml::reader::XmlEvent::StartElement { name: n, .. }
@@ -255,6 +270,45 @@ pub fn find_start_of<XR: XmlReader<BR>, BR: BufRead>(
                 })
             }
             _ => continue, // should be uninteresting
+        }
+    }
+}
+
+// todo this one is likely useless
+/// Iterates through the xml until it finds the closing tag with the given name,
+/// specifically, closing_element.name.local_name == expected_name.
+///
+/// Is also capable of working with recursive elements (elements that can contain themselves).
+/// In that case, this function returns once it encounters the closing tag of the element
+/// it is called from.
+pub fn consume_the_rest_of_element<XR, BR>(
+    xml: &mut XR,
+    element_name: &str,
+) -> Result<(), XmlReadingError>
+where
+    XR: XmlReader<BR>,
+    BR: BufRead,
+{
+    let mut depth = 0usize;
+    loop {
+        match xml.next()? {
+            xml::reader::XmlEvent::StartElement { name: n, .. } if n.local_name == element_name => {
+                depth += 1;
+            }
+            xml::reader::XmlEvent::EndElement { name: n } if n.local_name == element_name => {
+                if depth == 0 {
+                    return Ok(());
+                } else {
+                    depth -= 1;
+                }
+            }
+            xml::reader::XmlEvent::EndDocument => {
+                return Err(XmlReadingError::UnexpectedEvent {
+                    expected: ExpectedXmlEvent::End(element_name.into()),
+                    got: XmlEvent::EndDocument,
+                })
+            }
+            _ => continue,
         }
     }
 }

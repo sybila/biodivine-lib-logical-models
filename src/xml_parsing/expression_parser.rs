@@ -54,6 +54,7 @@ impl ToString for LogicalOperator {
 }
 
 impl<T: FromStr> Expression<T> {
+    // todo likely should not be an associated fn - or make it consistant with `variable_update_fn` - from-xml-parser
     pub fn try_from_xml<XR, BR>(xml: &mut XR) -> Result<Self, XmlReadingError>
     where
         XR: XmlReader<BR>,
@@ -143,7 +144,7 @@ where
     loop {
         match xml.next()? {
             XmlEvent::Whitespace(_) => ( /* ignore */ ),
-            ref got @ XmlEvent::StartElement { ref name, .. /* bruh thats one hell of a line */} => {
+            ref got @ XmlEvent::StartElement { ref name, .. } => {
                 if name.local_name == "apply" {
                     acc.push(Expression::try_from_xml(xml)?);
                     continue;
@@ -166,9 +167,7 @@ where
             }
             other => {
                 return Err(XmlReadingError::UnexpectedEvent {
-                    expected: super::utils::ExpectedXmlEvent::Start(
-                        "start of ".to_string(),
-                    ),
+                    expected: super::utils::ExpectedXmlEvent::Start("start of ".to_string()),
                     got: other,
                 })
             }
