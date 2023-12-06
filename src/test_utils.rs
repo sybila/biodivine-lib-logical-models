@@ -72,17 +72,14 @@ fn fwd_step<D: SymbolicDomain<u8> + Debug>(
 
 /// A generic function that builds [SmartSystemUpdateFn] from an SBML file.
 fn build_update_fn<D: SymbolicDomain<u8> + Debug>(sbml_path: &str) -> SmartSystemUpdateFn<D, u8> {
-    let file = std::fs::File::open(sbml_path.clone()).expect("Cannot open SBML file.");
+    let file = std::fs::File::open(sbml_path).expect("Cannot open SBML file.");
     let reader = std::io::BufReader::new(file);
     let mut xml = xml::reader::EventReader::new(reader);
 
     find_start_of(&mut xml, "listOfTransitions")
         .expect("Cannot find transitions in the SBML file.");
 
-    let smart_system_update_fn = SmartSystemUpdateFn::<D, u8>::try_from_xml(&mut xml)
-        .expect("Loading system fn update failed.");
-
-    smart_system_update_fn
+    SmartSystemUpdateFn::<D, u8>::try_from_xml(&mut xml).expect("Loading system fn update failed.")
 }
 
 impl ComputationStep {

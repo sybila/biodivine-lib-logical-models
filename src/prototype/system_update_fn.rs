@@ -140,14 +140,14 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
 
         let domain = self
             .named_symbolic_domains
-            .get(transitioned_variable_name.clone())
+            .get(transitioned_variable_name)
             .unwrap_or_else(|| panic!("could not find variable {}", transitioned_variable_name));
 
         // just weird but comfy way to create a constant false to start the fold
         let const_false = current_state.and(&current_state.not());
         let var_upd_fn = self // todo here
             .update_fns
-            .get(transitioned_variable_name.clone())
+            .get(transitioned_variable_name)
             .unwrap();
 
         // seems legit
@@ -285,7 +285,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
 
         let var_upd_fn = self // todo here
             .update_fns
-            .get(transitioned_variable_name.clone())
+            .get(transitioned_variable_name)
             .unwrap();
 
         let vars_and_their_updating_bdds = var_upd_fn // todo here
