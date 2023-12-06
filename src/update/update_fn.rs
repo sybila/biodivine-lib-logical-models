@@ -53,7 +53,42 @@ pub mod variable_update_fn {
             Expression::Terminal(proposition) => {
                 bdd_from_proposition(proposition, named_symbolic_domains, bdd_variable_set)
             }
-            _ => todo!(),
+            Expression::Not(expression) => {
+                bdd_from_expression(expression, named_symbolic_domains, bdd_variable_set).not()
+            }
+            Expression::And(clauses) => {
+                clauses
+                    .iter()
+                    // todo one of the places where intersection with `unit_set` should be considered
+                    .fold(bdd_variable_set.mk_true(), |acc, clausule| {
+                        acc.and(&bdd_from_expression(
+                            clausule,
+                            named_symbolic_domains,
+                            bdd_variable_set,
+                        ))
+                    })
+            }
+            Expression::Or(clauses) => {
+                clauses
+                    .iter()
+                    .fold(bdd_variable_set.mk_false(), |acc, clausule| {
+                        acc.or(&bdd_from_expression(
+                            clausule,
+                            named_symbolic_domains,
+                            bdd_variable_set,
+                        ))
+                    })
+            }
+            Expression::Xor(lhs, rhs) => {
+                let lhs = bdd_from_expression(lhs, named_symbolic_domains, bdd_variable_set);
+                let rhs = bdd_from_expression(rhs, named_symbolic_domains, bdd_variable_set);
+                lhs.xor(&rhs)
+            }
+            Expression::Implies(lhs, rhs) => {
+                let lhs = bdd_from_expression(lhs, named_symbolic_domains, bdd_variable_set);
+                let rhs = bdd_from_expression(rhs, named_symbolic_domains, bdd_variable_set);
+                lhs.imp(&rhs)
+            }
         }
     }
 
@@ -75,7 +110,10 @@ pub mod variable_update_fn {
 
         match proposition.comparison_operator {
             CmpOp::Eq => target_vars_domain.encode_one(bdd_variable_set, &proposition.value),
-            CmpOp::Neq => target_vars_domain.encode_one_not(bdd_variable_set, &proposition.value),
+            CmpOp::Neq => target_vars_domain
+                .encode_one(bdd_variable_set, &proposition.value)
+                // todo one of the places where intersection with `unit_set` should be considered (or `domain.encode_one_not()`)
+                .not(),
             CmpOp::Lt => target_vars_domain.encode_lt(bdd_variable_set, &proposition.value),
             CmpOp::Leq => target_vars_domain.encode_le(bdd_variable_set, &proposition.value),
             CmpOp::Gt => target_vars_domain.encode_gt(bdd_variable_set, &proposition.value),
