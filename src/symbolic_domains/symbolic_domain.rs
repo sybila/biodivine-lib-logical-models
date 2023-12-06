@@ -1,4 +1,4 @@
-use biodivine_lib_bdd::{Bdd, BddVariableSet, BddVariableSetBuilder};
+use biodivine_lib_bdd::{Bdd, BddVariable, BddVariableSet, BddVariableSetBuilder};
 
 pub trait SymbolicDomain<T> {
     // todo in general, no need to enforce there should be a `max_value` -> ordering
@@ -14,6 +14,15 @@ pub trait SymbolicDomain<T> {
     }
     fn empty_collection(&self, bdd_variable_set: &BddVariableSet) -> Bdd;
     fn unit_collection(&self, bdd_variable_set: &BddVariableSet) -> Bdd;
+
+    /// Like `encode_bits`, but for inspecting how the bits are encoded.
+    /// The result of this function (for the same `value`) does not change
+    /// between different calls within a single run of the program. It can,
+    /// however, change between different runs of the program.
+    fn encode_bits_inspect(&self, value: &T) -> Vec<bool>;
+
+    /// todo bind with `encode_bits_inspect`
+    fn symbolic_variables(&self) -> Vec<BddVariable>;
 }
 
 pub trait SymbolicDomainOrd<T>: SymbolicDomain<T> {
