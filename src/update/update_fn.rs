@@ -12,7 +12,7 @@ pub mod variable_update_fn {
             expression::Expression,
             proposition::{ComparisonOperator as CmpOp, Proposition},
         },
-        symbolic_domains::symbolic_domain::SymbolicDomain,
+        symbolic_domains::symbolic_domain::SymbolicDomainOrd,
         system::variable_update_function::VariableUpdateFn as UnprocessedFn,
     };
 
@@ -21,13 +21,13 @@ pub mod variable_update_fn {
     }
 
     impl VariableUpdateFn {
-        pub fn from_update_fn<D, T>(
+        pub fn from_update_fn<DO, T>(
             update_fn: UnprocessedFn<T>,
             bdd_variable_set: &BddVariableSet,
-            named_symbolic_domains: &HashMap<String, D>,
+            named_symbolic_domains: &HashMap<String, DO>,
         ) -> Self
         where
-            D: SymbolicDomain<T>,
+            DO: SymbolicDomainOrd<T>,
         {
             let UnprocessedFn { terms, .. } = update_fn;
 
@@ -41,13 +41,13 @@ pub mod variable_update_fn {
         }
     }
 
-    fn bdd_from_expression<D, T>(
+    fn bdd_from_expression<DO, T>(
         expression: &Expression<T>,
-        named_symbolic_domains: &HashMap<String, D>,
+        named_symbolic_domains: &HashMap<String, DO>,
         bdd_variable_set: &BddVariableSet,
     ) -> Bdd
     where
-        D: SymbolicDomain<T>,
+        DO: SymbolicDomainOrd<T>,
     {
         match expression {
             Expression::Terminal(proposition) => {
@@ -57,13 +57,13 @@ pub mod variable_update_fn {
         }
     }
 
-    fn bdd_from_proposition<D, T>(
+    fn bdd_from_proposition<DO, T>(
         proposition: &Proposition<T>,
-        named_symbolic_domains: &HashMap<String, D>,
+        named_symbolic_domains: &HashMap<String, DO>,
         bdd_variable_set: &BddVariableSet,
     ) -> Bdd
     where
-        D: SymbolicDomain<T>,
+        DO: SymbolicDomainOrd<T>,
     {
         let target_vars_domain = named_symbolic_domains.get(&proposition.variable).unwrap_or_else(
             || panic!(
@@ -73,31 +73,13 @@ pub mod variable_update_fn {
             )
         );
 
-        // todo maybe rename CmpOp to the full name (see its import here)
         match proposition.comparison_operator {
-            CmpOp::Eq => target_vars_domain.encode_one_todo(bdd_variable_set, &proposition.value),
-            CmpOp::Neq => target_vars_domain
-                .encode_one_todo(bdd_variable_set, &proposition.value)
-                .not(),
-            CmpOp::Leq => lt(&proposition.value, target_vars_domain, bdd_variable_set),
-            _ => todo!(),
+            CmpOp::Eq => target_vars_domain.encode_one(bdd_variable_set, &proposition.value),
+            CmpOp::Neq => target_vars_domain.encode_one_not(bdd_variable_set, &proposition.value),
+            CmpOp::Lt => target_vars_domain.encode_lt(bdd_variable_set, &proposition.value),
+            CmpOp::Leq => target_vars_domain.encode_le(bdd_variable_set, &proposition.value),
+            CmpOp::Gt => target_vars_domain.encode_gt(bdd_variable_set, &proposition.value),
+            CmpOp::Geq => target_vars_domain.encode_ge(bdd_variable_set, &proposition.value),
         }
-    }
-
-    fn lt<D, T>(
-        _lower_than_this: &T,
-        _symbolic_domain: &D,
-        _bdd_variable_set: &BddVariableSet,
-    ) -> Bdd
-    where
-        D: SymbolicDomain<T>,
-    {
-        // (0..lower_than_this).fold(
-        //     // todo this range will be problematic; either add restrictions for this impl block, or add another methods on D
-        //     symbolic_domain.empty_collection_todo(bdd_variable_set),
-        //     |acc, val| acc.or(&symbolic_domain.encode_one_todo(bdd_variable_set, &val)),
-        // )
-
-        todo!()
     }
 }
