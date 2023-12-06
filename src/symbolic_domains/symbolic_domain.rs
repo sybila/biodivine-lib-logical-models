@@ -3,7 +3,7 @@ use biodivine_lib_bdd::{Bdd, BddVariable, BddVariableSet, BddVariableSetBuilder}
 pub trait SymbolicDomain<T> {
     // todo in general, no need to enforce there should be a `max_value` -> ordering
     // todo vs want to somehow specify which values are allowed in this domain
-    fn new(builder: &mut BddVariableSetBuilder, name: &str, max_value: T) -> Self;
+    fn new(builder: &mut BddVariableSetBuilder, name: &str, max_value: &T) -> Self;
 
     fn encode_one(&self, bdd_variable_set: &BddVariableSet, value: &T) -> Bdd;
     // todo here because the `and(unit_set)` is often forgotten
@@ -45,6 +45,8 @@ pub trait SymbolicDomainOrd<T>: SymbolicDomain<T> {
         self.encode_gt(bdd_variable_set, value)
             .or(&self.encode_one(bdd_variable_set, value))
     }
+
+    fn cmp(lhs: &T, rhs: &T) -> std::cmp::Ordering;
 }
 
 // todo maybe split into: SymbolicEncoding, SymbolicDomain;

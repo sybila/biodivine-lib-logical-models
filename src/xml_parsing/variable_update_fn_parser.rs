@@ -6,7 +6,7 @@ use xml::reader::XmlEvent;
 
 use crate::{
     expression_components::expression::Expression,
-    system::variable_update_function::VariableUpdateFn,
+    system::variable_update_function::UnprocessedVariableUpdateFn,
 };
 
 use super::{
@@ -15,7 +15,7 @@ use super::{
     xml_reader::XmlReader,
 };
 
-impl<T> VariableUpdateFn<T>
+impl<T> UnprocessedVariableUpdateFn<T>
 where
     T: FromStr,
 {
@@ -70,7 +70,7 @@ where
 
         expect_closure_of(xml, "transition")?;
 
-        Ok(VariableUpdateFn::new(
+        Ok(UnprocessedVariableUpdateFn::new(
             input_vars_names,
             target_variable_name,
             terms,

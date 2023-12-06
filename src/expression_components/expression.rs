@@ -30,15 +30,6 @@ pub enum Expression<T> {
     Implies(Box<Expression<T>>, Box<Expression<T>>),
 }
 
-impl<T: PartialOrd> Expression<T> {
-    // todo
-    //  this will likely be removed. Think it is only used to find the highest
-    //  value *for each* of the variables, which is `O(n^2)` with this method.
-    pub fn highest_value_used_with_variable(&self, _variable: &str) -> Option<T> {
-        unimplemented!()
-    }
-}
-
 // // todo
 // //  really torn apart between keeping this here, moving it to a separate file within
 // //  this module, and moving it into the `xml_parsing` module

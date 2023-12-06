@@ -1,6 +1,145 @@
 #![allow(dead_code)]
 
-pub struct SystemUpdateFn {}
+use std::collections::HashMap;
+
+use biodivine_lib_bdd::{BddVariableSet, BddVariableSetBuilder};
+use rayon::vec;
+
+use crate::{
+    expression_components::{expression::Expression, proposition::Proposition},
+    symbolic_domains::symbolic_domain::{SymbolicDomain, SymbolicDomainOrd},
+    system::variable_update_function::UnprocessedVariableUpdateFn,
+};
+
+use self::variable_update_fn::VariableUpdateFn;
+
+pub struct SystemUpdateFn<D, T>
+where
+    D: SymbolicDomain<T>,
+{
+    update_fns: HashMap<String, (VariableUpdateFn, D)>, // todo consider ordering
+    bdd_variable_set: BddVariableSet,
+    marker: std::marker::PhantomData<T>,
+    // todo add a mapper name -> vector_idx allowing O(1) access to the update function by name
+}
+
+impl<DO, T> SystemUpdateFn<DO, T>
+where
+    DO: SymbolicDomainOrd<T>,
+{
+    pub fn from_update_fns(
+        // todo do not forget to add default update functions for those variables that are not updated (in the loader from xml)
+        vars_and_their_update_fns: HashMap<String, UnprocessedVariableUpdateFn<T>>,
+    ) -> Self {
+        let named_update_fns_sorted = {
+            let mut to_be_sorted = vars_and_their_update_fns.into_iter().collect::<Vec<_>>();
+            to_be_sorted.sort_by_key(|(var_name, _)| var_name.clone());
+            to_be_sorted
+        };
+
+        let (symbolic_domains, bdd_variable_set) = {
+            let max_values = Self::find_max_values(&named_update_fns_sorted);
+            let (symbolic_domains, variable_set_builder) = named_update_fns_sorted.iter().fold(
+                (Vec::new(), BddVariableSetBuilder::new()),
+                |(mut domains, mut variable_set), (var_name, _update_fn)| {
+                    let max_value = max_values
+                        .get(var_name.as_str())
+                        .expect("max value always present");
+
+                    let domain = DO::new(&mut variable_set, var_name, max_value);
+                    domains.push(domain);
+                    (domains, variable_set)
+                },
+            );
+
+            (symbolic_domains, variable_set_builder.build())
+        };
+
+        let named_symbolic_domains = named_update_fns_sorted
+            .iter()
+            .zip(symbolic_domains.iter())
+            .map(|((var_name, _update_fn), domain)| (var_name.as_str(), domain))
+            .collect::<HashMap<_, _>>();
+
+        let xd = named_update_fns_sorted
+            .into_iter()
+            .zip(symbolic_domains)
+            .map(|((name, upd_fn), domain)| (name, (upd_fn, domain)));
+
+        // todo this not working; taking a break now
+        // let update_fns = xd.map(|(var_name, (update_fn, domain))| {
+        //     let update_fn_compiled = VariableUpdateFn::from_update_fn(
+        //         update_fn,
+        //         &var_name,
+        //         &bdd_variable_set,
+        //         &named_symbolic_domains,
+        //     );
+        // });
+
+        todo!()
+    }
+
+    fn find_max_values(
+        vars_and_their_update_fns: &[(String, UnprocessedVariableUpdateFn<T>)],
+    ) -> HashMap<&str, &T> {
+        let xd = vars_and_their_update_fns.iter().fold(
+            HashMap::new(),
+            |mut acc, (var_name, update_fn)| {
+                let max_value = update_fn
+                    .terms
+                    .iter()
+                    .map(|(val, _)| val)
+                    .chain(Some(&update_fn.default))
+                    .max_by(|x, y| DO::cmp(x, y))
+                    .expect("default value always present");
+                // no balls
+                // // SAFETY: there is always at least the default value
+                // let max_value = unsafe { max_value_option.unwrap_unchecked() };
+                acc.insert(var_name.as_str(), max_value);
+                acc
+            },
+        );
+
+        vars_and_their_update_fns
+            .iter()
+            .flat_map(|(_var_name, update_fn)| update_fn.terms.iter().map(|(_, expr)| expr))
+            .fold(xd, |mut acc, expr| {
+                update_max::<DO, T>(&mut acc, expr);
+                acc
+            })
+    }
+}
+
+fn update_max<'a, DO, T>(acc: &mut HashMap<&'a str, &'a T>, expr: &'a Expression<T>)
+where
+    DO: SymbolicDomainOrd<T>,
+{
+    match expr {
+        Expression::Terminal(proposition) => {
+            update_from_proposition::<DO, T>(acc, proposition);
+        }
+        _ => todo!(),
+    }
+}
+
+fn update_from_proposition<'a, DO, T>(
+    acc: &mut HashMap<&'a str, &'a T>,
+    proposition: &'a Proposition<T>,
+) where
+    DO: SymbolicDomainOrd<T>,
+{
+    let Proposition {
+        variable, value, ..
+    } = proposition;
+
+    acc.entry(variable.as_str())
+        .and_modify(|old_val| {
+            if DO::cmp(old_val, value) == std::cmp::Ordering::Less {
+                *old_val = value
+            }
+        })
+        .or_insert(value);
+}
 
 pub mod variable_update_fn {
     use std::collections::HashMap;
@@ -13,7 +152,7 @@ pub mod variable_update_fn {
             proposition::{ComparisonOperator as CmpOp, Proposition},
         },
         symbolic_domains::symbolic_domain::SymbolicDomainOrd,
-        system::variable_update_function::VariableUpdateFn as UnprocessedFn,
+        system::variable_update_function::UnprocessedVariableUpdateFn as UnprocessedFn,
     };
 
     pub struct VariableUpdateFn {
@@ -26,7 +165,7 @@ pub mod variable_update_fn {
             update_fn: UnprocessedFn<T>,
             target_variable_name: &str,
             bdd_variable_set: &BddVariableSet,
-            named_symbolic_domains: &HashMap<String, DO>,
+            named_symbolic_domains: &HashMap<&str, &DO>,
         ) -> Self
         where
             DO: SymbolicDomainOrd<T>,
@@ -90,7 +229,7 @@ pub mod variable_update_fn {
 
     fn bdd_from_expression<DO, T>(
         expression: &Expression<T>,
-        named_symbolic_domains: &HashMap<String, DO>,
+        named_symbolic_domains: &HashMap<&str, &DO>,
         bdd_variable_set: &BddVariableSet,
     ) -> Bdd
     where
@@ -141,13 +280,13 @@ pub mod variable_update_fn {
 
     fn bdd_from_proposition<DO, T>(
         proposition: &Proposition<T>,
-        named_symbolic_domains: &HashMap<String, DO>,
+        named_symbolic_domains: &HashMap<&str, &DO>,
         bdd_variable_set: &BddVariableSet,
     ) -> Bdd
     where
         DO: SymbolicDomainOrd<T>,
     {
-        let target_vars_domain = named_symbolic_domains.get(&proposition.variable).unwrap_or_else(
+        let target_vars_domain = named_symbolic_domains.get(proposition.variable.as_str()).unwrap_or_else(
             || panic!(
                 "Symbolic domain for variable {} should be avilable, but is not; domains available only for variables [{}]",
                 proposition.variable,
