@@ -911,7 +911,7 @@ mod tests {
 
         let smart_system_update_fn = {
             let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
-                std::fs::File::open(filepath.clone()).expect("cannot open the file"),
+                std::fs::File::open(filepath).expect("cannot open the file"),
             ));
 
             find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
@@ -985,7 +985,7 @@ mod tests {
 
         let smart_system_update_fn = {
             let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
-                std::fs::File::open(filepath.clone()).expect("cannot open the file"),
+                std::fs::File::open(filepath).expect("cannot open the file"),
             ));
 
             find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
@@ -1073,7 +1073,7 @@ mod tests {
 
         let smart_system_update_fn = {
             let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
-                std::fs::File::open(filepath.clone()).expect("cannot open the file"),
+                std::fs::File::open(filepath).expect("cannot open the file"),
             ));
 
             find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
@@ -1248,7 +1248,7 @@ mod tests {
 
         let smart_system_update_fn = {
             let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
-                std::fs::File::open(filepath.clone()).expect("cannot open the file"),
+                std::fs::File::open(filepath).expect("cannot open the file"),
             ));
 
             find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
@@ -1381,7 +1381,7 @@ mod tests {
 
         let smart_system_update_fn = {
             let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
-                std::fs::File::open(filepath.clone()).expect("cannot open the file"),
+                std::fs::File::open(filepath).expect("cannot open the file"),
             ));
 
             find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
@@ -1814,13 +1814,15 @@ mod tests {
         }
     }
 
+    use std::fmt::Write;
+
     #[test]
     fn test_handmade_basic_most_interesting() {
         let filepath = "data/manual/handbook_example.sbml";
 
         let smart_system_update_fn = {
             let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
-                std::fs::File::open(filepath.clone()).expect("cannot open the file"),
+                std::fs::File::open(filepath).expect("cannot open the file"),
             ));
 
             find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
@@ -1887,13 +1889,16 @@ mod tests {
 
         let smart_triple_sorted_string = smart_triple_sorted
             .iter()
-            .map(|(name_and_value, bdd)| format!("{}{}", name_and_value, bdd))
+            .flat_map(|(name_and_value, bdd)| vec![name_and_value.clone(), bdd.to_string()])
             .collect::<String>();
 
         let force_triple_sorted_string = force_triple_sorted
             .iter()
-            .map(|(name_and_value, bdd)| format!("{}{}", name_and_value, bdd))
-            .collect::<String>();
+            // .map(|(name_and_value, bdd)| format!("{}{}", name_and_value, bdd))
+            .fold(String::new(), |mut output, (name_and_value, bdd)| {
+                let _ = write!(output, "{}{}", name_and_value, bdd);
+                output
+            });
 
         println!(
             "smart_triple_sorted_string = {}",
@@ -1965,16 +1970,18 @@ mod tests {
             .map(|((_, smart_bdd), (_, force_bdd))| (smart_bdd, force_bdd))
             .collect::<Vec<_>>();
 
-        let tuples_string = sorted_smart_and_force_bdd_tuples
-            .iter()
-            .map(|(smart_bdd, force_bdd)| {
-                format!(
+        let tuples_string = sorted_smart_and_force_bdd_tuples.iter().fold(
+            String::new(),
+            |mut output, (smart_bdd, force_bdd)| {
+                let _ = write!(
+                    output,
                     "{}\n{}",
                     smart_system_update_fn.bdd_to_dot_string(smart_bdd),
                     force_system_update_fn.bdd_to_dot_string(force_bdd)
-                )
-            })
-            .collect::<String>();
+                );
+                output
+            },
+        );
 
         println!("tuples_string = {}\n#####", tuples_string);
 
@@ -2237,7 +2244,7 @@ mod tests {
 
         let smart_system_update_fn = {
             let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
-                std::fs::File::open(filepath.clone()).expect("cannot open the file"),
+                std::fs::File::open(filepath).expect("cannot open the file"),
             ));
 
             find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
