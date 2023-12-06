@@ -1,6 +1,5 @@
 use biodivine_lib_logical_models::test_utils::ComputationStep;
 
-
 /// This binary is testing the implementation correctness by running reachability on the
 /// input model and validating that the set of reachable states has the same cardinality
 /// in every step.
@@ -20,7 +19,10 @@ fn main() {
             cmp.perform_fwd_step();
             cmp.check_consistency();
         }
-        println!("Completed one wave of reachability. Reinitializing with {} states remaining.", cmp.remaining());
+        println!(
+            "Completed one wave of reachability. Reinitializing with {} states remaining.",
+            cmp.remaining()
+        );
     }
     println!("Test completed successfully. Whole state space explored.");
 }
