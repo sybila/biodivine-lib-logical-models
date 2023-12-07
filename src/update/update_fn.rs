@@ -3,7 +3,6 @@
 use std::collections::HashMap;
 
 use biodivine_lib_bdd::{Bdd, BddVariable, BddVariableSet, BddVariableSetBuilder};
-use rayon::vec;
 
 use crate::{
     expression_components::{expression::Expression, proposition::Proposition},
@@ -353,6 +352,7 @@ where
             })
             .collect::<Vec<_>>();
 
+        // todo not each variable has transition function (namely primed ones do not have)
         let variables_transition_relation_and_domain = named_symbolic_domains
             .into_iter()
             .zip(relations)
@@ -364,6 +364,71 @@ where
             bdd_variable_set,
             _marker: std::marker::PhantomData,
         }
+    }
+
+    pub fn successors_async(&self, transition_variable_name: &str, source_states_set: &Bdd) -> Bdd {
+        let (transition_relation, target_domain) = self
+            .get_transition_relation_and_domain(transition_variable_name)
+            .expect("unknown variable");
+        let primed_var_name = format!("{}'", transition_variable_name);
+        let (_, primed_domain) = self
+            .get_transition_relation_and_domain(&primed_var_name)
+            // todo this will fail; this is not where primed domains are stored (currently, they are stored nowhere)
+            // likely fix this by having two vectors; one for primed ones and one for not primed ones
+            // or by storing the primed domain in the same vector as the unprimed; in the same tuple
+            .expect("this will fail in this version; todo fix");
+
+        let source_states_transition_relation = source_states_set.and(transition_relation);
+
+        let forgor_old_val =
+            source_states_transition_relation.exists(target_domain.raw_bdd_variables().as_slice());
+
+        target_domain
+            .raw_bdd_variables()
+            .into_iter()
+            .zip(primed_domain.raw_bdd_variables())
+            .fold(forgor_old_val, |mut acc, (unprimed, primed)| {
+                unsafe { acc.rename_variable(primed, unprimed) };
+                acc
+            })
+    }
+
+    pub fn predecessors_async(
+        &self,
+        transition_variable_name: &str,
+        source_states_set: Bdd, // todo inconsistent with succs api; but `rename_variable` requires ownership
+    ) -> Bdd {
+        let (transition_relation, target_domain) = self
+            .get_transition_relation_and_domain(transition_variable_name)
+            .expect("unknown variable");
+        let primed_var_name = format!("{}'", transition_variable_name);
+        let (_, primed_domain) = self
+            .get_transition_relation_and_domain(&primed_var_name)
+            // todo this will fail; this is not where primed domains are stored (currently, they are stored nowhere)
+            // likely fix this by having two vectors; one for primed ones and one for not primed ones
+            // or by storing the primed domain in the same vector as the unprimed; in the same tuple
+            .expect("this will fail in this version; todo fix");
+
+        let source_states_primed_set = target_domain
+            .raw_bdd_variables()
+            .into_iter()
+            .zip(primed_domain.raw_bdd_variables())
+            .fold(source_states_set, |mut acc, (unprimed, primed)| {
+                unsafe { acc.rename_variable(unprimed, primed) };
+                acc
+            });
+
+        let source_states_transition_relation = source_states_primed_set.and(transition_relation);
+
+        source_states_transition_relation.exists(primed_domain.raw_bdd_variables().as_slice())
+    }
+
+    fn get_transition_relation_and_domain(&self, variable_name: &str) -> Option<&(Bdd, DO)> {
+        // todo optimize using the hashtable mapper
+        self.variables_transition_relation_and_domain
+            .iter()
+            .find(|(maybe_variable_name, _)| maybe_variable_name == variable_name)
+            .map(|(_, update_fn_and_domain)| update_fn_and_domain)
     }
 }
 
