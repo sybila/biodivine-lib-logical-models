@@ -125,7 +125,18 @@ where
         Expression::Terminal(proposition) => {
             update_from_proposition::<DO, T>(acc, proposition);
         }
-        _ => todo!(),
+        Expression::Not(expression) => {
+            update_max::<DO, T>(acc, expression);
+        }
+        Expression::And(clauses) | Expression::Or(clauses) => {
+            clauses
+                .iter()
+                .for_each(|clause| update_max::<DO, T>(acc, clause));
+        }
+        Expression::Xor(lhs, rhs) | Expression::Implies(lhs, rhs) => {
+            update_max::<DO, T>(acc, lhs);
+            update_max::<DO, T>(acc, rhs);
+        }
     }
 }
 
