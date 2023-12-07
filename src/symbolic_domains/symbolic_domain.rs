@@ -21,8 +21,13 @@ pub trait SymbolicDomain<T> {
     /// however, change between different runs of the program.
     fn encode_bits_inspect(&self, value: &T) -> Vec<bool>;
 
+    /// For each possible value, returns a vector of bits that encode the value.
+    ///
+    /// Should not be used - the result may be very large. Is only for testing.
+    fn _unit_set_bits_inspect(&self) -> Vec<Vec<bool>>;
+
     /// todo bind with `encode_bits_inspect`
-    fn symbolic_variables(&self) -> Vec<BddVariable>;
+    fn raw_bdd_variables(&self) -> Vec<BddVariable>;
 }
 
 pub trait SymbolicDomainOrd<T>: SymbolicDomain<T> {

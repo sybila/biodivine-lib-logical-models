@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use biodivine_lib_bdd::{BddVariableSet, BddVariableSetBuilder};
+use biodivine_lib_bdd::{Bdd, BddVariableSet, BddVariableSetBuilder};
 
 use crate::{
     expression_components::{expression::Expression, proposition::Proposition},
@@ -84,6 +84,93 @@ where
             bdd_variable_set,
             marker: std::marker::PhantomData,
         }
+    }
+
+    fn get_update_fn_and_domain_of(&self, variable_name: &str) -> Option<&(VariableUpdateFn, DO)> {
+        // todo optimize using the hashtable mapper
+        self.update_fns
+            .iter()
+            .find(|(maybe_variable_name, _)| maybe_variable_name == variable_name)
+            .map(|(_, update_fn_and_domain)| update_fn_and_domain)
+    }
+
+    /// Returns a BDD that represents the set of states that are successors of
+    /// any state from `source_states` under given transition variable.
+    ///
+    /// # Panics
+    ///
+    /// Panics if variable with given name is not available.
+    pub fn successors_async(&self, transition_variable_name: &str, source_states_set: &Bdd) -> Bdd {
+        let (update_fn, domain) = self
+            .get_update_fn_and_domain_of(transition_variable_name)
+            .unwrap_or_else(|| {
+                panic!(
+                    "no update function for variable {}; only [{}] are available",
+                    transition_variable_name,
+                    self.update_fns
+                        .iter()
+                        .map(|(var_name, _)| var_name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            });
+
+        domain
+            // todo bit_answering_bdds must be in the same order as the bits received from `_unit_set_bits_inspect`
+            ._unit_set_bits_inspect()
+            .into_iter()
+            .fold(self.bdd_variable_set.mk_false(), |acc, val_bits| {
+                let any_state_capable_of_transitioning_into_target_value =
+                    update_fn.bit_answering_bdds.iter().zip(&val_bits).fold(
+                        self.bdd_variable_set.mk_true(),
+                        |acc, ((_, bdd), val_bit)| {
+                            if *val_bit {
+                                acc.and(bdd)
+                            } else {
+                                acc.and_not(bdd)
+                            }
+                        },
+                    );
+
+                let those_from_source_capable_of_transitioning_into_target_value =
+                    source_states_set.and(&any_state_capable_of_transitioning_into_target_value);
+
+                let with_forgotten_values =
+                    those_from_source_capable_of_transitioning_into_target_value
+                        .exists(domain.raw_bdd_variables().as_slice()); // todo ensure correct ordering (& ideally that this ordering is from the topmost bdd variable to the bottommost)
+
+                let transitioned = with_forgotten_values.select(
+                    domain
+                        .raw_bdd_variables()
+                        .into_iter()
+                        .zip(val_bits)
+                        .collect::<Vec<_>>()
+                        .as_slice(),
+                );
+
+                acc.or(&transitioned)
+            })
+    }
+
+    /// Like `successors_async`, but a state that "transitions" to itself under
+    /// given transition variable is not considered to be a proper successor,
+    /// therefore is not included in the result (unless it is a proper successor
+    /// of another state from `source_states`).
+    pub fn successors_async_exclude_loops(
+        &self,
+        transition_variable_name: &str,
+        source_states: &Bdd,
+    ) -> Bdd {
+        self.successors_async(
+            transition_variable_name,
+            &source_states
+                .and(&self.those_states_capable_of_transitioning_under(transition_variable_name)),
+        )
+    }
+
+    fn those_states_capable_of_transitioning_under(&self, _variable_name: &str) -> Bdd {
+        // todo this should be stored in a field; built during construction
+        todo!()
     }
 }
 
@@ -243,7 +330,7 @@ pub mod variable_update_fn {
             // todo consider ordering of the bits
             Self {
                 bit_answering_bdds: target_domain
-                    .symbolic_variables()
+                    .raw_bdd_variables()
                     .into_iter()
                     .zip(bit_answering_bdds)
                     .collect(),
