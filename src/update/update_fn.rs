@@ -137,6 +137,7 @@ where
 
                 let with_forgotten_values =
                     those_from_source_capable_of_transitioning_into_target_value
+                        // todo there are two ways of accessing the variables; like this or from `update_fn`
                         .exists(domain.raw_bdd_variables().as_slice()); // todo ensure correct ordering (& ideally that this ordering is from the topmost bdd variable to the bottommost)
 
                 let transitioned = with_forgotten_values.select(
@@ -166,6 +167,79 @@ where
             &source_states
                 .and(&self.those_states_capable_of_transitioning_under(transition_variable_name)),
         )
+    }
+
+    // pub fn predecessors_async
+    pub fn predecessors_async(&self, transition_variable_name: &str, source_states: &Bdd) -> Bdd {
+        let (update_fn, domain) = self
+            .get_update_fn_and_domain_of(transition_variable_name)
+            .unwrap_or_else(|| {
+                panic!(
+                    "no update function for variable {}; only [{}] are available",
+                    transition_variable_name,
+                    self.update_fns
+                        .iter()
+                        .map(|(var_name, _)| var_name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            });
+
+        domain._unit_set_bits_inspect().into_iter().fold(
+            self.bdd_variable_set.mk_false(),
+            |acc, val_bits| {
+                let filter = update_fn
+                    .bit_answering_bdds
+                    .iter()
+                    .zip(&val_bits)
+                    .map(|((bdd_variable, _bdd), bit_val)| {
+                        (bdd_variable.to_owned(), bit_val.to_owned())
+                    })
+                    .collect::<Vec<_>>();
+
+                let those_from_source_with_target_value = source_states.select(filter.as_slice());
+
+                let possible_predecessors = those_from_source_with_target_value
+                    .exists(
+                        filter
+                            .iter()
+                            .map(|(bdd_var, _)| *bdd_var)
+                            .collect::<Vec<_>>()
+                            .as_slice(),
+                    )
+                    .and(&domain.unit_collection(&self.bdd_variable_set)); // keep only valid states
+
+                let any_state_capable_of_transitioning_into_target_value =
+                    update_fn.bit_answering_bdds.iter().zip(&val_bits).fold(
+                        self.bdd_variable_set.mk_true(),
+                        |acc, ((_, bdd), val_bit)| {
+                            if *val_bit {
+                                acc.and(bdd)
+                            } else {
+                                acc.and_not(bdd)
+                            }
+                        },
+                    );
+
+                let predecessors = possible_predecessors
+                    .and(&any_state_capable_of_transitioning_into_target_value);
+
+                acc.or(&predecessors)
+            },
+        )
+    }
+
+    /// Like `predecessors_async`, but a state that "transitions" to itself under
+    /// given transition variable is not considered to be a proper predecessor,
+    /// therefore is not included in the result (unless it is a proper predecessor
+    /// of another state from `source_states`).
+    pub fn predecessors_async_exclude_loops(
+        &self,
+        transition_variable_name: &str, // todo naming of those
+        source_states: &Bdd,
+    ) -> Bdd {
+        self.predecessors_async(transition_variable_name, source_states)
+            .and(&self.those_states_capable_of_transitioning_under(transition_variable_name))
     }
 
     fn those_states_capable_of_transitioning_under(&self, _variable_name: &str) -> Bdd {
@@ -267,6 +341,7 @@ pub mod variable_update_fn {
     };
 
     pub struct VariableUpdateFn {
+        // todo ensure this is sorted by the BddVariable (as the output of the `raw_bdd_variables` method on Domain)
         pub bit_answering_bdds: Vec<(BddVariable, Bdd)>, // todo maybe add String aka the name associated with the BddVariable
     }
 

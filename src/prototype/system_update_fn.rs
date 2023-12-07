@@ -288,6 +288,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
             .get(transitioned_variable_name)
             .unwrap();
 
+        // todo wft what is this variable for even
         let vars_and_their_updating_bdds = var_upd_fn // todo here
             .bit_answering_bdds
             .iter()
