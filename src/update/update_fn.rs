@@ -2,7 +2,8 @@
 
 use std::collections::HashMap;
 
-use biodivine_lib_bdd::{Bdd, BddVariableSet, BddVariableSetBuilder};
+use biodivine_lib_bdd::{Bdd, BddVariable, BddVariableSet, BddVariableSetBuilder};
+use rayon::vec;
 
 use crate::{
     expression_components::{expression::Expression, proposition::Proposition},
@@ -19,7 +20,7 @@ where
     /// ordered by variable name // todo add a method to get the update function by name (hash map or binary search)
     update_fns: Vec<(String, (VariableUpdateFn, D))>,
     bdd_variable_set: BddVariableSet,
-    marker: std::marker::PhantomData<T>,
+    _marker: std::marker::PhantomData<T>,
 }
 
 impl<DO, T> SystemUpdateFn<DO, T>
@@ -82,7 +83,7 @@ where
         Self {
             update_fns: the_triple,
             bdd_variable_set,
-            marker: std::marker::PhantomData,
+            _marker: std::marker::PhantomData,
         }
     }
 
@@ -246,6 +247,142 @@ where
         // todo this should be stored in a field; built during construction
         todo!()
     }
+}
+
+pub struct SmartSystemUpdateFn<D, T>
+where
+    D: SymbolicDomain<T>,
+{
+    /// ordered by variable name // todo add a method to get the update function by name (hash map or binary search)
+    variables_transition_relation_and_domain: Vec<(String, (Bdd, D))>,
+    bdd_variable_set: BddVariableSet,
+    _marker: std::marker::PhantomData<T>,
+}
+
+impl<DO, T> SmartSystemUpdateFn<DO, T>
+where
+    DO: SymbolicDomainOrd<T>,
+{
+    pub fn from_update_fns(
+        // todo do not forget to add default update functions for those variables that are not updated (in the loader from xml)
+        vars_and_their_update_fns: HashMap<String, UnprocessedVariableUpdateFn<T>>,
+    ) -> Self {
+        let named_update_fns_sorted = {
+            let mut to_be_sorted = vars_and_their_update_fns.into_iter().collect::<Vec<_>>();
+            to_be_sorted.sort_by_key(|(var_name, _)| var_name.clone());
+            to_be_sorted
+        };
+
+        let (named_symbolic_domains, bdd_variable_set) = {
+            let max_values = find_max_values::<DO, T>(&named_update_fns_sorted);
+            let mut bdd_variable_set_builder = BddVariableSetBuilder::new();
+
+            // let (symbolic_domains, variable_set_builder) =
+            let named_symbolic_domains = named_update_fns_sorted
+                .iter()
+                .flat_map(|(var_name, _)| {
+                    let max_value = max_values
+                        .get(var_name.as_str())
+                        .expect("max value always present");
+
+                    let original_name = var_name.clone();
+                    let primed_name = format!("{}'", var_name);
+
+                    let original =
+                        DO::new(&mut bdd_variable_set_builder, &original_name, max_value);
+                    let primed = DO::new(&mut bdd_variable_set_builder, &primed_name, max_value);
+
+                    [(original_name, original), (primed_name, primed)]
+                })
+                .collect::<Vec<_>>();
+
+            (named_symbolic_domains, bdd_variable_set_builder.build())
+        };
+
+        let named_symbolic_domains_map = named_symbolic_domains
+            .iter()
+            .map(|(var_name, domain)| (var_name.as_str(), domain))
+            .collect::<HashMap<_, _>>();
+        let update_fns = named_update_fns_sorted.iter().map(|(var_name, update_fn)| {
+            (
+                var_name,
+                VariableUpdateFn::from_update_fn(
+                    update_fn,
+                    var_name,
+                    &bdd_variable_set,
+                    &named_symbolic_domains_map,
+                ),
+            )
+        });
+
+        let unit_set = named_symbolic_domains
+            .iter()
+            .fold(bdd_variable_set.mk_true(), |acc, (_, domain)| {
+                acc.and(&domain.unit_collection(&bdd_variable_set))
+            });
+
+        let relations = update_fns
+            .into_iter()
+            .map(|(target_variable_name, update_fn)| {
+                let target_symbolic_domain = *named_symbolic_domains_map
+                    .get(target_variable_name.as_str())
+                    .expect("domain always present");
+                let target_symbolic_domain_primed = *named_symbolic_domains_map
+                    .get(format!("{}'", target_variable_name).as_str())
+                    .expect("domain always present");
+
+                let relation = update_fn.bit_answering_bdds.iter().fold(
+                    bdd_variable_set.mk_true(),
+                    |acc, (bdd_var, bit_answering_bdd)| {
+                        // todo this could be called once & zipped to the iterator to make blazingly fast
+                        let bdd_var_primed = find_bdd_variables_prime(
+                            bdd_var,
+                            target_symbolic_domain,
+                            target_symbolic_domain_primed,
+                        );
+
+                        let primed_target_variable_bdd = bdd_variable_set.mk_var(bdd_var_primed);
+                        let primed_bound_to_udpate =
+                            primed_target_variable_bdd.iff(bit_answering_bdd);
+
+                        acc.and(&primed_bound_to_udpate)
+                    },
+                );
+
+                relation.and(&unit_set) // todo is this needed?
+            })
+            .collect::<Vec<_>>();
+
+        let variables_transition_relation_and_domain = named_symbolic_domains
+            .into_iter()
+            .zip(relations)
+            .map(|((var_name, domain), relation_bdd)| (var_name, (relation_bdd, domain)))
+            .collect();
+
+        Self {
+            variables_transition_relation_and_domain,
+            bdd_variable_set,
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
+fn find_bdd_variables_prime<D, T>(
+    target_variable: &BddVariable,
+    target_sym_dom: &D,
+    target_sym_dom_primed: &D,
+) -> BddVariable
+where
+    D: SymbolicDomain<T>,
+{
+    target_sym_dom
+        .raw_bdd_variables()
+        .into_iter()
+        .zip(target_sym_dom_primed.raw_bdd_variables())
+        .find_map(|(maybe_target_var, var_primed)| {
+            (maybe_target_var == *target_variable).then_some(var_primed)
+        })
+        .expect("should be present")
 }
 
 fn find_max_values<DO, T>(
