@@ -37,7 +37,7 @@ where
         };
 
         let (symbolic_domains, bdd_variable_set) = {
-            let max_values = Self::find_max_values(&named_update_fns_sorted);
+            let max_values = find_max_values::<DO, T>(&named_update_fns_sorted);
             let (symbolic_domains, variable_set_builder) = named_update_fns_sorted.iter().fold(
                 (Vec::new(), BddVariableSetBuilder::new()),
                 |(mut domains, mut variable_set), (var_name, _update_fn)| {
@@ -85,13 +85,18 @@ where
             marker: std::marker::PhantomData,
         }
     }
+}
 
-    fn find_max_values(
-        vars_and_their_update_fns: &[(String, UnprocessedVariableUpdateFn<T>)],
-    ) -> HashMap<&str, &T> {
-        let max_outputs = vars_and_their_update_fns.iter().fold(
-            HashMap::new(),
-            |mut acc, (var_name, update_fn)| {
+fn find_max_values<DO, T>(
+    vars_and_their_update_fns: &[(String, UnprocessedVariableUpdateFn<T>)],
+) -> HashMap<&str, &T>
+where
+    DO: SymbolicDomainOrd<T>,
+{
+    let max_outputs =
+        vars_and_their_update_fns
+            .iter()
+            .fold(HashMap::new(), |mut acc, (var_name, update_fn)| {
                 let max_value = update_fn
                     .terms
                     .iter()
@@ -104,20 +109,18 @@ where
                 // let max_value = unsafe { max_value_option.unwrap_unchecked() };
                 acc.insert(var_name.as_str(), max_value);
                 acc
-            },
-        );
+            });
 
-        // the following step is necessary on "faulty" datasets, that compare variables
-        //  with values that are out of the domain of the variable
-        //  e.g. `target eq 999` when (integer) `target` has max value 2
-        vars_and_their_update_fns
-            .iter()
-            .flat_map(|(_var_name, update_fn)| update_fn.terms.iter().map(|(_, expr)| expr))
-            .fold(max_outputs, |mut acc, expr| {
-                update_max::<DO, T>(&mut acc, expr);
-                acc
-            })
-    }
+    // the following step is necessary on "faulty" datasets, that compare variables
+    //  with values that are out of the domain of the variable
+    //  e.g. `target eq 999` when (integer) `target` has max value 2
+    vars_and_their_update_fns
+        .iter()
+        .flat_map(|(_var_name, update_fn)| update_fn.terms.iter().map(|(_, expr)| expr))
+        .fold(max_outputs, |mut acc, expr| {
+            update_max::<DO, T>(&mut acc, expr);
+            acc
+        })
 }
 
 fn update_max<'a, DO, T>(acc: &mut HashMap<&'a str, &'a T>, expr: &'a Expression<T>)
