@@ -3,7 +3,6 @@
 use std::collections::HashMap;
 
 use biodivine_lib_bdd::{BddVariableSet, BddVariableSetBuilder};
-use rayon::vec;
 
 use crate::{
     expression_components::{expression::Expression, proposition::Proposition},
@@ -17,10 +16,10 @@ pub struct SystemUpdateFn<D, T>
 where
     D: SymbolicDomain<T>,
 {
-    update_fns: HashMap<String, (VariableUpdateFn, D)>, // todo consider ordering
+    /// ordered by variable name // todo add a method to get the update function by name (hash map or binary search)
+    update_fns: Vec<(String, (VariableUpdateFn, D))>,
     bdd_variable_set: BddVariableSet,
     marker: std::marker::PhantomData<T>,
-    // todo add a mapper name -> vector_idx allowing O(1) access to the update function by name
 }
 
 impl<DO, T> SystemUpdateFn<DO, T>
@@ -58,25 +57,33 @@ where
         let named_symbolic_domains = named_update_fns_sorted
             .iter()
             .zip(symbolic_domains.iter())
-            .map(|((var_name, _update_fn), domain)| (var_name.as_str(), domain))
+            .map(|((var_name, _), domain)| (var_name.as_str(), domain))
             .collect::<HashMap<_, _>>();
 
-        let xd = named_update_fns_sorted
+        let update_fns = named_update_fns_sorted
+            .iter()
+            .map(|(var_name, update_fn)| {
+                VariableUpdateFn::from_update_fn(
+                    update_fn,
+                    var_name,
+                    &bdd_variable_set,
+                    &named_symbolic_domains,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let the_triple = named_update_fns_sorted
             .into_iter()
+            .zip(update_fns)
             .zip(symbolic_domains)
-            .map(|((name, upd_fn), domain)| (name, (upd_fn, domain)));
+            .map(|(((var_name, _), update_fn), domain)| (var_name, (update_fn, domain)))
+            .collect::<Vec<_>>();
 
-        // todo this not working; taking a break now
-        // let update_fns = xd.map(|(var_name, (update_fn, domain))| {
-        //     let update_fn_compiled = VariableUpdateFn::from_update_fn(
-        //         update_fn,
-        //         &var_name,
-        //         &bdd_variable_set,
-        //         &named_symbolic_domains,
-        //     );
-        // });
-
-        todo!()
+        Self {
+            update_fns: the_triple,
+            bdd_variable_set,
+            marker: std::marker::PhantomData,
+        }
     }
 
     fn find_max_values(
@@ -162,7 +169,7 @@ pub mod variable_update_fn {
     impl VariableUpdateFn {
         /// target_variable_name is a key in named_symbolic_domains
         pub fn from_update_fn<DO, T>(
-            update_fn: UnprocessedFn<T>,
+            update_fn: &UnprocessedFn<T>,
             target_variable_name: &str,
             bdd_variable_set: &BddVariableSet,
             named_symbolic_domains: &HashMap<&str, &DO>,
@@ -173,10 +180,10 @@ pub mod variable_update_fn {
             let UnprocessedFn { terms, default, .. } = update_fn;
 
             let (outputs, bdd_conds): (Vec<_>, Vec<_>) = terms
-                .into_iter()
+                .iter()
                 .map(|(val, match_condition)| {
                     let match_condition_bdd = bdd_from_expression(
-                        &match_condition,
+                        match_condition,
                         named_symbolic_domains,
                         bdd_variable_set,
                     );
@@ -203,7 +210,7 @@ pub mod variable_update_fn {
 
             let bit_matrix = outputs
                 .into_iter()
-                .map(|output| target_domain.encode_bits_inspect(&output))
+                .map(|output| target_domain.encode_bits_inspect(output))
                 .collect::<Vec<_>>();
 
             let bit_answering_bdds = (0..bit_matrix[0].len()).map(|bit_idx| {
