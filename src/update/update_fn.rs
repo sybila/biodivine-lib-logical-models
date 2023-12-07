@@ -89,7 +89,7 @@ where
     fn find_max_values(
         vars_and_their_update_fns: &[(String, UnprocessedVariableUpdateFn<T>)],
     ) -> HashMap<&str, &T> {
-        let xd = vars_and_their_update_fns.iter().fold(
+        let max_outputs = vars_and_their_update_fns.iter().fold(
             HashMap::new(),
             |mut acc, (var_name, update_fn)| {
                 let max_value = update_fn
@@ -107,10 +107,13 @@ where
             },
         );
 
+        // the following step is necessary on "faulty" datasets, that compare variables
+        //  with values that are out of the domain of the variable
+        //  e.g. `target eq 999` when (integer) `target` has max value 2
         vars_and_their_update_fns
             .iter()
             .flat_map(|(_var_name, update_fn)| update_fn.terms.iter().map(|(_, expr)| expr))
-            .fold(xd, |mut acc, expr| {
+            .fold(max_outputs, |mut acc, expr| {
                 update_max::<DO, T>(&mut acc, expr);
                 acc
             })
