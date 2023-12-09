@@ -302,3 +302,40 @@ where
 
     Ok(all_vars_and_their_update_fns)
 }
+
+use crate::symbolic_domains::symbolic_domain::SymbolicDomainOrd;
+use crate::update::update_fn::{SmartSystemUpdateFn, SystemUpdateFn};
+
+impl<DO, T> SystemUpdateFn<DO, T>
+where
+    DO: SymbolicDomainOrd<T>,
+    T: FromStr + Default,
+{
+    /// Parses the <transition> XML element into a VariableUpdateFn struct.
+    /// Expects the parameter `xml` to be at the start of the <transition> XML element.
+    pub fn try_from_xml<XR, BR>(xml: &mut XR) -> Result<Self, XmlReadingError>
+    where
+        XR: XmlReader<BR>,
+        BR: BufRead,
+        T: FromStr,
+    {
+        Ok(Self::from_update_fns(load_all_update_fns(xml)?))
+    }
+}
+
+impl<DO, T> SmartSystemUpdateFn<DO, T>
+where
+    DO: SymbolicDomainOrd<T>,
+    T: FromStr + Default,
+{
+    /// Parses the <transition> XML element into a VariableUpdateFn struct.
+    /// Expects the parameter `xml` to be at the start of the <transition> XML element.
+    pub fn try_from_xml<XR, BR>(xml: &mut XR) -> Result<Self, XmlReadingError>
+    where
+        XR: XmlReader<BR>,
+        BR: BufRead,
+        T: FromStr,
+    {
+        Ok(Self::from_update_fns(load_all_update_fns(xml)?))
+    }
+}

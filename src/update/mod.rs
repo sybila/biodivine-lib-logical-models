@@ -1,1 +1,1 @@
-mod update_fn; // todo visibility
+pub mod update_fn;
