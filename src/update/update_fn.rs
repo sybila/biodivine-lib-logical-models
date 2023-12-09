@@ -295,6 +295,12 @@ where
         // todo do not forget to add default update functions for those variables that are not updated (in the loader from xml)
         vars_and_their_update_fns: HashMap<String, UnprocessedVariableUpdateFn<T>>,
     ) -> Self {
+        vars_and_their_update_fns.iter().for_each(|(name, _)| {
+            if name.contains('\'') {
+                panic!("variable name cannot contain the prime symbol \"'\" (tick) - it is reserved for inner usage")
+            }
+        });
+
         let named_update_fns_sorted = {
             let mut to_be_sorted = vars_and_their_update_fns.into_iter().collect::<Vec<_>>();
             to_be_sorted.sort_by_key(|(var_name, _)| var_name.clone());
