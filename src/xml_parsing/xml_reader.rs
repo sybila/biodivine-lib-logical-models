@@ -22,8 +22,9 @@ impl<BR: BufRead> XmlReader<BR> for EventReader<BR> {
 
 /// used for pretty printing of the read xml during the reading process
 pub struct LoudReader<BR: BufRead> {
-    xml: EventReader<BR>,
-    curr_indent: usize,
+    // todo should not be pub -> implement `new()` properly
+    pub xml: EventReader<BR>,
+    pub curr_indent: usize,
 }
 
 impl<BR: BufRead> XmlReader<BR> for LoudReader<BR> {
@@ -54,13 +55,12 @@ impl<BR: BufRead> XmlReader<BR> for LoudReader<BR> {
                 self.curr_indent += 2;
             }
             XmlEvent::EndElement { ref name, .. } => {
+                self.curr_indent -= 2;
                 println!(
                     "{}</{:?}>",
                     (0..self.curr_indent).map(|_| ' ').collect::<String>(),
                     name
                 );
-
-                self.curr_indent -= 2;
             }
             _ => {}
         };

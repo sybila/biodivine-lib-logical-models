@@ -179,6 +179,7 @@ fn result_level_from_attributes<T: FromStr>(
 
     attribute_with_result_lvl
         .value
+        .trim()
         .parse::<T>()
         .map_err(|_| XmlReadingError::ParsingError(attribute_with_result_lvl.value.clone()))
 }
@@ -223,13 +224,15 @@ where
 
     todo!()
 }
+*/
 
 /// Expects `xml` to be at the start of an sbml file.
 /// Loads all <functionTerm> elements into a HashMap.
-fn load_from_sbml_buf_reader<XR, BR, T>(
+pub fn load_from_sbml_buf_reader<XR, BR, T>(
     // xml: &mut XR,
     // file_path: &str,
-    buf_reader: BR,
+    // buf_reader: BR,
+    xml: XR,
 ) -> Result<HashMap<String, UnprocessedVariableUpdateFn<T>>, XmlReadingError>
 where
     XR: XmlReader<BR>,
@@ -247,19 +250,19 @@ where
     //     std::fs::File::open(file_path).unwrap(),
     // ));
 
-    let xml = xml::reader::EventReader::new(buf_reader);
+    // let xml = xml::reader::EventReader::new(buf_reader);
+    // let mut xml = XR::new(xml);
 
-    let mut xml = XR::new(xml);
+    let mut xml = xml;
 
     super::utils::find_start_of(&mut xml, "listOfTransitions")?;
 
     load_all_update_fns(&mut xml)
 }
-*/
 
 /// Expect the current XML element to be <listOfFunctionTerms>
 /// Loads all contained <functionTerm> elements into a HashMap.
-pub fn load_all_update_fns<XR, BR, T>(
+fn load_all_update_fns<XR, BR, T>(
     xml: &mut XR,
 ) -> Result<HashMap<String, UnprocessedVariableUpdateFn<T>>, XmlReadingError>
 where

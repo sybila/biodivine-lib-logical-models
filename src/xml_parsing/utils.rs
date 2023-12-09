@@ -15,6 +15,7 @@ pub enum ExpectedXmlEvent {
     AnyStart,
     AnyEnd,
     Characters,
+    AnyOf(Vec<ExpectedXmlEvent>),
 }
 
 #[derive(Error, Debug)]

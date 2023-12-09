@@ -798,3 +798,222 @@ pub mod variable_update_fn {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use crate::{
+        symbolic_domains::symbolic_domain::UnaryIntegerDomain,
+        system::variable_update_function::UnprocessedVariableUpdateFn,
+        update::update_fn::{SmartSystemUpdateFn, SystemUpdateFn},
+        xml_parsing::{self, variable_update_fn_parser::load_from_sbml_buf_reader},
+    };
+
+    #[test]
+    fn basic_variable_update_fn() {
+        let xd = get_test_update_fn::<u8>();
+        let xdd = xd.target_var_name;
+        println!("xdd = {:?}", xdd);
+    }
+
+    /// get the update fn from "data/update_fn_test.sbml"
+    /// used in tests / to play around with the code
+    #[allow(dead_code)]
+    pub fn get_test_update_fn<T: FromStr>() -> UnprocessedVariableUpdateFn<T> {
+        use std::fs::File;
+        use std::io::BufReader;
+
+        let file = File::open("data/update_fn_test.sbml").expect("cannot open file");
+        let file = BufReader::new(file);
+
+        let xml = xml::reader::EventReader::new(file);
+        let mut xml = xml_parsing::xml_reader::LoudReader {
+            xml,
+            curr_indent: 0,
+        };
+
+        loop {
+            // match xml.next() {
+            match xml_parsing::xml_reader::XmlReader::next(&mut xml) {
+                Ok(xml::reader::XmlEvent::StartElement { name, .. }) => {
+                    if name.local_name == "transition" {
+                        let update_fn = UnprocessedVariableUpdateFn::try_from_xml(&mut xml);
+                        return update_fn.unwrap();
+                    }
+                }
+                Ok(xml::reader::XmlEvent::EndElement { .. }) => continue,
+                Ok(xml::reader::XmlEvent::EndDocument) => panic!(),
+                Err(_) => panic!(),
+                _ => continue,
+            }
+        }
+    }
+
+    #[test]
+    fn test_all_bigger() {
+        std::fs::read_dir("data/large")
+            .expect("could not read dir")
+            .skip(1)
+            .take(1)
+            .for_each(|dirent| {
+                println!("dirent = {:?}", dirent);
+                let dirent = dirent.expect("could not read file");
+
+                let (
+                    smart_empty_succs_dot,
+                    smart_whole_succs_dot,
+                    smart_empty_succs,
+                    smart_whole_succs,
+                ) = {
+                    // let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                    //     std::fs::File::open(dirent.path()).unwrap(),
+                    // ));
+
+                    // let mut xml =
+                    //     std::io::BufReader::new(std::fs::File::open(dirent.path()).unwrap());
+
+                    // let system_update_fns = load_from_sbml_buf_reader::<
+                    //     xml::reader::EventReader<std::io::BufReader<std::fs::File>>,
+                    //     std::io::BufReader<std::fs::File>,
+                    //     u8,
+                    // >(&mut xml)
+                    // .expect("should be able to load");
+
+                    let xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                        std::fs::File::open(dirent.path()).unwrap(),
+                    ));
+
+                    let xml = xml_parsing::xml_reader::LoudReader {
+                        xml,
+                        curr_indent: 0,
+                    };
+
+                    let system_update_fns =
+                        load_from_sbml_buf_reader(xml).expect("should be able to load");
+
+                    let smart_system =
+                        SmartSystemUpdateFn::<UnaryIntegerDomain, u8>::from_update_fns(
+                            system_update_fns,
+                        );
+
+                    smart_system.get_transition_relation_and_domain("this will fail");
+
+                    // let smart_system: SmartSystemUpdateFn<UnaryIntegerDomain, u8> =
+                    //     SmartSystemUpdateFn::from_update_fns(smart_system_update_fns);
+
+                    // println!(
+                    //     "smart const false: {}",
+                    //     smart_system_update_fn.get_empty_state_subset()
+                    // );
+                    // println!(
+                    //     "smart const true: {}",
+                    //     smart_system_update_fn.get_whole_state_space_subset()
+                    // );
+
+                    // let empty_subset = smart_system_update_fn.get_empty_state_subset();
+                    // let whole_subset = smart_system_update_fn.get_whole_state_space_subset();
+
+                    // let empty_succs = smart_system_update_fn
+                    //     .transition_under_variable("BCat_exp_id99", &empty_subset);
+                    // let whole_succs = smart_system_update_fn
+                    //     .transition_under_variable("BCat_exp_id99", &whole_subset);
+
+                    // (
+                    //     smart_system_update_fn.bdd_to_dot_string(&empty_succs),
+                    //     smart_system_update_fn.bdd_to_dot_string(&whole_succs),
+                    //     empty_succs,
+                    //     whole_succs,
+                    // )
+                    ((), (), (), ())
+                };
+
+                let (
+                    force_empty_succs_dot,
+                    force_whole_succs_dot,
+                    force_empty_succs,
+                    force_whole_succs,
+                ) = {
+                    // let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                    //     std::fs::File::open(dirent.path()).unwrap(),
+                    // ));
+
+                    // let mut xml =
+                    //     std::io::BufReader::new(std::fs::File::open(dirent.path()).unwrap());
+
+                    // let system_update_fns =
+                    //     load_from_sbml_buf_reader(&mut xml).expect("should be able to load");
+
+                    let xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                        std::fs::File::open(dirent.path()).unwrap(),
+                    ));
+
+                    let system_update_fns =
+                        load_from_sbml_buf_reader(xml).expect("should be able to load");
+
+                    let system = SystemUpdateFn::<UnaryIntegerDomain, u8>::from_update_fns(
+                        system_update_fns,
+                    );
+
+                    system.get_update_fn_and_domain_of("BCat_exp_id99");
+
+                    // let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+                    //     std::fs::File::open(dirent.path()).unwrap(),
+                    // ));
+
+                    // find_start_of(&mut xml, "listOfTransitions").expect("cannot find list");
+
+                    // let force_system_update_fn: SystemUpdateFn<BinaryIntegerDomain<u8>, u8> =
+                    //     SystemUpdateFn::try_from_xml(&mut xml)
+                    //         .expect("cannot load smart system update fn");
+
+                    // println!(
+                    //     "force const false: {}",
+                    //     force_system_update_fn.get_empty_state_subset()
+                    // );
+                    // println!(
+                    //     "force const true: {}",
+                    //     force_system_update_fn.get_whole_state_space_subset()
+                    // );
+
+                    // let empty_subset = force_system_update_fn.get_empty_state_subset();
+                    // let whole_subset = force_system_update_fn.get_whole_state_space_subset();
+
+                    // let empty_succs = force_system_update_fn
+                    //     .transition_under_variable("BCat_exp_id99", &empty_subset);
+                    // let whole_succs = force_system_update_fn
+                    //     .transition_under_variable("BCat_exp_id99", &whole_subset);
+
+                    // (
+                    //     force_system_update_fn.bdd_to_dot_string(&empty_succs),
+                    //     force_system_update_fn.bdd_to_dot_string(&whole_succs),
+                    //     empty_succs,
+                    //     whole_succs,
+                    // )
+
+                    ((), (), (), ())
+                };
+
+                // assert_eq!(smart_empty_succs, force_empty_succs);
+                // assert_eq!(smart_whole_succs, force_whole_succs);
+
+                // assert_eq!(smart_empty_succs_dot, force_empty_succs_dot);
+
+                // println!("smart_empty_succs_dot = {:?}", smart_empty_succs_dot);
+                // println!("force_empty_succs_dot = {:?}", force_empty_succs_dot);
+
+                // print!("smart_whole_succs_dot = {}", smart_whole_succs_dot);
+                // print!("force_whole_succs_dot = {}", force_whole_succs_dot);
+
+                // assert_eq!(smart_whole_succs_dot, force_whole_succs_dot); // todo this is the problematic one
+
+                // assert!(smart_empty_succs.iff(&force_empty_succs).is_true());
+                // assert!(smart_whole_succs.iff(&force_whole_succs).is_true());
+
+                println!("smart_empty_succs = {:?}", smart_empty_succs);
+                println!("smart_whole_succs = {:?}", smart_whole_succs);
+                println!("force_empty_succs = {:?}", force_empty_succs);
+                println!("force_whole_succs = {:?}", force_whole_succs);
+            })
+    }
+}

@@ -13,7 +13,7 @@ use crate::{
 };
 
 use super::{
-    utils::{expect_opening_of, XmlReadingError},
+    utils::{expect_opening_of, ExpectedXmlEvent, XmlReadingError},
     xml_reader::XmlReader,
 };
 
@@ -69,14 +69,15 @@ impl<T: FromStr> Expression<T> {
                         received_operator.parse::<LogicalOperator>()
                     {
                         return logical_from_xml(xml, received_logical_operator);
+                        // todo likely forgor to close the apply tag
                     }
 
                     if let Ok(comparison_operator) = received_operator.parse::<ComparisonOperator>()
                     {
-                        return Ok(Expression::Terminal(proposition_from_xml(
-                            xml,
-                            comparison_operator,
-                        )?));
+                        expect_closure_of(xml, &comparison_operator.to_string())?;
+                        let proposition = proposition_from_xml(xml, comparison_operator)?;
+                        expect_closure_of(xml, "apply")?;
+                        return Ok(Expression::Terminal(proposition));
                     }
                 }
                 other => {
@@ -110,8 +111,14 @@ where
             expect_closure_of(xml, "apply")?; // "close" the *this* apply tag
             Ok(inner_expression)
         }
-        LogicalOperator::And => unimplemented!(),
-        LogicalOperator::Or => unimplemented!(),
+        LogicalOperator::And => {
+            let cnf_items = get_cnf_or_dnf_items(xml)?;
+            Ok(Expression::And(cnf_items))
+        }
+        LogicalOperator::Or => {
+            let dnf_items = get_cnf_or_dnf_items(xml)?;
+            Ok(Expression::Or(dnf_items))
+        }
         LogicalOperator::Xor => {
             expect_opening_of(xml, "apply")?; // "open" the first inner apply tag
             let lhs = Expression::try_from_xml(xml)?;
@@ -127,6 +134,108 @@ where
             let rhs = Expression::try_from_xml(xml)?;
             expect_closure_of(xml, "apply")?; // "close" the *this* apply tag
             Ok(Expression::Implies(Box::new(lhs), Box::new(rhs)))
+        }
+    }
+}
+
+// this could be probably done using process_list, but scuffed so better new fn
+/// expects the xml reader to be set so that calling `next()` should encounter
+/// either opening of `apply` (encountering the first element), or end of
+/// `apply` (signaling the end of the cnf/dnf arguments (so empty cnf/dnf))
+// fn get_cnf_or_dnf_items<T: FromStr, XR: XmlReader<BR>, BR: BufRead>(
+//     xml: &mut XR,
+// ) -> Result<Vec<Expression<T>>, XmlReadingError> {
+//     let mut acc = Vec::<Expression<T>>::new();
+
+//     loop {
+//         match xml.next() {
+//             Ok(XmlEvent::Whitespace(_)) => { /* ignore */ }
+//             Ok(ref actual @ XmlEvent::StartElement { ref name, .. }) => {
+//                 if name.local_name == "apply" {
+//                     acc.push(Expression::try_from_xml(xml)?);
+//                     continue;
+//                 }
+
+//                 return Err(XmlReadingError::UnexpectedEvent {
+//                     expected: crate::xml_parsing::utils::ExpectedXmlEvent::AnyOf(vec![
+//                         crate::xml_parsing::utils::ExpectedXmlEvent::Start(
+//                             "apply (indented one)".to_string(),
+//                         ),
+//                         crate::xml_parsing::utils::ExpectedXmlEvent::End(
+//                             "apply (this one)".to_string(),
+//                         ),
+//                     ]),
+//                     got: actual.to_owned(),
+//                 });
+//             }
+//             Ok(ref actual @ XmlEvent::EndElement { ref name, .. }) => {
+//                 if name.local_name == "apply" {
+//                     return Ok(acc);
+//                 }
+
+//                 return Err(XmlReadingError::UnexpectedEvent {
+//                     expected: crate::xml_parsing::utils::ExpectedXmlEvent::AnyOf(vec![
+//                         crate::xml_parsing::utils::ExpectedXmlEvent::Start(
+//                             "apply (indented one)".to_string(),
+//                         ),
+//                         crate::xml_parsing::utils::ExpectedXmlEvent::End(
+//                             "apply (this one)".to_string(),
+//                         ),
+//                     ]),
+//                     got: actual.to_owned(),
+//                 });
+//             }
+//             Ok(XmlEvent::EndDocument) => {
+//                 // return Err("unexpected end of document".into());
+//                 todo!()
+//             }
+//             other => {
+//                 todo!()
+//                 // return Err(format!(
+//                 //     "expected either opening of indented apply or closing of this cnf/dnf apply, got {:?}",
+//                 //     other
+//                 // )
+//                 // .into());
+//             }
+//         }
+//     }
+// }
+
+fn get_cnf_or_dnf_items<T: FromStr, XR: XmlReader<BR>, BR: BufRead>(
+    xml: &mut XR,
+) -> Result<Vec<Expression<T>>, XmlReadingError> {
+    let mut acc = Vec::<Expression<T>>::new();
+
+    loop {
+        match xml.next()? {
+            XmlEvent::Whitespace(_) => { /* ignore */ }
+            XmlEvent::StartElement { name, .. } if name.local_name == "apply" => {
+                acc.push(Expression::try_from_xml(xml)?);
+            }
+            actual_start @ XmlEvent::StartElement { .. } => {
+                return Err(XmlReadingError::UnexpectedEvent {
+                    expected: ExpectedXmlEvent::Start("apply (indented one)".to_string()),
+                    got: actual_start,
+                });
+            }
+            XmlEvent::EndElement { ref name, .. } if name.local_name == "apply" => {
+                return Ok(acc);
+            }
+            actual_end @ XmlEvent::EndElement { .. } => {
+                return Err(XmlReadingError::UnexpectedEvent {
+                    expected: ExpectedXmlEvent::End("apply (this one)".to_string()),
+                    got: actual_end,
+                });
+            }
+            other => {
+                return Err(XmlReadingError::UnexpectedEvent {
+                    expected: ExpectedXmlEvent::AnyOf(vec![
+                        ExpectedXmlEvent::Start("apply [inner one]".into()),
+                        ExpectedXmlEvent::End("apply [this one]".into()),
+                    ]),
+                    got: other,
+                });
+            }
         }
     }
 }
@@ -174,6 +283,7 @@ where
     }
 }
 
+/// Expects xml to be at the end of the comparison operator tag (ie next is either value or variable name)
 fn proposition_from_xml<XR, BR, T>(
     xml: &mut XR,
     comparison_operator: ComparisonOperator,
@@ -249,6 +359,7 @@ where
 {
     let constant_value = match xml.next()? {
         XmlEvent::Characters(constant_value) => constant_value
+            .trim()
             .parse::<T>()
             .map_err(|_| XmlReadingError::ParsingError(constant_value))?,
         other => {
