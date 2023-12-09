@@ -219,7 +219,7 @@ pub struct UnaryIntegerDomain {
 }
 
 /*
-   TODO:
+   TODO: - done in the refactored version
        - We might want to add a proper `IntegerSymbolicDomain` trait that would have a blanket
        implementation for all SymbolicDomain<u8> types. In this trait, we would implement
        operations like "make a BDD of all values less-than-or-equal to constant X", i.e. things

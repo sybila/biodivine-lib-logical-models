@@ -115,10 +115,16 @@ where
                 )
             });
 
-        domain
-            // todo bit_answering_bdds must be in the same order as the bits received from `_unit_set_bits_inspect`
-            ._unit_set_bits_inspect()
+        let each_allowed_value_bit_encoded = domain
+            .decode_collection(
+                &self.bdd_variable_set,
+                &domain.unit_collection(&self.bdd_variable_set),
+            )
             .into_iter()
+            .map(|value| domain.raw_bdd_variables_encode(&value));
+
+        each_allowed_value_bit_encoded
+            // todo bit_answering_bdds must be in the same order as the bits received from `raw_bdd_variables_encode`
             .fold(self.bdd_variable_set.mk_false(), |acc, val_bits| {
                 let any_state_capable_of_transitioning_into_target_value =
                     update_fn.bit_answering_bdds.iter().zip(&val_bits).fold(
@@ -185,48 +191,53 @@ where
                 )
             });
 
-        domain._unit_set_bits_inspect().into_iter().fold(
-            self.bdd_variable_set.mk_false(),
-            |acc, val_bits| {
-                let filter = update_fn
-                    .bit_answering_bdds
-                    .iter()
-                    .zip(&val_bits)
-                    .map(|((bdd_variable, _bdd), bit_val)| {
-                        (bdd_variable.to_owned(), bit_val.to_owned())
-                    })
-                    .collect::<Vec<_>>();
+        let each_allowed_value_bit_encoded = domain
+            .decode_collection(
+                &self.bdd_variable_set,
+                &domain.unit_collection(&self.bdd_variable_set),
+            )
+            .into_iter()
+            .map(|value| domain.raw_bdd_variables_encode(&value));
 
-                let those_from_source_with_target_value = source_states.select(filter.as_slice());
+        each_allowed_value_bit_encoded.fold(self.bdd_variable_set.mk_false(), |acc, val_bits| {
+            let filter = update_fn
+                .bit_answering_bdds
+                .iter()
+                .zip(&val_bits)
+                .map(|((bdd_variable, _bdd), bit_val)| {
+                    (bdd_variable.to_owned(), bit_val.to_owned())
+                })
+                .collect::<Vec<_>>();
 
-                let possible_predecessors = those_from_source_with_target_value
-                    .exists(
-                        filter
-                            .iter()
-                            .map(|(bdd_var, _)| *bdd_var)
-                            .collect::<Vec<_>>()
-                            .as_slice(),
-                    )
-                    .and(&domain.unit_collection(&self.bdd_variable_set)); // keep only valid states
+            let those_from_source_with_target_value = source_states.select(filter.as_slice());
 
-                let any_state_capable_of_transitioning_into_target_value =
-                    update_fn.bit_answering_bdds.iter().zip(&val_bits).fold(
-                        self.bdd_variable_set.mk_true(),
-                        |acc, ((_, bdd), val_bit)| {
-                            if *val_bit {
-                                acc.and(bdd)
-                            } else {
-                                acc.and_not(bdd)
-                            }
-                        },
-                    );
+            let possible_predecessors = those_from_source_with_target_value
+                .exists(
+                    filter
+                        .iter()
+                        .map(|(bdd_var, _)| *bdd_var)
+                        .collect::<Vec<_>>()
+                        .as_slice(),
+                )
+                .and(&domain.unit_collection(&self.bdd_variable_set)); // keep only valid states
 
-                let predecessors = possible_predecessors
-                    .and(&any_state_capable_of_transitioning_into_target_value);
+            let any_state_capable_of_transitioning_into_target_value =
+                update_fn.bit_answering_bdds.iter().zip(&val_bits).fold(
+                    self.bdd_variable_set.mk_true(),
+                    |acc, ((_, bdd), val_bit)| {
+                        if *val_bit {
+                            acc.and(bdd)
+                        } else {
+                            acc.and_not(bdd)
+                        }
+                    },
+                );
 
-                acc.or(&predecessors)
-            },
-        )
+            let predecessors =
+                possible_predecessors.and(&any_state_capable_of_transitioning_into_target_value);
+
+            acc.or(&predecessors)
+        })
     }
 
     /// Like `predecessors_async`, but a state that "transitions" to itself under
@@ -683,7 +694,7 @@ pub mod variable_update_fn {
 
             let bit_matrix = outputs
                 .into_iter()
-                .map(|output| target_domain.encode_bits_inspect(output))
+                .map(|output| target_domain.raw_bdd_variables_encode(output))
                 .collect::<Vec<_>>();
 
             let bit_answering_bdds = (0..bit_matrix[0].len()).map(|bit_idx| {
