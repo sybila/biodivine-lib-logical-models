@@ -388,7 +388,6 @@ where
             })
             .collect::<Vec<_>>();
 
-        // todo not each variable has transition function (namely primed ones do not have)
         let variables_transition_relation_and_domain = named_symbolic_domains
             .into_iter()
             .zip(relations)
@@ -440,6 +439,26 @@ where
             })
     }
 
+    /// Like `successors_async`, but a state that "transitions" to itself under
+    /// given transition variable is not considered to be a proper successor,
+    /// therefore is not included in the result (unless it is a proper successor
+    /// of another state from `source_states`).
+    pub fn successors_async_exclude_loops(
+        &self,
+        _transition_variable_name: &str,
+        _source_states: &Bdd,
+    ) -> Bdd {
+        // todo better to directly construct the specific no_loop_transition_bdd during construction
+        // todo probably have some common, underlying method that would accept the transition bdd
+        // todo the two public methods would then just pass in the proper transition bdd
+        // self.successors_async(
+        //     transition_variable_name,
+        //     &source_states
+        //         .and(&self.those_states_capable_of_transitioning_under(transition_variable_name)),
+        // )
+        todo!()
+    }
+
     pub fn predecessors_async(
         &self,
         transition_variable_name: &str,
@@ -468,12 +487,34 @@ where
         source_states_transition_relation.exists(primed_domain.raw_bdd_variables().as_slice())
     }
 
+    /// Like `predecessors_async`, but a state that "transitions" to itself under
+    /// given transition variable is not considered to be a proper predecessor,
+    /// therefore is not included in the result (unless it is a proper predecessor
+    /// of another state from `source_states`).
+    pub fn predecessors_async_exclude_loops(
+        &self,
+        _transition_variable_name: &str, // todo naming of those
+        _source_states: &Bdd,
+    ) -> Bdd {
+        // todo better to directly construct the specific no_loop_transition_bdd during construction
+        // todo probably have some common, underlying method that would accept the transition bdd
+        // todo the two public methods would then just pass in the proper transition bdd
+        // self.predecessors_async(transition_variable_name, source_states)
+        //     .and(&self.those_states_capable_of_transitioning_under(transition_variable_name))
+        todo!()
+    }
+
     fn get_transition_relation_and_domain(&self, variable_name: &str) -> Option<&VarInfo<DO, T>> {
         // todo optimize using the hashtable mapper
         self.variables_transition_relation_and_domain
             .iter()
             .find(|(maybe_variable_name, _)| maybe_variable_name == variable_name)
             .map(|(_, update_fn_and_domain)| update_fn_and_domain)
+    }
+
+    fn those_states_capable_of_transitioning_under(&self, _variable_name: &str) -> Bdd {
+        // todo this should be stored in a field; built during construction
+        todo!()
     }
 }
 
