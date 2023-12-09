@@ -1,6 +1,10 @@
 #![allow(dead_code)] // todo remove
 
-use std::{io::BufRead, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    io::BufRead,
+    str::FromStr,
+};
 
 use xml::reader::XmlEvent;
 
@@ -177,4 +181,121 @@ fn result_level_from_attributes<T: FromStr>(
         .value
         .parse::<T>()
         .map_err(|_| XmlReadingError::ParsingError(attribute_with_result_lvl.value.clone()))
+}
+
+// todo alright i have no idea how to do this
+/*
+// fn load_from_sbml<XR, BR, T>(xml: &mut XR) -> Result<> {
+//     // todo
+//     // skip until <listOfFunctionTerms>
+//     // then call load_all_update_fns
+// }
+
+fn load_from_sbml<XR, BR, T>(
+    file_path: &str,
+) -> Result<HashMap<String, UnprocessedVariableUpdateFn<T>>, XmlReadingError>
+where
+    XR: XmlReader<std::io::BufRead>,
+    BR: BufRead,
+    // XR: XmlReader<std::io::BufRead<std::fs::File>>,
+    T: FromStr + Default,
+{
+    // let xd = std::io::BufReader::new(
+    //     std::fs::File::open(file_path).expect("Could not open file for reading"),
+    // );
+    // let xd = xml::reader::EventReader::new(xd);
+    // // let mut xml = XR::new(super::xml_reader::XmlReader::new(xd));
+    // let mut xml = XR::new(xd);
+
+    // let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+    //     std::fs::File::open(file_path).unwrap(),
+    // ));
+
+    // let xml = xml::reader::EventReader::new(std::io::BufReader::new(
+    //     std::fs::File::open(file_path).unwrap(),
+    // ));
+
+    // let mut xml = XR::new(xml);
+
+    // super::utils::find_start_of(&mut xml, "listOfTransitions")?;
+
+    // load_all_update_fns(&mut xml)
+
+    todo!()
+}
+
+/// Expects `xml` to be at the start of an sbml file.
+/// Loads all <functionTerm> elements into a HashMap.
+fn load_from_sbml_buf_reader<XR, BR, T>(
+    // xml: &mut XR,
+    // file_path: &str,
+    buf_reader: BR,
+) -> Result<HashMap<String, UnprocessedVariableUpdateFn<T>>, XmlReadingError>
+where
+    XR: XmlReader<BR>,
+    BR: BufRead,
+    T: FromStr + Default,
+{
+    // let xd = std::io::BufReader::new(
+    //     std::fs::File::open(file_path).expect("Could not open file for reading"),
+    // );
+    // let xd = xml::reader::EventReader::new(xd);
+    // // let mut xml = XR::new(super::xml_reader::XmlReader::new(xd));
+    // let mut xml = XR::new(xd);
+
+    // let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
+    //     std::fs::File::open(file_path).unwrap(),
+    // ));
+
+    let xml = xml::reader::EventReader::new(buf_reader);
+
+    let mut xml = XR::new(xml);
+
+    super::utils::find_start_of(&mut xml, "listOfTransitions")?;
+
+    load_all_update_fns(&mut xml)
+}
+*/
+
+/// Expect the current XML element to be <listOfFunctionTerms>
+/// Loads all contained <functionTerm> elements into a HashMap.
+pub fn load_all_update_fns<XR, BR, T>(
+    xml: &mut XR,
+) -> Result<HashMap<String, UnprocessedVariableUpdateFn<T>>, XmlReadingError>
+where
+    XR: XmlReader<BR>,
+    BR: BufRead,
+    T: FromStr + Default,
+{
+    let vars_and_their_update_fns = map_list(
+        xml,
+        "listOfTransitions",
+        "transition",
+        |xml, _start_element| UnprocessedVariableUpdateFn::<T>::try_from_xml(xml),
+    )?
+    .into_iter()
+    .map(|update_fn| (update_fn.target_var_name.clone(), update_fn))
+    .collect::<HashMap<_, _>>();
+
+    let vars_possibly_without_update_fns = vars_and_their_update_fns
+        .values()
+        .flat_map(|update_fn| update_fn.input_vars_names.clone())
+        .collect::<HashSet<_>>();
+
+    let all_vars_and_their_update_fns = vars_possibly_without_update_fns.into_iter().fold(
+        vars_and_their_update_fns,
+        |mut acc, update_fn_name| {
+            acc.entry(update_fn_name.clone()).or_insert_with(|| {
+                UnprocessedVariableUpdateFn::<T>::new(
+                    Vec::new(),
+                    update_fn_name,
+                    Vec::new(),
+                    Default::default(),
+                )
+            });
+            acc
+        },
+    );
+
+    Ok(all_vars_and_their_update_fns)
 }

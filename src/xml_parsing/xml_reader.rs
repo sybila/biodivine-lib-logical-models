@@ -5,10 +5,15 @@ use std::io::BufRead;
 use xml::{reader::XmlEvent, EventReader};
 
 pub trait XmlReader<BR: BufRead> {
+    fn new(xml: EventReader<BR>) -> Self;
     fn next(&mut self) -> Result<XmlEvent, xml::reader::Error>;
 }
 
 impl<BR: BufRead> XmlReader<BR> for EventReader<BR> {
+    fn new(xml: EventReader<BR>) -> Self {
+        xml
+    }
+
     #[inline]
     fn next(&mut self) -> Result<XmlEvent, xml::reader::Error> {
         EventReader::next(self)
@@ -21,16 +26,14 @@ pub struct LoudReader<BR: BufRead> {
     curr_indent: usize,
 }
 
-impl<BR: BufRead> LoudReader<BR> {
-    pub fn new(xml: EventReader<BR>) -> Self {
+impl<BR: BufRead> XmlReader<BR> for LoudReader<BR> {
+    fn new(xml: EventReader<BR>) -> Self {
         Self {
             xml,
             curr_indent: 0,
         }
     }
-}
 
-impl<BR: BufRead> XmlReader<BR> for LoudReader<BR> {
     #[inline]
     fn next(&mut self) -> Result<XmlEvent, xml::reader::Error> {
         let event = self.xml.next()?;
@@ -73,14 +76,11 @@ pub struct CountingReader<BR: BufRead> {
     pub curr_line: usize,
 }
 
-impl<BR: BufRead> CountingReader<BR> {
-    #[allow(dead_code)]
-    pub fn new(xml: EventReader<BR>) -> Self {
+impl<BR: BufRead> XmlReader<BR> for CountingReader<BR> {
+    fn new(xml: EventReader<BR>) -> Self {
         Self { xml, curr_line: 0 }
     }
-}
 
-impl<BR: BufRead> XmlReader<BR> for CountingReader<BR> {
     #[inline]
     fn next(&mut self) -> Result<XmlEvent, xml::reader::Error> {
         let event = self.xml.next()?;
