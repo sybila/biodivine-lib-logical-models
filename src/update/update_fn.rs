@@ -248,15 +248,44 @@ where
     }
 }
 
+struct VarInfo<D, T>
+where
+    D: SymbolicDomain<T>,
+{
+    primed_name: String,
+    domain: D,
+    primed_domain: D,
+    transition_relation: Bdd,
+    _marker: std::marker::PhantomData<T>,
+}
+
 pub struct SmartSystemUpdateFn<D, T>
 where
     D: SymbolicDomain<T>,
 {
     /// ordered by variable name // todo add a method to get the update function by name (hash map or binary search)
-    variables_transition_relation_and_domain: Vec<(String, (Bdd, D))>,
+    variables_transition_relation_and_domain: Vec<(String, VarInfo<D, T>)>,
     bdd_variable_set: BddVariableSet,
     _marker: std::marker::PhantomData<T>,
 }
+
+// todo maybe use this newtype pattern to better distinguish between primed and unprimed variables (and their domains)
+// /// Wrapper over a SymbolicDomain type.
+// pub struct PrimedDomain<D, T>(D, std::marker::PhantomData<T>)
+// where
+//     D: SymbolicDomain<T>;
+
+// use std::ops::Deref;
+// impl<D, T> Deref for PrimedDomain<D, T>
+// where
+//     D: SymbolicDomain<T>,
+// {
+//     type Target = D;
+
+//     fn deref(&self) -> &Self::Target {
+//         &self.0
+//     }
+// }
 
 impl<DO, T> SmartSystemUpdateFn<DO, T>
 where
@@ -279,7 +308,7 @@ where
             // let (symbolic_domains, variable_set_builder) =
             let named_symbolic_domains = named_update_fns_sorted
                 .iter()
-                .flat_map(|(var_name, _)| {
+                .map(|(var_name, _)| {
                     let max_value = max_values
                         .get(var_name.as_str())
                         .expect("max value always present");
@@ -291,7 +320,7 @@ where
                         DO::new(&mut bdd_variable_set_builder, &original_name, max_value);
                     let primed = DO::new(&mut bdd_variable_set_builder, &primed_name, max_value);
 
-                    [(original_name, original), (primed_name, primed)]
+                    ((original_name, original), (primed_name, primed)) // todo name the tuple fields
                 })
                 .collect::<Vec<_>>();
 
@@ -300,7 +329,12 @@ where
 
         let named_symbolic_domains_map = named_symbolic_domains
             .iter()
-            .map(|(var_name, domain)| (var_name.as_str(), domain))
+            .flat_map(|((var_name, domain), (primed_var_name, primed_domain))| {
+                [
+                    (var_name.as_str(), domain),
+                    (primed_var_name.as_str(), primed_domain),
+                ]
+            })
             .collect::<HashMap<_, _>>();
         let update_fns = named_update_fns_sorted.iter().map(|(var_name, update_fn)| {
             (
@@ -314,11 +348,13 @@ where
             )
         });
 
-        let unit_set = named_symbolic_domains
-            .iter()
-            .fold(bdd_variable_set.mk_true(), |acc, (_, domain)| {
+        let unit_set = named_symbolic_domains.iter().fold(
+            bdd_variable_set.mk_true(),
+            |acc, ((_, domain), (_, primed_domain))| {
                 acc.and(&domain.unit_collection(&bdd_variable_set))
-            });
+                    .and(&primed_domain.unit_collection(&bdd_variable_set))
+            },
+        );
 
         let relations = update_fns
             .into_iter()
@@ -356,7 +392,20 @@ where
         let variables_transition_relation_and_domain = named_symbolic_domains
             .into_iter()
             .zip(relations)
-            .map(|((var_name, domain), relation_bdd)| (var_name, (relation_bdd, domain)))
+            .map(
+                |(((var_name, domain), (primed_var_name, primed_domain)), relation_bdd)| {
+                    (
+                        var_name,
+                        VarInfo {
+                            primed_name: primed_var_name,
+                            domain,
+                            primed_domain,
+                            transition_relation: relation_bdd,
+                            _marker: std::marker::PhantomData,
+                        },
+                    )
+                },
+            )
             .collect();
 
         Self {
@@ -367,16 +416,14 @@ where
     }
 
     pub fn successors_async(&self, transition_variable_name: &str, source_states_set: &Bdd) -> Bdd {
-        let (transition_relation, target_domain) = self
+        let VarInfo {
+            transition_relation,
+            domain: target_domain,
+            primed_domain,
+            ..
+        } = self
             .get_transition_relation_and_domain(transition_variable_name)
             .expect("unknown variable");
-        let primed_var_name = format!("{}'", transition_variable_name);
-        let (_, primed_domain) = self
-            .get_transition_relation_and_domain(&primed_var_name)
-            // todo this will fail; this is not where primed domains are stored (currently, they are stored nowhere)
-            // likely fix this by having two vectors; one for primed ones and one for not primed ones
-            // or by storing the primed domain in the same vector as the unprimed; in the same tuple
-            .expect("this will fail in this version; todo fix");
 
         let source_states_transition_relation = source_states_set.and(transition_relation);
 
@@ -398,16 +445,14 @@ where
         transition_variable_name: &str,
         source_states_set: Bdd, // todo inconsistent with succs api; but `rename_variable` requires ownership
     ) -> Bdd {
-        let (transition_relation, target_domain) = self
+        let VarInfo {
+            transition_relation,
+            domain: target_domain,
+            primed_domain,
+            ..
+        } = self
             .get_transition_relation_and_domain(transition_variable_name)
             .expect("unknown variable");
-        let primed_var_name = format!("{}'", transition_variable_name);
-        let (_, primed_domain) = self
-            .get_transition_relation_and_domain(&primed_var_name)
-            // todo this will fail; this is not where primed domains are stored (currently, they are stored nowhere)
-            // likely fix this by having two vectors; one for primed ones and one for not primed ones
-            // or by storing the primed domain in the same vector as the unprimed; in the same tuple
-            .expect("this will fail in this version; todo fix");
 
         let source_states_primed_set = target_domain
             .raw_bdd_variables()
@@ -423,7 +468,7 @@ where
         source_states_transition_relation.exists(primed_domain.raw_bdd_variables().as_slice())
     }
 
-    fn get_transition_relation_and_domain(&self, variable_name: &str) -> Option<&(Bdd, DO)> {
+    fn get_transition_relation_and_domain(&self, variable_name: &str) -> Option<&VarInfo<DO, T>> {
         // todo optimize using the hashtable mapper
         self.variables_transition_relation_and_domain
             .iter()
