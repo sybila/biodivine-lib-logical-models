@@ -123,7 +123,15 @@ where
             .into_iter()
             .map(|value| domain.raw_bdd_variables_encode(&value));
 
-        each_allowed_value_bit_encoded
+        // todo remove this; unit_collection should be cached somehow (or otherwise optimize this)
+        let unit_collection = self
+            .update_fns
+            .iter()
+            .fold(self.bdd_variable_set.mk_true(), |acc, (_, (_, domain))| {
+                acc.and(&domain.unit_collection(&self.bdd_variable_set))
+            });
+
+        let unpruned_res = each_allowed_value_bit_encoded
             // todo bit_answering_bdds must be in the same order as the bits received from `raw_bdd_variables_encode`
             .fold(self.bdd_variable_set.mk_false(), |acc, val_bits| {
                 let any_state_capable_of_transitioning_into_target_value =
@@ -156,7 +164,9 @@ where
                 );
 
                 acc.or(&transitioned)
-            })
+            });
+
+        unpruned_res.and(&unit_collection)
     }
 
     /// Like `successors_async`, but a state that "transitions" to itself under
@@ -457,14 +467,24 @@ where
         let forgor_old_val =
             source_states_transition_relation.exists(target_domain.raw_bdd_variables().as_slice());
 
-        target_domain
+        // todo remove this; unit_collection should be cached somehow (or otherwise optimize this)
+        let unit_collection = self
+            .variables_transition_relation_and_domain
+            .iter()
+            .fold(self.bdd_variable_set.mk_true(), |acc, (_, var_info)| {
+                acc.and(&var_info.domain.unit_collection(&self.bdd_variable_set))
+            });
+
+        let unpruned_res = target_domain
             .raw_bdd_variables()
             .into_iter()
             .zip(primed_domain.raw_bdd_variables())
             .fold(forgor_old_val, |mut acc, (unprimed, primed)| {
                 unsafe { acc.rename_variable(primed, unprimed) };
                 acc
-            })
+            });
+
+        unpruned_res.and(&unit_collection)
     }
 
     /// Like `successors_async`, but a state that "transitions" to itself under

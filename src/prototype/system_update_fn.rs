@@ -19,7 +19,7 @@ use super::{process_list, UpdateFn, UpdateFnBdd, VariableUpdateFnCompiled, XmlRe
 pub struct SystemUpdateFn<D: SymbolicDomain<T>, T> {
     pub update_fns: HashMap<String, VariableUpdateFnCompiled<D, T>>,
     pub named_symbolic_domains: HashMap<String, D>,
-    bdd_variable_set: DebugIgnore<BddVariableSet>,
+    pub bdd_variable_set: DebugIgnore<BddVariableSet>,
 }
 
 impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
