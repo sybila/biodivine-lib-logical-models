@@ -81,6 +81,9 @@ impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
         for var in var_names_and_upd_fns.keys() {
             let domain = named_symbolic_domains.get(var).unwrap();
             unit_set = unit_set.and(&domain.unit_collection(&variable_set));
+            // let primed_var = format!("{}'", var);
+            // let primed_domain = named_symbolic_domains.get(&primed_var).unwrap();
+            // unit_set = unit_set.and(&primed_domain.unit_collection(&variable_set));
         }
 
         // todo this should not be necessary but you never know; actually maybe the fact that we were doing `into_values` might have fcked stuff up
