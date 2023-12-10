@@ -639,11 +639,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
             .collect()
     }
 
-    pub fn get_bdd_with_specific_var_set_to_specific_value(
-        &self,
-        variable_name: &str,
-        value: u8,
-    ) -> Bdd {
+    pub fn encode_one(&self, variable_name: &str, value: u8) -> Bdd {
         let sym_dom = self.named_symbolic_domains.get(variable_name).unwrap();
         let bits = sym_dom.encode_bits_into_vec(value);
         let vars = sym_dom.symbolic_variables();

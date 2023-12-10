@@ -29,11 +29,11 @@
                     <!-- 255 is the maximum accepted value; limit of u8 -->
                     <qual:defaultTerm qual:resultLevel="3">
                     </qual:defaultTerm>
-                    <!-- <qual:functionTerm qual:resultLevel="0">
+                    <qual:functionTerm qual:resultLevel="0">
                         <math xmlns="http://www.w3.org/1998/Math/MathML">
                             <apply>
                                 <eq />
-                                <ci> renamed </ci>
+                                <ci> the_only_variable </ci>
                                 <cn type="integer"> 0 </cn>
                             </apply>
                         </math>
@@ -42,7 +42,7 @@
                         <math xmlns="http://www.w3.org/1998/Math/MathML">
                             <apply>
                                 <eq />
-                                <ci> renamed </ci>
+                                <ci> the_only_variable </ci>
                                 <cn type="integer"> 1 </cn>
                             </apply>
                         </math>
@@ -51,11 +51,11 @@
                         <math xmlns="http://www.w3.org/1998/Math/MathML">
                             <apply>
                                 <eq />
-                                <ci> renamed </ci>
+                                <ci> the_only_variable </ci>
                                 <cn type="integer"> 2 </cn>
                             </apply>
                         </math>
-                    </qual:functionTerm> -->
+                    </qual:functionTerm>
                 </qual:listOfFunctionTerms>
             </qual:transition>
         </qual:listOfTransitions>

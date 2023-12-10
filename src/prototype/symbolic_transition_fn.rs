@@ -13,7 +13,7 @@ pub struct SymbolicTransitionFn<D: SymbolicDomain<T>, T> {
     penis2: std::marker::PhantomData<D>,
 }
 
-impl<D: SymbolicDomain<T> + Debug, T> SymbolicTransitionFn<D, T> {
+impl<D: SymbolicDomain<T>, T> SymbolicTransitionFn<D, T> {
     pub fn from_update_fn_compiled(
         update_fn_compiled: &VariableUpdateFnCompiled<D, T>,
         ctx: &BddVariableSet,

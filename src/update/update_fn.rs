@@ -257,6 +257,17 @@ where
         // todo this should be stored in a field; built during construction
         todo!()
     }
+
+    pub fn encode_one(&self, variable_name: &str, value: &T) -> Bdd {
+        let (_, domain) = self
+            .get_update_fn_and_domain_of(variable_name)
+            .expect("unknown variable");
+        domain.encode_one(&self.bdd_variable_set, value)
+    }
+
+    pub fn bdd_to_dot_string(&self, bdd: &Bdd) -> String {
+        bdd.to_dot_string(&self.bdd_variable_set, false)
+    }
 }
 
 struct VarInfo<D, T>
@@ -532,6 +543,17 @@ where
     fn those_states_capable_of_transitioning_under(&self, _variable_name: &str) -> Bdd {
         // todo this should be stored in a field; built during construction
         todo!()
+    }
+
+    pub fn encode_one(&self, variable_name: &str, value: &T) -> Bdd {
+        let VarInfo { domain, .. } = self
+            .get_transition_relation_and_domain(variable_name)
+            .expect("unknown variable");
+        domain.encode_one(&self.bdd_variable_set, value)
+    }
+
+    pub fn bdd_to_dot_string(&self, bdd: &Bdd) -> String {
+        bdd.to_dot_string(&self.bdd_variable_set, false)
     }
 }
 

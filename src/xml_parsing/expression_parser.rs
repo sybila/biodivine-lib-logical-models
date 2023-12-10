@@ -337,7 +337,7 @@ where
     BR: BufRead,
 {
     let variable_name = match xml.next()? {
-        XmlEvent::Characters(variable_name) => variable_name,
+        XmlEvent::Characters(variable_name) => variable_name.trim().to_owned(),
         other => {
             return Err(XmlReadingError::UnexpectedEvent {
                 expected: super::utils::ExpectedXmlEvent::Characters,

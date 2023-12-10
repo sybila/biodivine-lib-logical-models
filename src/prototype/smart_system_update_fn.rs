@@ -28,7 +28,7 @@ pub struct SmartSystemUpdateFn<D: SymbolicDomain<T>, T> {
     bdd_variable_set: DebugIgnore<BddVariableSet>,
 }
 
-impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
+impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
     /// expects the xml reader to be at the start of the <listOfTransitions> element
     pub fn try_from_xml<XR: XmlReader<BR>, BR: BufRead>(
         xml: &mut XR, // todo shoudl not take care of loading the vars_and_their_max_values; those should be provided instead of the xml parameter
@@ -430,11 +430,7 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
             .collect()
     }
 
-    pub fn get_bdd_with_specific_var_set_to_specific_value(
-        &self,
-        variable_name: &str,
-        value: u8,
-    ) -> Bdd {
+    pub fn encode_one(&self, variable_name: &str, value: u8) -> Bdd {
         let sym_dom = self.named_symbolic_domains.get(variable_name).unwrap();
         let bits = sym_dom.encode_bits_into_vec(value);
         let vars = sym_dom.symbolic_variables();
@@ -936,16 +932,12 @@ mod tests {
             force_system_update_fn
         };
 
-        let smart_zero_bdd = smart_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 0);
-        let smart_two_bdd = smart_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 2);
+        let smart_zero_bdd = smart_system_update_fn.encode_one("the_only_variable", 0);
+        let smart_two_bdd = smart_system_update_fn.encode_one("the_only_variable", 2);
         let smart_zero_or_two_bdd = smart_zero_bdd.or(&smart_two_bdd);
 
-        let force_zero_bdd = force_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 0);
-        let force_two_bdd = force_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 2);
+        let force_zero_bdd = force_system_update_fn.encode_one("the_only_variable", 0);
+        let force_two_bdd = force_system_update_fn.encode_one("the_only_variable", 2);
         let force_zero_or_two_bdd = force_zero_bdd.or(&force_two_bdd);
 
         let smart_transitioned = smart_system_update_fn
@@ -967,10 +959,8 @@ mod tests {
             force_system_update_fn.bdd_to_dot_string(&force_transitioned)
         );
 
-        let force_one = force_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 1);
-        let force_three = force_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 3);
+        let force_one = force_system_update_fn.encode_one("the_only_variable", 1);
+        let force_three = force_system_update_fn.encode_one("the_only_variable", 3);
         let force_one_or_three = force_one.or(&force_three);
 
         assert!(
@@ -1010,16 +1000,12 @@ mod tests {
             force_system_update_fn
         };
 
-        let smart_zero_bdd =
-            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
-        let smart_one_bdd =
-            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
+        let smart_zero_bdd = smart_system_update_fn.encode_one("p", 0);
+        let smart_one_bdd = smart_system_update_fn.encode_one("p", 1);
         let smart_zero_or_one_bdd = smart_zero_bdd.or(&smart_one_bdd);
 
-        let force_zero_bdd =
-            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
-        let force_one_bdd =
-            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
+        let force_zero_bdd = force_system_update_fn.encode_one("p", 0);
+        let force_one_bdd = force_system_update_fn.encode_one("p", 1);
         let force_zero_or_one_bdd = force_zero_bdd.or(&force_one_bdd);
 
         let smart_transitioned =
@@ -1098,23 +1084,15 @@ mod tests {
             force_system_update_fn
         };
 
-        let _smart_p_zero =
-            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
-        let smart_p_one =
-            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
-        let _smart_q_zero =
-            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 0);
-        let smart_q_one =
-            smart_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 1);
+        let _smart_p_zero = smart_system_update_fn.encode_one("p", 0);
+        let smart_p_one = smart_system_update_fn.encode_one("p", 1);
+        let _smart_q_zero = smart_system_update_fn.encode_one("q", 0);
+        let smart_q_one = smart_system_update_fn.encode_one("q", 1);
 
-        let _force_p_zero =
-            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 0);
-        let force_p_one =
-            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("p", 1);
-        let _force_q_zero =
-            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 0);
-        let force_q_one =
-            force_system_update_fn.get_bdd_with_specific_var_set_to_specific_value("q", 1);
+        let _force_p_zero = force_system_update_fn.encode_one("p", 0);
+        let force_p_one = force_system_update_fn.encode_one("p", 1);
+        let _force_q_zero = force_system_update_fn.encode_one("q", 0);
+        let force_q_one = force_system_update_fn.encode_one("q", 1);
 
         let smart_zero_p_and_q = smart_p_one.and(&smart_q_one);
         let force_zero_p_and_q = force_p_one.and(&force_q_one);
@@ -1273,23 +1251,15 @@ mod tests {
             force_system_update_fn
         };
 
-        let smart_0 = smart_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 0);
-        let smart_1 = smart_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 1);
-        let smart_2 = smart_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 2);
-        let smart_3 = smart_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 3);
+        let smart_0 = smart_system_update_fn.encode_one("the_only_variable", 0);
+        let smart_1 = smart_system_update_fn.encode_one("the_only_variable", 1);
+        let smart_2 = smart_system_update_fn.encode_one("the_only_variable", 2);
+        let smart_3 = smart_system_update_fn.encode_one("the_only_variable", 3);
 
-        let force_0 = force_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 0);
-        let force_1 = force_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 1);
-        let force_2 = force_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 2);
-        let force_3 = force_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 3);
+        let force_0 = force_system_update_fn.encode_one("the_only_variable", 0);
+        let force_1 = force_system_update_fn.encode_one("the_only_variable", 1);
+        let force_2 = force_system_update_fn.encode_one("the_only_variable", 2);
+        let force_3 = force_system_update_fn.encode_one("the_only_variable", 3);
 
         println!("############ 0");
         let smart_preds =
@@ -1406,16 +1376,12 @@ mod tests {
             force_system_update_fn
         };
 
-        let smart_zero_bdd = smart_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 0);
-        let smart_one_bdd = smart_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 1);
+        let smart_zero_bdd = smart_system_update_fn.encode_one("the_only_variable", 0);
+        let smart_one_bdd = smart_system_update_fn.encode_one("the_only_variable", 1);
         let smart_zero_or_one_bdd = smart_zero_bdd.or(&smart_one_bdd);
 
-        let force_zero_bdd = force_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 0);
-        let force_one_bdd = force_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 1);
+        let force_zero_bdd = force_system_update_fn.encode_one("the_only_variable", 0);
+        let force_one_bdd = force_system_update_fn.encode_one("the_only_variable", 1);
         let force_zero_or_one_bdd = force_zero_bdd.or(&force_one_bdd);
 
         let smart_transitioned = smart_system_update_fn
@@ -1437,10 +1403,8 @@ mod tests {
             force_system_update_fn.bdd_to_dot_string(&force_transitioned)
         );
 
-        let force_one = force_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 1);
-        let force_two = force_system_update_fn
-            .get_bdd_with_specific_var_set_to_specific_value("the_only_variable", 2);
+        let force_one = force_system_update_fn.encode_one("the_only_variable", 1);
+        let force_two = force_system_update_fn.encode_one("the_only_variable", 2);
         let force_one_or_two = force_one.or(&force_two);
 
         std::fs::write(
