@@ -2,10 +2,12 @@
 
 // todo how to work with the "variables" that are not mentioned in the listOfTransitions?
 
-use std::{collections::HashMap, fmt::Debug, io::BufRead};
 use std::collections::HashSet;
+use std::{collections::HashMap, fmt::Debug, io::BufRead};
 
-use biodivine_lib_bdd::{Bdd, BddPartialValuation, BddVariable, BddVariableSet, BddVariableSetBuilder};
+use biodivine_lib_bdd::{
+    Bdd, BddPartialValuation, BddVariable, BddVariableSet, BddVariableSetBuilder,
+};
 use debug_ignore::DebugIgnore;
 
 use crate::{
@@ -71,6 +73,9 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
         for var in var_names_and_upd_fns.keys() {
             let domain = named_symbolic_domains.get(var).unwrap();
             unit_set = unit_set.and(&domain.unit_collection(&variable_set));
+            // let primed_var = format!("{}'", var);
+            // let primed_domain = named_symbolic_domains.get(&primed_var).unwrap();
+            // unit_set = unit_set.and(&primed_domain.unit_collection(&variable_set));
         }
 
         // todo this should not be necessary but you never know; actually maybe the fact that we were doing `into_values` might have fcked stuff up
@@ -437,9 +442,7 @@ impl<D: SymbolicDomain<u8> + Debug> SmartSystemUpdateFn<D, u8> {
     /// The list of system variables, sorted in ascending order (i.e. the order in which they
     /// also appear within the BDDs).
     pub fn get_system_variables(&self) -> Vec<String> {
-        let mut variables = self.update_fns.keys()
-            .cloned()
-            .collect::<Vec<_>>();
+        let mut variables = self.update_fns.keys().cloned().collect::<Vec<_>>();
         variables.sort();
         variables
     }
@@ -495,11 +498,11 @@ fn load_all_update_fns<XR: XmlReader<BR>, BR: BufRead>(
         |xml, _unused_opening_tag| UpdateFn::<u8>::try_from_xml(xml),
         xml,
     )?
-        // todo this might not be the smartest nor useful; the name is already in the fn
-        //  but this will allow us to access the appropriate fn quickly
-        .into_iter()
-        .map(|upd_fn| (upd_fn.target_var_name.clone(), upd_fn))
-        .collect();
+    // todo this might not be the smartest nor useful; the name is already in the fn
+    //  but this will allow us to access the appropriate fn quickly
+    .into_iter()
+    .map(|upd_fn| (upd_fn.target_var_name.clone(), upd_fn))
+    .collect();
 
     let input_names: HashSet<String> = function_map
         .values()
@@ -510,12 +513,7 @@ fn load_all_update_fns<XR: XmlReader<BR>, BR: BufRead>(
         if !function_map.contains_key(&name) {
             // This variable is an input. For now, we just fix all inputs to `false`.
             // TODO: We need to handle inputs properly in the future, but not today.
-            let update = UpdateFn::new(
-                Vec::new(),
-                name.clone(),
-                Vec::new(),
-                0u8
-            );
+            let update = UpdateFn::new(Vec::new(), name.clone(), Vec::new(), 0u8);
             function_map.insert(name, update);
         }
     }
@@ -1556,8 +1554,8 @@ mod tests {
                 let those_that_neq = RwLock::new(0);
 
                 // let res =
-                var_names.par_iter().for_each(|var_name| {
-                    smart_bdd_force_bdd_tuples.par_iter().for_each(
+                var_names.iter().for_each(|var_name| {
+                    smart_bdd_force_bdd_tuples.iter().for_each(
                         |(name, smart_set_of_states, force_set_of_states)| {
                             // println!("comparing bdds of {}", name);
                             let smart_transitioned = smart_system_update_fn

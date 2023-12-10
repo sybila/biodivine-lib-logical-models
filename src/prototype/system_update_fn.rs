@@ -159,7 +159,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
 
         // println!("{}", xd);
 
-        domain
+        let unnormalized_res = domain
             .get_all_possible_values(&self.bdd_variable_set)
             .into_iter()
             .fold(const_false.clone(), |acc, possible_var_val| {
@@ -265,7 +265,16 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                 // res
 
                 acc.or(&states_transitioned_into_given_value)
-            })
+            });
+
+        let unit_set = self
+            .named_symbolic_domains
+            .iter()
+            .fold(self.bdd_variable_set.0.mk_true(), |acc, (_, domain)| {
+                acc.and(&domain.unit_collection(&self.bdd_variable_set))
+            });
+
+        unnormalized_res.and(&unit_set)
     }
 
     pub fn predecessors_under_variable(
@@ -488,7 +497,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
 
         let const_false = target_set_of_states.and(&target_set_of_states.not());
 
-        all_possible_values_and_their_bits.clone().into_iter().fold(
+        let unnormalized_res = all_possible_values_and_their_bits.clone().into_iter().fold(
             const_false.clone(),
             |acc, (_, its_bits)| {
                 let vars_and_their_bits = sym_dom
@@ -551,7 +560,16 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
 
                 acc.or(&those_that_can_transition)
             },
-        )
+        );
+
+        let unit_set = self
+            .named_symbolic_domains
+            .iter()
+            .fold(self.bdd_variable_set.0.mk_true(), |acc, (_, domain)| {
+                acc.and(&domain.unit_collection(&self.bdd_variable_set))
+            });
+
+        unnormalized_res.and(&unit_set)
     }
 
     pub fn predecessors_attempt_3(
