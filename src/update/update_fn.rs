@@ -134,8 +134,11 @@ where
         let unpruned_res = each_allowed_value_bit_encoded
             // todo bit_answering_bdds must be in the same order as the bits received from `raw_bdd_variables_encode`
             .fold(self.bdd_variable_set.mk_false(), |acc, val_bits| {
-                let any_state_capable_of_transitioning_into_target_value =
-                    update_fn.bit_answering_bdds.iter().zip(&val_bits).fold(
+                let any_state_capable_of_transitioning_into_target_value = update_fn
+                    .bit_answering_bdds
+                    .iter()
+                    .zip(&val_bits)
+                    .fold(
                         self.bdd_variable_set.mk_true(),
                         |acc, ((_, bdd), val_bit)| {
                             if *val_bit {
@@ -144,7 +147,8 @@ where
                                 acc.and_not(bdd)
                             }
                         },
-                    );
+                    )
+                    .and(&unit_collection);
 
                 let those_from_source_capable_of_transitioning_into_target_value =
                     source_states_set.and(&any_state_capable_of_transitioning_into_target_value);
