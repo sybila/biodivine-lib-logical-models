@@ -20,6 +20,7 @@ pub struct SystemUpdateFn<D: SymbolicDomain<T>, T> {
     pub update_fns: HashMap<String, VariableUpdateFnCompiled<D, T>>,
     pub named_symbolic_domains: HashMap<String, D>,
     pub bdd_variable_set: DebugIgnore<BddVariableSet>,
+    pub cache: Vec<String>,
 }
 
 impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
@@ -35,6 +36,25 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
             to_be_sorted_ctx.sort_unstable_by_key(|it| it.0.to_owned());
             to_be_sorted_ctx
         };
+
+        let cache = sorted_ctx
+            .iter()
+            .filter(|(var_name, _)| var_name == "Net1")
+            .map(|(var_name, _)| {
+                let update_fn = var_names_and_upd_fns.get(var_name).unwrap();
+
+                format!(
+                    "{}, update_fn: {:?}, default {}",
+                    var_name,
+                    update_fn
+                        .terms
+                        .iter()
+                        .map(|(output, _)| output)
+                        .collect::<Vec<_>>(),
+                    update_fn.default
+                )
+            })
+            .collect::<Vec<_>>();
 
         // todo currently, we have no way of adding those variables, that do not have their VariableUpdateFn
         // todo  (ie their qual:transition in the xml) into the named_symbolic_domains, even tho they migh
@@ -66,6 +86,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
             update_fns,
             named_symbolic_domains,
             bdd_variable_set: variable_set.into(),
+            cache,
         })
     }
 

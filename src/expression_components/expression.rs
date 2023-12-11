@@ -21,6 +21,7 @@ use super::proposition::Proposition;
 /// - `Expression::Implies` - an implication of the inner expressions. The order of the
 /// operands follows conventional notation, i.e. `Expression::Implies(lhs, rhs)` is
 /// equivalent to `lhs => rhs`.
+#[derive(Debug)]
 pub enum Expression<T> {
     Terminal(Proposition<T>),
     Not(Box<Expression<T>>),

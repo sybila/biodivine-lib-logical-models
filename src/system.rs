@@ -2,6 +2,7 @@
 pub mod variable_update_function {
     use crate::expression_components::expression::Expression;
 
+    #[derive(Debug)]
     pub struct UnprocessedVariableUpdateFn<T> {
         pub input_vars_names: Vec<String>,
         pub target_var_name: String,

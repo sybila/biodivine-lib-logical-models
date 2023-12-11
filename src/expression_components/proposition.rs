@@ -2,6 +2,7 @@
 
 use std::str::FromStr;
 
+#[derive(Debug)]
 pub enum ComparisonOperator {
     Eq,
     Neq,
@@ -58,6 +59,7 @@ impl ToString for ComparisonOperator {
 ///
 /// This order is fixed. To represent a formula of form `value comparison_operator variable`,
 /// use `comparison_operator.flip()`.
+#[derive(Debug)]
 pub struct Proposition<T> {
     pub comparison_operator: ComparisonOperator,
     // ci = variable name in the xml file // todo remove this comment likely; user of this file should not care about xml

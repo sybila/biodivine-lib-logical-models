@@ -2,6 +2,7 @@
 
 use std::{
     collections::{HashMap, HashSet},
+    fmt::Debug,
     io::BufRead,
     str::FromStr,
 };
@@ -309,7 +310,7 @@ use crate::update::update_fn::{SmartSystemUpdateFn, SystemUpdateFn};
 impl<DO, T> SystemUpdateFn<DO, T>
 where
     DO: SymbolicDomainOrd<T>,
-    T: FromStr + Default,
+    T: FromStr + Default + Debug, // todo remove the debug from here
 {
     /// Parses the <transition> XML element into a VariableUpdateFn struct.
     /// Expects the parameter `xml` to be at the start of the <transition> XML element.
