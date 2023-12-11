@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Debug};
 
 use biodivine_lib_bdd::{Bdd, BddVariable, BddVariableSet, BddVariableSetBuilder};
 
@@ -11,20 +11,24 @@ use crate::{
 };
 
 use self::variable_update_fn::VariableUpdateFn;
+use debug_ignore::DebugIgnore;
 
+#[derive(Debug)]
 pub struct SystemUpdateFn<D, T>
 where
     D: SymbolicDomain<T>,
 {
     /// ordered by variable name // todo add a method to get the update function by name (hash map or binary search)
-    update_fns: Vec<(String, (VariableUpdateFn, D))>,
-    bdd_variable_set: BddVariableSet,
+    pub update_fns: Vec<(String, (VariableUpdateFn, D))>, // todo do not keep pub; just here for testing
+    bdd_variable_set: DebugIgnore<BddVariableSet>,
     _marker: std::marker::PhantomData<T>,
+    pub cache: Vec<String>,
 }
 
 impl<DO, T> SystemUpdateFn<DO, T>
 where
     DO: SymbolicDomainOrd<T>,
+    T: Debug,
 {
     pub fn from_update_fns(
         // todo do not forget to add default update functions for those variables that are not updated (in the loader from xml)
@@ -32,9 +36,27 @@ where
     ) -> Self {
         let named_update_fns_sorted = {
             let mut to_be_sorted = vars_and_their_update_fns.into_iter().collect::<Vec<_>>();
-            to_be_sorted.sort_by_key(|(var_name, _)| var_name.clone());
+            to_be_sorted.sort_unstable_by_key(|(var_name, _)| var_name.clone());
             to_be_sorted
         };
+
+        let cache = named_update_fns_sorted
+            .iter()
+            .filter(|(var_name, _)| var_name == "Net1")
+            // .map(|(var_name, update_fn)| format!("{}, update_fn: {:?}", var_name, update_fn))
+            .map(|(var_name, update_fn)| {
+                format!(
+                    "{}, update_fn: {:?}, default: {:?}",
+                    var_name,
+                    update_fn
+                        .terms
+                        .iter()
+                        .map(|(output, _)| output)
+                        .collect::<Vec<_>>(),
+                    update_fn.default
+                )
+            })
+            .collect::<Vec<_>>();
 
         let (symbolic_domains, bdd_variable_set) = {
             let max_values = find_max_values::<DO, T>(&named_update_fns_sorted);
@@ -81,8 +103,9 @@ where
 
         Self {
             update_fns: the_triple,
-            bdd_variable_set,
+            bdd_variable_set: bdd_variable_set.into(),
             _marker: std::marker::PhantomData,
+            cache,
         }
     }
 
@@ -121,7 +144,12 @@ where
                 &domain.unit_collection(&self.bdd_variable_set),
             )
             .into_iter()
-            .map(|value| domain.raw_bdd_variables_encode(&value));
+            .map(|value| domain.raw_bdd_variables_encode(&value))
+            .collect::<Vec<_>>();
+
+        if transition_variable_name == "Net1" {
+            println!("allowed bits: {:?}", each_allowed_value_bit_encoded);
+        }
 
         // todo remove this; unit_collection should be cached somehow (or otherwise optimize this)
         let unit_collection = self
@@ -131,7 +159,12 @@ where
                 acc.and(&domain.unit_collection(&self.bdd_variable_set))
             });
 
+        if transition_variable_name == "Net1" {
+            println!("unit collection: {:?}", unit_collection);
+        }
+
         let unpruned_res = each_allowed_value_bit_encoded
+            .into_iter()
             // todo bit_answering_bdds must be in the same order as the bits received from `raw_bdd_variables_encode`
             .fold(self.bdd_variable_set.mk_false(), |acc, val_bits| {
                 let any_state_capable_of_transitioning_into_target_value = update_fn
@@ -235,6 +268,7 @@ where
                 )
                 .and(&domain.unit_collection(&self.bdd_variable_set)); // keep only valid states
 
+            // todo must also check the anding with the unit collection (much like in successors)
             let any_state_capable_of_transitioning_into_target_value =
                 update_fn.bit_answering_bdds.iter().zip(&val_bits).fold(
                     self.bdd_variable_set.mk_true(),
@@ -392,7 +426,8 @@ where
 
         let unit_set = named_symbolic_domains.iter().fold(
             bdd_variable_set.mk_true(),
-            |acc, ((_, domain), _)| {
+            |acc, ((name, domain), _)| {
+                println!("anded domain name {}", name);
                 acc.and(&domain.unit_collection(&bdd_variable_set))
                 // primed ones must not affect unit collection -> ignore
                 // .and(&primed_domain.unit_collection(&bdd_variable_set))
@@ -419,11 +454,13 @@ where
                             target_symbolic_domain_primed,
                         );
 
+                        let bit_answering_bdd = bit_answering_bdd.and(&unit_set);
+
                         let primed_target_variable_bdd = bdd_variable_set.mk_var(bdd_var_primed);
                         let primed_bound_to_udpate =
-                            primed_target_variable_bdd.iff(bit_answering_bdd);
+                            primed_target_variable_bdd.iff(&bit_answering_bdd);
 
-                        acc.and(&primed_bound_to_udpate)
+                        acc.and(&primed_bound_to_udpate).and(&unit_set) // todo xd this cant be it
                     },
                 );
 
@@ -472,6 +509,13 @@ where
         let forgor_old_val =
             source_states_transition_relation.exists(target_domain.raw_bdd_variables().as_slice());
 
+        let unit_set = self
+            .variables_transition_relation_and_domain
+            .iter()
+            .fold(self.bdd_variable_set.mk_true(), |acc, (_, var_info)| {
+                acc.and(&var_info.domain.unit_collection(&self.bdd_variable_set))
+            });
+
         target_domain
             .raw_bdd_variables()
             .into_iter()
@@ -480,6 +524,7 @@ where
                 unsafe { acc.rename_variable(primed, unprimed) };
                 acc
             })
+            .and(&unit_set)
     }
 
     /// Like `successors_async`, but a state that "transitions" to itself under
@@ -682,6 +727,7 @@ pub mod variable_update_fn {
         system::variable_update_function::UnprocessedVariableUpdateFn as UnprocessedFn,
     };
 
+    #[derive(Debug)]
     pub struct VariableUpdateFn {
         // todo ensure this is sorted by the BddVariable (as the output of the `raw_bdd_variables` method on Domain)
         pub bit_answering_bdds: Vec<(BddVariable, Bdd)>, // todo maybe add String aka the name associated with the BddVariable
