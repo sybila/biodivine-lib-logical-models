@@ -388,9 +388,10 @@ where
 
         let unit_set = named_symbolic_domains.iter().fold(
             bdd_variable_set.mk_true(),
-            |acc, ((_, domain), (_, primed_domain))| {
+            |acc, ((_, domain), _)| {
                 acc.and(&domain.unit_collection(&bdd_variable_set))
-                    .and(&primed_domain.unit_collection(&bdd_variable_set))
+                // primed ones must not affect unit collection -> ignore
+                // .and(&primed_domain.unit_collection(&bdd_variable_set))
             },
         );
 
@@ -467,24 +468,14 @@ where
         let forgor_old_val =
             source_states_transition_relation.exists(target_domain.raw_bdd_variables().as_slice());
 
-        // todo remove this; unit_collection should be cached somehow (or otherwise optimize this)
-        let unit_collection = self
-            .variables_transition_relation_and_domain
-            .iter()
-            .fold(self.bdd_variable_set.mk_true(), |acc, (_, var_info)| {
-                acc.and(&var_info.domain.unit_collection(&self.bdd_variable_set))
-            });
-
-        let unpruned_res = target_domain
+        target_domain
             .raw_bdd_variables()
             .into_iter()
             .zip(primed_domain.raw_bdd_variables())
             .fold(forgor_old_val, |mut acc, (unprimed, primed)| {
                 unsafe { acc.rename_variable(primed, unprimed) };
                 acc
-            });
-
-        unpruned_res.and(&unit_collection)
+            })
     }
 
     /// Like `successors_async`, but a state that "transitions" to itself under

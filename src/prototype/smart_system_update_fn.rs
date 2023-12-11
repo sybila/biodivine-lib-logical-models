@@ -1440,6 +1440,8 @@ mod tests {
                 println!("dirent = {:?}", dirent);
                 let filepath = dirent.expect("could not read file").path();
 
+                let filepath = "data/large/146_BUDDING-YEAST-FAURE-2009.sbml".to_string();
+
                 let smart_system_update_fn = {
                     let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
                         std::fs::File::open(filepath.clone()).expect("cannot open the file"),
