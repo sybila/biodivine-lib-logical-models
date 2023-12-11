@@ -268,10 +268,18 @@ where
                 )
                 .and(&domain.unit_collection(&self.bdd_variable_set)); // keep only valid states
 
+            let unit_set = self
+                .update_fns
+                .iter()
+                .fold(self.bdd_variable_set.mk_true(), |acc, (_, (_, domain))| {
+                    acc.and(&domain.unit_collection(&self.bdd_variable_set))
+                });
+
             // todo must also check the anding with the unit collection (much like in successors)
             let any_state_capable_of_transitioning_into_target_value =
                 update_fn.bit_answering_bdds.iter().zip(&val_bits).fold(
-                    self.bdd_variable_set.mk_true(),
+                    // self.bdd_variable_set.mk_true(),
+                    unit_set,
                     |acc, ((_, bdd), val_bit)| {
                         if *val_bit {
                             acc.and(bdd)
