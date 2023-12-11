@@ -565,6 +565,7 @@ where
             .raw_bdd_variables()
             .into_iter()
             .zip(primed_domain.raw_bdd_variables())
+            .rev() // it's magic
             .fold(source_states_set, |mut acc, (unprimed, primed)| {
                 unsafe { acc.rename_variable(unprimed, primed) };
                 acc
