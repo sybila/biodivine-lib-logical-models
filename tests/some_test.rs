@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use biodivine_lib_bdd::Bdd;
-use biodivine_lib_logical_models::prelude::{self as bio, old_symbolic_domain::UnaryIntegerDomain};
+use biodivine_lib_logical_models::prelude as bio;
 
 struct TheFourImpls<D, OD>
 where
@@ -128,8 +128,8 @@ impl TheFourImplsBdd {
 
 impl
     TheFourImpls<
-        bio::symbolic_domain::UnaryIntegerDomain,
-        bio::old_symbolic_domain::UnaryIntegerDomain,
+        bio::symbolic_domain::PetriNetIntegerDomain,
+        bio::old_symbolic_domain::PetriNetIntegerDomain,
     >
 {
     fn from_path(sbml_path: &str) -> Self {
@@ -137,36 +137,38 @@ impl
             std::fs::File::open(sbml_path).expect("should be able to open file"),
         ));
         bio::find_start_of(&mut xml, "listOfTransitions").expect("should be able to find");
-        let old_dumb =
-            bio::old_update_fn::SystemUpdateFn::<UnaryIntegerDomain, u8>::try_from_xml(&mut xml)
-                .expect("should be able to parse");
+        let old_dumb = bio::old_update_fn::SystemUpdateFn::<
+            bio::old_symbolic_domain::PetriNetIntegerDomain,
+            u8,
+        >::try_from_xml(&mut xml)
+        .expect("should be able to parse");
 
         let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
             std::fs::File::open(sbml_path).expect("should be able to open file"),
         ));
         bio::find_start_of(&mut xml, "listOfTransitions").expect("should be able to find");
-        let old_smart =
-            bio::old_update_fn::SmartSystemUpdateFn::<UnaryIntegerDomain, u8>::try_from_xml(
-                &mut xml,
-            )
-            .expect("should be able to parse");
+        let old_smart = bio::old_update_fn::SmartSystemUpdateFn::<
+            bio::old_symbolic_domain::PetriNetIntegerDomain,
+            u8,
+        >::try_from_xml(&mut xml)
+        .expect("should be able to parse");
 
         let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
             std::fs::File::open(sbml_path).expect("should be able to open file"),
         ));
         bio::find_start_of(&mut xml, "listOfTransitions").expect("should be able to find");
-        let new_dumb =
-            bio::update_fn::SystemUpdateFn::<bio::symbolic_domain::UnaryIntegerDomain, u8>::try_from_xml(
-                &mut xml,
-            )
-            .expect("should be able to parse");
+        let new_dumb = bio::update_fn::SystemUpdateFn::<
+            bio::symbolic_domain::PetriNetIntegerDomain,
+            u8,
+        >::try_from_xml(&mut xml)
+        .expect("should be able to parse");
 
         let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
             std::fs::File::open(sbml_path).expect("should be able to open file"),
         ));
         bio::find_start_of(&mut xml, "listOfTransitions").expect("should be able to find");
         let new_smart = bio::update_fn::SmartSystemUpdateFn::<
-            bio::symbolic_domain::UnaryIntegerDomain,
+            bio::symbolic_domain::PetriNetIntegerDomain,
             u8,
         >::try_from_xml(&mut xml)
         .expect("should be able to parse");
@@ -329,8 +331,8 @@ fn consistency_check() {
                 // let filepath = "data/large/146_BUDDING-YEAST-FAURE-2009.sbml".to_string();
 
                 let the_four = TheFourImpls::<
-                    bio::symbolic_domain::UnaryIntegerDomain,
-                    bio::old_symbolic_domain::UnaryIntegerDomain,
+                    bio::symbolic_domain::PetriNetIntegerDomain,
+                    bio::old_symbolic_domain::PetriNetIntegerDomain,
                 >::from_path(
                     filepath.to_str().expect("could not convert to str")
                 );
@@ -480,14 +482,14 @@ fn check_specific() {
         let filepath = "data/large/146_BUDDING-YEAST-FAURE-2009.sbml".to_string();
 
         let the_four = TheFourImpls::<
-            bio::symbolic_domain::UnaryIntegerDomain,
-            bio::old_symbolic_domain::UnaryIntegerDomain,
+            bio::symbolic_domain::PetriNetIntegerDomain,
+            bio::old_symbolic_domain::PetriNetIntegerDomain,
             // >::from_path(filepath.to_str().expect("could not convert to str"));
         >::from_path(&filepath);
 
         let the_four_check = TheFourImpls::<
-            bio::symbolic_domain::UnaryIntegerDomain,
-            bio::old_symbolic_domain::UnaryIntegerDomain,
+            bio::symbolic_domain::PetriNetIntegerDomain,
+            bio::old_symbolic_domain::PetriNetIntegerDomain,
             // >::from_path(filepath.to_str().expect("could not convert to str"));
         >::from_path(&filepath);
 
@@ -687,8 +689,8 @@ fn predecessors_consistency_check() {
                 // let filepath = "data/large/146_BUDDING-YEAST-FAURE-2009.sbml".to_string();
 
                 let the_four = TheFourImpls::<
-                    bio::symbolic_domain::UnaryIntegerDomain,
-                    bio::old_symbolic_domain::UnaryIntegerDomain,
+                    bio::symbolic_domain::PetriNetIntegerDomain,
+                    bio::old_symbolic_domain::PetriNetIntegerDomain,
                 >::from_path(
                     filepath.to_str().expect("could not convert to str")
                 );

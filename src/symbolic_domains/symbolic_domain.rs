@@ -161,6 +161,7 @@ pub trait SymbolicDomainOrd<T>: SymbolicDomain<T> {
 /// variables to `true` and leave the remaining as `false`.
 #[derive(Clone, Debug)]
 pub struct UnaryIntegerDomain {
+    /// invariant: sorted
     variables: Vec<BddVariable>, // todo maybe Rc<[BddVariable]>
 }
 
@@ -248,8 +249,8 @@ impl SymbolicDomainOrd<u8> for UnaryIntegerDomain {
         Self { variables }
     }
 
-    fn encode_lt(&self, bdd_variable_set: &BddVariableSet, exclusive_uppper_bound: &u8) -> Bdd {
-        (0..*exclusive_uppper_bound).fold(self.empty_collection(bdd_variable_set), |acc, val| {
+    fn encode_lt(&self, bdd_variable_set: &BddVariableSet, exclusive_upper_bound: &u8) -> Bdd {
+        (0..*exclusive_upper_bound).fold(self.empty_collection(bdd_variable_set), |acc, val| {
             acc.or(&self.encode_one(bdd_variable_set, &val))
         })
 
@@ -259,6 +260,94 @@ impl SymbolicDomainOrd<u8> for UnaryIntegerDomain {
 
         // self.unit_collection(bdd_variable_set)
         //     .and(&not_upper_bound_bit)
+    }
+
+    fn cmp(lhs: &u8, rhs: &u8) -> std::cmp::Ordering {
+        lhs.cmp(rhs)
+    }
+}
+
+pub struct PetriNetIntegerDomain {
+    /// invariant: sorted
+    variables: Vec<BddVariable>,
+}
+
+impl SymbolicDomain<u8> for PetriNetIntegerDomain {
+    fn encode_bits(&self, bdd_valuation: &mut BddPartialValuation, value: &u8) {
+        if value > &(self.variables.len() as u8) {
+            let vars = self
+                .variables
+                .iter()
+                .map(|var| format!("{:?}", var))
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            panic!(
+                "Value is too big for domain {}; value: {}, domain size: {}",
+                vars,
+                value,
+                self.variables.len()
+            )
+        }
+
+        self.variables
+            .iter()
+            .enumerate()
+            .for_each(|(var_idx_within_sym_var, var)| {
+                bdd_valuation.set_value(*var, var_idx_within_sym_var == (*value as usize));
+            });
+    }
+
+    fn empty_collection(&self, bdd_variable_set: &BddVariableSet) -> Bdd {
+        bdd_variable_set.mk_false()
+    }
+
+    fn unit_collection(&self, bdd_variable_set: &BddVariableSet) -> Bdd {
+        bdd_variable_set.mk_sat_exactly_k(1, &self.variables)
+    }
+
+    fn raw_bdd_variables(&self) -> Vec<BddVariable> {
+        self.variables.clone() // already sorted
+    }
+
+    fn raw_bdd_variables_unsorted(&self) -> Vec<BddVariable> {
+        self.raw_bdd_variables() // already the optimal performance
+    }
+
+    fn decode_bits(&self, bdd_valuation: &BddPartialValuation) -> u8 {
+        // This method does not always check if the valuation is valid in the unary encoding, it
+        // just picks the "simplest" interpretation of the given valuation. For increased safety,
+        // we should check that that after the only "true" value, only "false" values follow.
+
+        self.variables
+            .iter()
+            .enumerate()
+            .find(|(_, var)| {
+                bdd_valuation
+                    .get_value(**var)
+                    .expect("var should be in the valuation")
+            })
+            .map(|(idx, _)| idx as u8)
+            .expect("a valid value should be encoded by a \"true\" bit")
+    }
+}
+
+impl SymbolicDomainOrd<u8> for PetriNetIntegerDomain {
+    fn new(builder: &mut BddVariableSetBuilder, name: &str, max_value: &u8) -> Self {
+        let variables = (0..=*max_value) // notice the inclusive range
+            .map(|var_idx| {
+                let name = format!("{name}_v{}", var_idx + 1);
+                builder.make_variable(name.as_str())
+            })
+            .collect();
+
+        Self { variables }
+    }
+
+    fn encode_lt(&self, bdd_variable_set: &BddVariableSet, exclusive_upper_bound: &u8) -> Bdd {
+        (0..*exclusive_upper_bound).fold(self.empty_collection(bdd_variable_set), |acc, val| {
+            acc.or(&self.encode_one(bdd_variable_set, &val))
+        })
     }
 
     fn cmp(lhs: &u8, rhs: &u8) -> std::cmp::Ordering {
