@@ -569,6 +569,13 @@ where
             .get_transition_relation_and_domain(transition_variable_name)
             .expect("unknown variable");
 
+        let unit_set = self
+            .variables_transition_relation_and_domain
+            .iter()
+            .fold(self.bdd_variable_set.mk_true(), |acc, (_, var_info)| {
+                acc.and(&var_info.domain.unit_collection(&self.bdd_variable_set))
+            });
+
         let source_states_primed_set = target_domain
             .raw_bdd_variables()
             .into_iter()
@@ -581,7 +588,9 @@ where
 
         let source_states_transition_relation = source_states_primed_set.and(transition_relation);
 
-        source_states_transition_relation.exists(primed_domain.raw_bdd_variables().as_slice())
+        source_states_transition_relation
+            .exists(primed_domain.raw_bdd_variables().as_slice())
+            .and(&unit_set)
     }
 
     /// Like `predecessors_async`, but a state that "transitions" to itself under

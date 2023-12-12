@@ -318,93 +318,95 @@ impl
 // #[test]
 fn consistency_check() {
     let mut i = 0usize;
+    loop {
+        std::fs::read_dir("data/large")
+            .expect("could not read dir")
+            .for_each(|dirent| {
+                println!("dirent = {:?}", dirent);
+                let filepath = dirent.expect("could not read file").path();
 
-    std::fs::read_dir("data/large")
-        .expect("could not read dir")
-        .for_each(|dirent| {
-            println!("dirent = {:?}", dirent);
-            let filepath = dirent.expect("could not read file").path();
+                // let filepath = "data/manual/basic_transition.sbml".to_string();
+                // let filepath = "data/large/146_BUDDING-YEAST-FAURE-2009.sbml".to_string();
 
-            // let filepath = "data/manual/basic_transition.sbml".to_string();
-            // let filepath = "data/large/146_BUDDING-YEAST-FAURE-2009.sbml".to_string();
-
-            let the_four =
-                TheFourImpls::<
+                let the_four = TheFourImpls::<
                     bio::symbolic_domain::UnaryIntegerDomain,
                     bio::old_symbolic_domain::UnaryIntegerDomain,
-                >::from_path(filepath.to_str().expect("could not convert to str"));
-            // >::from_path(&filepath);
-
-            // vector of bdds, one for each value of each variable
-            let simple_initial_states = the_four.bbd_for_each_value_of_each_variable();
-
-            for initial_state in simple_initial_states.iter() {
-                let variable = the_four
-                    .old_dumb
-                    .named_symbolic_domains
-                    .keys()
-                    .next()
-                    .expect("there should be some variable");
-
-                assert_eq!(
-                    the_four
-                        .new_dumb
-                        .bdd_to_dot_string(&initial_state.new_dumb_bdd),
-                    the_four
-                        .new_smart
-                        .bdd_to_dot_string(&initial_state.new_smart_bdd),
-                    "the new impls should be the same"
+                >::from_path(
+                    filepath.to_str().expect("could not convert to str")
                 );
+                // >::from_path(&filepath);
 
-                let transitioned = the_four.successors_async(variable, initial_state);
+                // vector of bdds, one for each value of each variable
+                let simple_initial_states = the_four.bbd_for_each_value_of_each_variable();
 
-                // todo currently, there is a discrepancy between the old and new impls
-                // todo old are unit-set-pruned -> correct
-                // assert!(
-                //     transitioned.old_are_same(&the_four),
-                //     "the old impls should be the same"
-                // );
+                for initial_state in simple_initial_states.iter() {
+                    let variable = the_four
+                        .old_dumb
+                        .named_symbolic_domains
+                        .keys()
+                        .next()
+                        .expect("there should be some variable");
 
-                // if !transitioned.new_are_same(&the_four) {
-                //     // println!("old are not the same");
-                //     println!(
-                //         "new dumb bdd = {}",
-                //         the_four
-                //             .new_dumb
-                //             .bdd_to_dot_string(&transitioned.new_dumb_bdd)
-                //     );
-                //     println!(
-                //         "new smart bdd = {}",
-                //         the_four
-                //             .new_smart
-                //             .bdd_to_dot_string(&transitioned.new_smart_bdd)
-                //     );
-                // }
+                    assert_eq!(
+                        the_four
+                            .new_dumb
+                            .bdd_to_dot_string(&initial_state.new_dumb_bdd),
+                        the_four
+                            .new_smart
+                            .bdd_to_dot_string(&initial_state.new_smart_bdd),
+                        "the new impls should be the same"
+                    );
 
-                // assert!(
-                //     transitioned.new_are_same(&the_four),
-                //     "the new impls should be the same"
-                // );
+                    let transitioned = the_four.successors_async(variable, initial_state);
 
-                // assert!(
-                //     transitioned.smart_are_same(&the_four),
-                //     "the smart impls should be the same"
-                // );
+                    // todo currently, there is a discrepancy between the old and new impls
+                    // todo old are unit-set-pruned -> correct
+                    // assert!(
+                    //     transitioned.old_are_same(&the_four),
+                    //     "the old impls should be the same"
+                    // );
 
-                // assert!(
-                //     transitioned.dumb_are_same(&the_four),
-                //     "the dumb impls should be the same"
-                // );
+                    // if !transitioned.new_are_same(&the_four) {
+                    //     // println!("old are not the same");
+                    //     println!(
+                    //         "new dumb bdd = {}",
+                    //         the_four
+                    //             .new_dumb
+                    //             .bdd_to_dot_string(&transitioned.new_dumb_bdd)
+                    //     );
+                    //     println!(
+                    //         "new smart bdd = {}",
+                    //         the_four
+                    //             .new_smart
+                    //             .bdd_to_dot_string(&transitioned.new_smart_bdd)
+                    //     );
+                    // }
 
-                assert!(
-                    transitioned.are_same(&the_four),
-                    "the four impls should be the same"
-                );
+                    // assert!(
+                    //     transitioned.new_are_same(&the_four),
+                    //     "the new impls should be the same"
+                    // );
 
-                println!("count = {} were the same", i);
-                i += 1;
-            }
-        });
+                    // assert!(
+                    //     transitioned.smart_are_same(&the_four),
+                    //     "the smart impls should be the same"
+                    // );
+
+                    // assert!(
+                    //     transitioned.dumb_are_same(&the_four),
+                    //     "the dumb impls should be the same"
+                    // );
+
+                    assert!(
+                        transitioned.are_same(&the_four),
+                        "the four impls should be the same"
+                    );
+
+                    println!("count = {} were the same", i);
+                    i += 1;
+                }
+            });
+    }
 }
 
 // #[test]
@@ -674,90 +676,94 @@ fn check_specific() {
 fn predecessors_consistency_check() {
     let mut i = 0usize;
 
-    std::fs::read_dir("data/large")
-        .expect("could not read dir")
-        .for_each(|dirent| {
-            println!("dirent = {:?}", dirent);
-            let filepath = dirent.expect("could not read file").path();
+    loop {
+        std::fs::read_dir("data/large")
+            .expect("could not read dir")
+            .for_each(|dirent| {
+                println!("dirent = {:?}", dirent);
+                let filepath = dirent.expect("could not read file").path();
 
-            // let filepath = "data/manual/basic_transition.sbml".to_string();
-            // let filepath = "data/large/146_BUDDING-YEAST-FAURE-2009.sbml".to_string();
+                // let filepath = "data/manual/basic_transition.sbml".to_string();
+                // let filepath = "data/large/146_BUDDING-YEAST-FAURE-2009.sbml".to_string();
 
-            let the_four =
-                TheFourImpls::<
+                let the_four = TheFourImpls::<
                     bio::symbolic_domain::UnaryIntegerDomain,
                     bio::old_symbolic_domain::UnaryIntegerDomain,
-                >::from_path(filepath.to_str().expect("could not convert to str"));
-            // >::from_path(&filepath);
-
-            // vector of bdds, one for each value of each variable
-            let simple_initial_states = the_four.bbd_for_each_value_of_each_variable();
-
-            for initial_state in simple_initial_states.iter() {
-                let variable = the_four
-                    .old_dumb
-                    .named_symbolic_domains
-                    .keys()
-                    .next()
-                    .expect("there should be some variable");
-
-                assert_eq!(
-                    the_four
-                        .new_dumb
-                        .bdd_to_dot_string(&initial_state.new_dumb_bdd),
-                    the_four
-                        .new_smart
-                        .bdd_to_dot_string(&initial_state.new_smart_bdd),
-                    "the new impls should be the same"
+                >::from_path(
+                    filepath.to_str().expect("could not convert to str")
                 );
+                // >::from_path(&filepath);
 
-                let transitioned = the_four.predecessors_async(variable, initial_state);
+                // vector of bdds, one for each value of each variable
+                let simple_initial_states = the_four.bbd_for_each_value_of_each_variable();
 
-                // todo currently, there is a discrepancy between the old and new impls
-                // todo old are unit-set-pruned -> correct
-                // assert!(
-                //     transitioned.old_are_same(&the_four),
-                //     "the old impls should be the same"
-                // );
+                for initial_state in simple_initial_states.iter() {
+                    let variable = the_four
+                        .old_dumb
+                        .named_symbolic_domains
+                        .keys()
+                        .next()
+                        .expect("there should be some variable");
 
-                // if !transitioned.new_are_same(&the_four) {
-                //     // println!("old are not the same");
-                //     println!(
-                //         "new dumb bdd = {}",
-                //         the_four
-                //             .new_dumb
-                //             .bdd_to_dot_string(&transitioned.new_dumb_bdd)
-                //     );
-                //     println!(
-                //         "new smart bdd = {}",
-                //         the_four
-                //             .new_smart
-                //             .bdd_to_dot_string(&transitioned.new_smart_bdd)
-                //     );
-                // }
+                    assert_eq!(
+                        the_four
+                            .new_dumb
+                            .bdd_to_dot_string(&initial_state.new_dumb_bdd),
+                        the_four
+                            .new_smart
+                            .bdd_to_dot_string(&initial_state.new_smart_bdd),
+                        "the new impls should be the same"
+                    );
 
-                // assert!(
-                //     transitioned.new_are_same(&the_four),
-                //     "the new impls should be the same"
-                // );
+                    let transitioned = the_four.predecessors_async(variable, initial_state);
 
-                // assert!(
-                //     transitioned.smart_are_same(&the_four),
-                //     "the smart impls should be the same"
-                // );
+                    // todo currently, there is a discrepancy between the old and new impls
+                    // todo old are unit-set-pruned -> correct
+                    // assert!(
+                    //     transitioned.old_are_same(&the_four),
+                    //     "the old impls should be the same"
+                    // );
 
-                // assert!(
-                //     transitioned.dumb_are_same(&the_four),
-                //     "the dumb impls should be the same"
-                // );
+                    // if !transitioned.new_are_same(&the_four) {
+                    //     // println!("old are not the same");
+                    //     println!(
+                    //         "new dumb bdd = {}",
+                    //         the_four
+                    //             .new_dumb
+                    //             .bdd_to_dot_string(&transitioned.new_dumb_bdd)
+                    //     );
+                    //     println!(
+                    //         "new smart bdd = {}",
+                    //         the_four
+                    //             .new_smart
+                    //             .bdd_to_dot_string(&transitioned.new_smart_bdd)
+                    //     );
+                    // }
 
-                assert!(
-                    transitioned.are_same(&the_four),
-                    "the four impls should be the same"
-                );
+                    // assert!(
+                    //     transitioned.new_are_same(&the_four),
+                    //     "the new impls should be the same"
+                    // );
 
-                println!("count = {} were the same", i);
-                i += 1;
-            }
-        });
+                    // assert!(
+                    //     transitioned.smart_are_same(&the_four),
+                    //     "the smart impls should be the same"
+                    // );
+
+                    // assert!(
+                    //     transitioned.dumb_are_same(&the_four),
+                    //     "the dumb impls should be the same"
+                    // );
+
+                    // assert!(transitioned.old_are_same(&the_four), "old");
+
+                    // assert!(transitioned.dumb_are_same(&the_four), "dumb");
+
+                    assert!(transitioned.are_same(&the_four), "all are same");
+
+                    println!("predecessors count = {} were the same", i);
+                    i += 1;
+                }
+            });
+    }
 }
