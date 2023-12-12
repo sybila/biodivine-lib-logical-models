@@ -3,8 +3,8 @@
 use biodivine_lib_bdd::Bdd;
 use biodivine_lib_logical_models::prelude as bio;
 
-type OldDomain = bio::old_symbolic_domain::BinaryIntegerDomain<u8>;
-type NewDomain = bio::symbolic_domain::BinaryIntegerDomain<u8>;
+type OldDomain = bio::old_symbolic_domain::GrayCodeIntegerDomain<u8>;
+type NewDomain = bio::symbolic_domain::GrayCodeIntegerDomain<u8>;
 
 struct TheFourImpls<D, OD>
 where

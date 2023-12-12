@@ -557,3 +557,31 @@ impl SymbolicDomain<u8> for GrayCodeIntegerDomain<u8> {
         res
     }
 }
+
+impl SymbolicDomainOrd<u8> for GrayCodeIntegerDomain<u8> {
+    fn new(builder: &mut BddVariableSetBuilder, name: &str, max_value: &u8) -> Self {
+        let bit_count = 8 - max_value.leading_zeros();
+
+        let variables = (0..bit_count)
+            .map(|it| {
+                let name = format!("{name}_v{}", it + 1);
+                builder.make_variable(name.as_str())
+            })
+            .collect();
+
+        Self {
+            variables,
+            max_value: *max_value,
+        }
+    }
+
+    fn encode_lt(&self, bdd_variable_set: &BddVariableSet, exclusive_upper_bound: &u8) -> Bdd {
+        (0..*exclusive_upper_bound).fold(self.empty_collection(bdd_variable_set), |acc, val| {
+            acc.or(&self.encode_one(bdd_variable_set, &val))
+        })
+    }
+
+    fn cmp(lhs: &u8, rhs: &u8) -> std::cmp::Ordering {
+        lhs.cmp(rhs)
+    }
+}
