@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use biodivine_lib_bdd::{
-    Bdd, BddPartialValuation, BddVariable, BddVariableSet, BddVariableSetBuilder,
+    Bdd, BddPartialValuation, BddValuation, BddVariable, BddVariableSet, BddVariableSetBuilder,
 };
 
 pub trait SymbolicDomain<T> {
@@ -132,7 +132,7 @@ pub trait SymbolicDomain<T> {
 pub trait SymbolicDomainOrd<T>: SymbolicDomain<T> {
     fn new(builder: &mut BddVariableSetBuilder, name: &str, max_value: &T) -> Self;
     /// Encodes the set of values that are strictly less than the given value.
-    fn encode_lt(&self, bdd_variable_set: &BddVariableSet, value: &T) -> Bdd;
+    fn encode_lt(&self, bdd_variable_set: &BddVariableSet, exclusive_upper_bound: &T) -> Bdd;
     /// Encodes the set of values that are less than or equal to the given value.
     fn encode_le(&self, bdd_variable_set: &BddVariableSet, value: &T) -> Bdd {
         self.encode_lt(bdd_variable_set, value)
@@ -352,5 +352,208 @@ impl SymbolicDomainOrd<u8> for PetriNetIntegerDomain {
 
     fn cmp(lhs: &u8, rhs: &u8) -> std::cmp::Ordering {
         lhs.cmp(rhs)
+    }
+}
+
+pub struct BinaryIntegerDomain<T> {
+    /// invariant: sorted
+    variables: Vec<BddVariable>,
+    /// in older implementations, this used to be the `max_value`
+    /// since we no longer require ordering, no `max_value` -> Bdd of all the possible values
+    max_value: T, // todo mb, cannot implemnent BinaryIntegerDomain generically -> it must be SymbolicDomainOrd
+}
+
+impl SymbolicDomain<u8> for BinaryIntegerDomain<u8> {
+    fn encode_bits(&self, bdd_valuation: &mut BddPartialValuation, value: &u8) {
+        if value > &(self.max_value) {
+            // this breaks the idea of SymbolicDomain being not bound to the ordering
+            let vars = self
+                .variables
+                .iter()
+                .map(|var| format!("{:?}", var))
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            panic!(
+                "Value is too big for domain {}; value: {}, domain size: {}",
+                vars, value, self.max_value
+            )
+        }
+
+        self.variables.iter().enumerate().for_each(|(idx, var)| {
+            bdd_valuation.set_value(*var, (value & (1 << idx)) != 0);
+        })
+    }
+
+    fn empty_collection(&self, bdd_variable_set: &BddVariableSet) -> Bdd {
+        bdd_variable_set.mk_false()
+    }
+
+    fn unit_collection(&self, bdd_variable_set: &BddVariableSet) -> Bdd {
+        (0..self.max_value).fold(bdd_variable_set.mk_false(), |acc, val| {
+            acc.or(&self.encode_one(bdd_variable_set, &val))
+        })
+    }
+
+    fn raw_bdd_variables(&self) -> Vec<BddVariable> {
+        self.variables.clone() // already sorted
+    }
+
+    fn raw_bdd_variables_unsorted(&self) -> Vec<BddVariable> {
+        self.raw_bdd_variables() // already the optimal performance
+    }
+
+    fn decode_bits(&self, bdd_valuation: &BddPartialValuation) -> u8 {
+        let res = self
+            .variables
+            .iter()
+            .enumerate()
+            .fold(0, |acc, (idx, var)| {
+                let bit = if bdd_valuation
+                    .get_value(*var)
+                    .expect("bits of the value should be in the valuation")
+                {
+                    1
+                } else {
+                    0
+                };
+
+                acc | (bit << idx)
+            });
+
+        if res > self.max_value {
+            panic!(
+                "invalid encoding; should not contain value greater than {}, but contains {}",
+                self.max_value, res
+            )
+        }
+
+        res
+    }
+}
+
+impl SymbolicDomainOrd<u8> for BinaryIntegerDomain<u8> {
+    fn new(builder: &mut BddVariableSetBuilder, name: &str, max_value: &u8) -> Self {
+        let bit_count = 8 - max_value.leading_zeros();
+
+        let variables = (0..bit_count)
+            .map(|it| {
+                let name = format!("{name}_v{}", it + 1);
+                builder.make_variable(name.as_str())
+            })
+            .collect();
+
+        Self {
+            variables,
+            max_value: *max_value,
+        }
+    }
+
+    fn encode_lt(&self, bdd_variable_set: &BddVariableSet, exclusive_upper_bound: &u8) -> Bdd {
+        (0..*exclusive_upper_bound).fold(self.empty_collection(bdd_variable_set), |acc, val| {
+            acc.or(&self.encode_one(bdd_variable_set, &val))
+        })
+    }
+
+    fn cmp(lhs: &u8, rhs: &u8) -> std::cmp::Ordering {
+        lhs.cmp(rhs)
+    }
+}
+
+pub struct GrayCodeIntegerDomain<T> {
+    /// invariant: sorted
+    variables: Vec<BddVariable>,
+    /// in older implementations, this used to be the `max_value`
+    /// since we no longer require ordering, no `max_value` -> Bdd of all the possible values
+    max_value: T, // todo same as in the case of BinaryIntegerDomain
+}
+
+impl GrayCodeIntegerDomain<u8> {
+    fn binary_to_gray_code(n: u8) -> u8 {
+        // magic
+        n ^ (n >> 1)
+    }
+
+    fn gray_code_to_binary(n: u8) -> u8 {
+        // magic II
+        let mut n = n;
+        let mut mask = n >> 1;
+        while mask != 0 {
+            n ^= mask;
+            mask >>= 1;
+        }
+        n
+    }
+}
+
+impl SymbolicDomain<u8> for GrayCodeIntegerDomain<u8> {
+    fn encode_bits(&self, bdd_valuation: &mut BddPartialValuation, value: &u8) {
+        if value > &(self.max_value) {
+            // this breaks the idea of SymbolicDomain being not bound to the ordering
+            let vars = self
+                .variables
+                .iter()
+                .map(|var| format!("{:?}", var))
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            panic!(
+                "Value is too big for domain {}; value: {}, domain size: {}",
+                vars, value, self.max_value
+            )
+        }
+
+        let gray_code = Self::binary_to_gray_code(*value);
+        self.variables.iter().enumerate().for_each(|(idx, var)| {
+            bdd_valuation.set_value(*var, (gray_code & (1 << idx)) != 0);
+        })
+    }
+
+    fn empty_collection(&self, bdd_variable_set: &BddVariableSet) -> Bdd {
+        bdd_variable_set.mk_false()
+    }
+
+    fn unit_collection(&self, bdd_variable_set: &BddVariableSet) -> Bdd {
+        (0..self.max_value).fold(bdd_variable_set.mk_false(), |acc, val| {
+            acc.or(&self.encode_one(bdd_variable_set, &val))
+        })
+    }
+
+    fn raw_bdd_variables(&self) -> Vec<BddVariable> {
+        self.variables.clone() // already sorted
+    }
+
+    fn raw_bdd_variables_unsorted(&self) -> Vec<BddVariable> {
+        self.raw_bdd_variables() // already the optimal performance
+    }
+
+    fn decode_bits(&self, bdd_valuation: &BddPartialValuation) -> u8 {
+        let read_gray_code = self
+            .variables
+            .iter()
+            .enumerate()
+            .fold(0, |acc, (idx, var)| {
+                let bit = if bdd_valuation
+                    .get_value(*var)
+                    .expect("bits of the value should be in the valuation")
+                {
+                    1
+                } else {
+                    0
+                };
+
+                acc | (bit << idx)
+            });
+
+        let res = Self::gray_code_to_binary(read_gray_code);
+
+        if res > self.max_value {
+            panic!(
+                "invalid encoding; should not contain value greater than {}, but contains {}",
+                self.max_value, res
+            )
+        }
+
+        res
     }
 }

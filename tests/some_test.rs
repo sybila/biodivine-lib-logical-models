@@ -3,6 +3,9 @@
 use biodivine_lib_bdd::Bdd;
 use biodivine_lib_logical_models::prelude as bio;
 
+type OldDomain = bio::old_symbolic_domain::BinaryIntegerDomain<u8>;
+type NewDomain = bio::symbolic_domain::BinaryIntegerDomain<u8>;
+
 struct TheFourImpls<D, OD>
 where
     D: bio::symbolic_domain::SymbolicDomainOrd<u8>,
@@ -126,52 +129,37 @@ impl TheFourImplsBdd {
     }
 }
 
-impl
-    TheFourImpls<
-        bio::symbolic_domain::PetriNetIntegerDomain,
-        bio::old_symbolic_domain::PetriNetIntegerDomain,
-    >
-{
+impl TheFourImpls<NewDomain, OldDomain> {
     fn from_path(sbml_path: &str) -> Self {
         let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
             std::fs::File::open(sbml_path).expect("should be able to open file"),
         ));
         bio::find_start_of(&mut xml, "listOfTransitions").expect("should be able to find");
-        let old_dumb = bio::old_update_fn::SystemUpdateFn::<
-            bio::old_symbolic_domain::PetriNetIntegerDomain,
-            u8,
-        >::try_from_xml(&mut xml)
-        .expect("should be able to parse");
+        let old_dumb = bio::old_update_fn::SystemUpdateFn::<OldDomain, u8>::try_from_xml(&mut xml)
+            .expect("should be able to parse");
 
         let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
             std::fs::File::open(sbml_path).expect("should be able to open file"),
         ));
         bio::find_start_of(&mut xml, "listOfTransitions").expect("should be able to find");
-        let old_smart = bio::old_update_fn::SmartSystemUpdateFn::<
-            bio::old_symbolic_domain::PetriNetIntegerDomain,
-            u8,
-        >::try_from_xml(&mut xml)
-        .expect("should be able to parse");
+        let old_smart =
+            bio::old_update_fn::SmartSystemUpdateFn::<OldDomain, u8>::try_from_xml(&mut xml)
+                .expect("should be able to parse");
 
         let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
             std::fs::File::open(sbml_path).expect("should be able to open file"),
         ));
         bio::find_start_of(&mut xml, "listOfTransitions").expect("should be able to find");
-        let new_dumb = bio::update_fn::SystemUpdateFn::<
-            bio::symbolic_domain::PetriNetIntegerDomain,
-            u8,
-        >::try_from_xml(&mut xml)
-        .expect("should be able to parse");
+        let new_dumb = bio::update_fn::SystemUpdateFn::<NewDomain, u8>::try_from_xml(&mut xml)
+            .expect("should be able to parse");
 
         let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
             std::fs::File::open(sbml_path).expect("should be able to open file"),
         ));
         bio::find_start_of(&mut xml, "listOfTransitions").expect("should be able to find");
-        let new_smart = bio::update_fn::SmartSystemUpdateFn::<
-            bio::symbolic_domain::PetriNetIntegerDomain,
-            u8,
-        >::try_from_xml(&mut xml)
-        .expect("should be able to parse");
+        let new_smart =
+            bio::update_fn::SmartSystemUpdateFn::<NewDomain, u8>::try_from_xml(&mut xml)
+                .expect("should be able to parse");
 
         Self {
             old_dumb,
@@ -330,11 +318,8 @@ fn consistency_check() {
                 // let filepath = "data/manual/basic_transition.sbml".to_string();
                 // let filepath = "data/large/146_BUDDING-YEAST-FAURE-2009.sbml".to_string();
 
-                let the_four = TheFourImpls::<
-                    bio::symbolic_domain::PetriNetIntegerDomain,
-                    bio::old_symbolic_domain::PetriNetIntegerDomain,
-                >::from_path(
-                    filepath.to_str().expect("could not convert to str")
+                let the_four = TheFourImpls::<NewDomain, OldDomain>::from_path(
+                    filepath.to_str().expect("could not convert to str"),
                 );
                 // >::from_path(&filepath);
 
@@ -482,14 +467,14 @@ fn check_specific() {
         let filepath = "data/large/146_BUDDING-YEAST-FAURE-2009.sbml".to_string();
 
         let the_four = TheFourImpls::<
-            bio::symbolic_domain::PetriNetIntegerDomain,
-            bio::old_symbolic_domain::PetriNetIntegerDomain,
+            NewDomain,
+            OldDomain,
             // >::from_path(filepath.to_str().expect("could not convert to str"));
         >::from_path(&filepath);
 
         let the_four_check = TheFourImpls::<
-            bio::symbolic_domain::PetriNetIntegerDomain,
-            bio::old_symbolic_domain::PetriNetIntegerDomain,
+            NewDomain,
+            OldDomain,
             // >::from_path(filepath.to_str().expect("could not convert to str"));
         >::from_path(&filepath);
 
@@ -688,11 +673,8 @@ fn predecessors_consistency_check() {
                 // let filepath = "data/manual/basic_transition.sbml".to_string();
                 // let filepath = "data/large/146_BUDDING-YEAST-FAURE-2009.sbml".to_string();
 
-                let the_four = TheFourImpls::<
-                    bio::symbolic_domain::PetriNetIntegerDomain,
-                    bio::old_symbolic_domain::PetriNetIntegerDomain,
-                >::from_path(
-                    filepath.to_str().expect("could not convert to str")
+                let the_four = TheFourImpls::<NewDomain, OldDomain>::from_path(
+                    filepath.to_str().expect("could not convert to str"),
                 );
                 // >::from_path(&filepath);
 
@@ -716,6 +698,8 @@ fn predecessors_consistency_check() {
                             .bdd_to_dot_string(&initial_state.new_smart_bdd),
                         "the new impls should be the same"
                     );
+
+                    assert!(initial_state.are_same(&the_four), "initial states are same");
 
                     let transitioned = the_four.predecessors_async(variable, initial_state);
 
@@ -761,7 +745,7 @@ fn predecessors_consistency_check() {
 
                     // assert!(transitioned.dumb_are_same(&the_four), "dumb");
 
-                    assert!(transitioned.are_same(&the_four), "all are same");
+                    assert!(transitioned.new_are_same(&the_four), "all are same");
 
                     println!("predecessors count = {} were the same", i);
                     i += 1;
