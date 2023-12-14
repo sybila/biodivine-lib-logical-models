@@ -20,9 +20,9 @@ where
 {
     /// ordered by variable name // todo add a method to get the update function by name (hash map or binary search)
     pub update_fns: Vec<(String, (VariableUpdateFn, D))>, // todo do not keep pub; just here for testing
-    bdd_variable_set: DebugIgnore<BddVariableSet>,
+    pub bdd_variable_set: DebugIgnore<BddVariableSet>, // todo do not keep pub
     _marker: std::marker::PhantomData<T>,
-    pub cache: Vec<String>,
+    pub cache: Vec<String>, // todo do not keep at all; just here for testing/debug
 }
 
 impl<DO, T> SystemUpdateFn<DO, T>

@@ -390,7 +390,7 @@ impl SymbolicDomain<u8> for BinaryIntegerDomain<u8> {
     }
 
     fn unit_collection(&self, bdd_variable_set: &BddVariableSet) -> Bdd {
-        (0..self.max_value).fold(bdd_variable_set.mk_false(), |acc, val| {
+        (0..=self.max_value).fold(bdd_variable_set.mk_false(), |acc, val| {
             acc.or(&self.encode_one(bdd_variable_set, &val))
         })
     }
@@ -514,7 +514,7 @@ impl SymbolicDomain<u8> for GrayCodeIntegerDomain<u8> {
     }
 
     fn unit_collection(&self, bdd_variable_set: &BddVariableSet) -> Bdd {
-        (0..self.max_value).fold(bdd_variable_set.mk_false(), |acc, val| {
+        (0..=self.max_value).fold(bdd_variable_set.mk_false(), |acc, val| {
             acc.or(&self.encode_one(bdd_variable_set, &val))
         })
     }

@@ -1,10 +1,12 @@
 #![allow(dead_code)]
 
 use biodivine_lib_bdd::Bdd;
-use biodivine_lib_logical_models::prelude as bio;
+use biodivine_lib_logical_models::prelude::{
+    self as bio, old_symbolic_domain::SymbolicDomain, symbolic_domain::SymbolicDomain as _,
+};
 
-type OldDomain = bio::old_symbolic_domain::GrayCodeIntegerDomain<u8>;
-type NewDomain = bio::symbolic_domain::GrayCodeIntegerDomain<u8>;
+type OldDomain = bio::old_symbolic_domain::BinaryIntegerDomain<u8>;
+type NewDomain = bio::symbolic_domain::BinaryIntegerDomain<u8>;
 
 struct TheFourImpls<D, OD>
 where
@@ -662,6 +664,7 @@ fn check_specific() {
 #[test]
 fn predecessors_consistency_check() {
     let mut i = 0usize;
+    let mut whole_test_count = 0usize;
 
     loop {
         std::fs::read_dir("data/large")
@@ -699,57 +702,61 @@ fn predecessors_consistency_check() {
                         "the new impls should be the same"
                     );
 
+                    let old_dumb_const_true = the_four.old_dumb.bdd_variable_set.mk_true();
+                    let unit_set_old_dumb = the_four
+                        .old_dumb
+                        .update_fns
+                        .iter()
+                        .find(|_| true)
+                        .map(|(_, update_fn)| {
+                            update_fn.named_symbolic_domains.iter().fold(
+                                old_dumb_const_true,
+                                |acc, (_, domain)| {
+                                    acc.and(
+                                        &domain
+                                            .unit_collection(&the_four.old_dumb.bdd_variable_set),
+                                    )
+                                },
+                            )
+                        })
+                        .unwrap();
+
+                    let unit_set_old_dumb_str =
+                        the_four.old_dumb.bdd_to_dot_string(&unit_set_old_dumb);
+                    // println!("unit set old dumb: {}", unit_set_old_dumb_str);
+
+                    let new_dumb_const_true = the_four.new_dumb.bdd_variable_set.mk_true();
+                    let unit_set_new_dumb = the_four.new_dumb.update_fns.iter().fold(
+                        new_dumb_const_true,
+                        |acc, (_, (_, domain))| {
+                            acc.and(&domain.unit_collection(&the_four.new_dumb.bdd_variable_set))
+                        },
+                    );
+
+                    let unit_set_new_dumb_str =
+                        the_four.new_dumb.bdd_to_dot_string(&unit_set_new_dumb);
+
+                    assert!(
+                        unit_set_old_dumb_str == unit_set_new_dumb_str,
+                        "the unit sets should be the same"
+                    );
+
+                    // assert!(false, "ok");
+
                     assert!(initial_state.are_same(&the_four), "initial states are same");
 
-                    let transitioned = the_four.predecessors_async(variable, initial_state);
+                    let transitioned = the_four.successors_async(variable, initial_state);
 
-                    // todo currently, there is a discrepancy between the old and new impls
-                    // todo old are unit-set-pruned -> correct
-                    // assert!(
-                    //     transitioned.old_are_same(&the_four),
-                    //     "the old impls should be the same"
-                    // );
+                    assert!(transitioned.are_same(&the_four), "all are same");
 
-                    // if !transitioned.new_are_same(&the_four) {
-                    //     // println!("old are not the same");
-                    //     println!(
-                    //         "new dumb bdd = {}",
-                    //         the_four
-                    //             .new_dumb
-                    //             .bdd_to_dot_string(&transitioned.new_dumb_bdd)
-                    //     );
-                    //     println!(
-                    //         "new smart bdd = {}",
-                    //         the_four
-                    //             .new_smart
-                    //             .bdd_to_dot_string(&transitioned.new_smart_bdd)
-                    //     );
-                    // }
-
-                    // assert!(
-                    //     transitioned.new_are_same(&the_four),
-                    //     "the new impls should be the same"
-                    // );
-
-                    // assert!(
-                    //     transitioned.smart_are_same(&the_four),
-                    //     "the smart impls should be the same"
-                    // );
-
-                    // assert!(
-                    //     transitioned.dumb_are_same(&the_four),
-                    //     "the dumb impls should be the same"
-                    // );
-
-                    // assert!(transitioned.old_are_same(&the_four), "old");
-
-                    // assert!(transitioned.dumb_are_same(&the_four), "dumb");
-
-                    assert!(transitioned.new_are_same(&the_four), "all are same");
-
-                    println!("predecessors count = {} were the same", i);
+                    println!(
+                        "predecessors count = {} were the same; whole test {}",
+                        i, whole_test_count
+                    );
                     i += 1;
                 }
             });
+
+        whole_test_count += 1;
     }
 }
