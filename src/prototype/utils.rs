@@ -11,7 +11,6 @@ use xml::{
 };
 
 use crate::prototype::symbolic_domain::SymbolicDomain;
-use crate::symbolic_domains::symbolic_domain::SymbolicDomain as RewrittenSymbolicDomain;
 
 use super::{SmartSystemUpdateFn, UpdateFn};
 
