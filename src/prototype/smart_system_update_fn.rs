@@ -1438,7 +1438,7 @@ mod tests {
             .take(1)
             .for_each(|dirent| {
                 println!("dirent = {:?}", dirent);
-                let filepath = dirent.expect("could not read file").path();
+                let _filepath = dirent.expect("could not read file").path();
 
                 let filepath = "data/large/146_BUDDING-YEAST-FAURE-2009.sbml".to_string();
 

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use biodivine_lib_bdd::{
-    Bdd, BddPartialValuation, BddValuation, BddVariable, BddVariableSet, BddVariableSetBuilder,
+    Bdd, BddPartialValuation, BddVariable, BddVariableSet, BddVariableSetBuilder,
 };
 
 pub trait SymbolicDomain<T> {

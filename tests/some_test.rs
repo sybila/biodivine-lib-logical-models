@@ -229,12 +229,6 @@ impl TheFourImpls<NewDomain, OldDomain> {
             new_smart_bdd: new_smart,
         }
     }
-
-    fn are_dumb_update_fns_same(&self) -> bool {
-        let old_dumb = self.old_dumb.update_fns.iter().map(|(xed, xd)| {});
-
-        todo!()
-    }
 }
 
 // #[test]
@@ -474,16 +468,10 @@ fn check_specific() {
             // >::from_path(filepath.to_str().expect("could not convert to str"));
         >::from_path(&filepath);
 
-        let the_four_check = TheFourImpls::<
-            NewDomain,
-            OldDomain,
-            // >::from_path(filepath.to_str().expect("could not convert to str"));
-        >::from_path(&filepath);
-
         // vector of bdds, one for each value of each variable
         let simple_initial_states = the_four.bbd_for_each_value_of_each_variable();
 
-        for (count, initial_state) in simple_initial_states.iter().enumerate() {
+        for (_, initial_state) in simple_initial_states.iter().enumerate() {
             let variable = the_four
                 .old_dumb
                 .named_symbolic_domains
