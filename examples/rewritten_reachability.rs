@@ -1,7 +1,12 @@
-use biodivine_lib_logical_models::benchmarks::reachability::reachability_benchmark;
-use biodivine_lib_logical_models::prelude::old_symbolic_domain::{
-    BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain, UnaryIntegerDomain,
+use biodivine_lib_logical_models::{
+    benchmarks::rewritten_reachability::reachability_benchmark,
+    prelude::symbolic_domain::{
+        BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain, UnaryIntegerDomain,
+    },
 };
+// use biodivine_lib_logical_models::prelude::old_symbolic_domain::{
+//     BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain, UnaryIntegerDomain,
+// };
 
 fn main() {
     let args = std::env::args().collect::<Vec<_>>();

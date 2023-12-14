@@ -326,12 +326,13 @@ where
     }
 }
 
-struct VarInfo<D, T>
+pub struct VarInfo<D, T>
+// todo do not keep pub; just for benchmarks
 where
     D: SymbolicDomain<T>,
 {
     primed_name: String,
-    domain: D,
+    pub domain: D, // todo do not keep pub; just for benchmarks
     primed_domain: D,
     transition_relation: Bdd,
     _marker: std::marker::PhantomData<T>,
@@ -342,8 +343,8 @@ where
     D: SymbolicDomain<T>,
 {
     /// ordered by variable name // todo add a method to get the update function by name (hash map or binary search)
-    variables_transition_relation_and_domain: Vec<(String, VarInfo<D, T>)>,
-    bdd_variable_set: BddVariableSet,
+    pub variables_transition_relation_and_domain: Vec<(String, VarInfo<D, T>)>, // todo do not keep pub; just here for benchmarking
+    pub bdd_variable_set: BddVariableSet, // todo do not keep pub; just here for testing
     _marker: std::marker::PhantomData<T>,
 }
 

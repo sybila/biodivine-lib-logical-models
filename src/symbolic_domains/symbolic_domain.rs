@@ -267,6 +267,7 @@ impl SymbolicDomainOrd<u8> for UnaryIntegerDomain {
     }
 }
 
+#[derive(Debug)]
 pub struct PetriNetIntegerDomain {
     /// invariant: sorted
     variables: Vec<BddVariable>,
@@ -355,6 +356,7 @@ impl SymbolicDomainOrd<u8> for PetriNetIntegerDomain {
     }
 }
 
+#[derive(Debug)]
 pub struct BinaryIntegerDomain<T> {
     /// invariant: sorted
     variables: Vec<BddVariable>,
@@ -460,6 +462,7 @@ impl SymbolicDomainOrd<u8> for BinaryIntegerDomain<u8> {
     }
 }
 
+#[derive(Debug)]
 pub struct GrayCodeIntegerDomain<T> {
     /// invariant: sorted
     variables: Vec<BddVariable>,

@@ -745,7 +745,7 @@ fn predecessors_consistency_check() {
 
                     assert!(initial_state.are_same(&the_four), "initial states are same");
 
-                    let transitioned = the_four.successors_async(variable, initial_state);
+                    let transitioned = the_four.predecessors_async(variable, initial_state);
 
                     assert!(transitioned.are_same(&the_four), "all are same");
 
