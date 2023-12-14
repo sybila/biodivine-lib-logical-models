@@ -343,6 +343,8 @@ where
     D: SymbolicDomain<T>,
 {
     /// ordered by variable name // todo add a method to get the update function by name (hash map or binary search)
+    /// maps variable name to its index in the `variables_transition_relation_and_domain` vector to allow for fast access while keeping the vector sorted
+    mapper: HashMap<String, usize>,
     pub variables_transition_relation_and_domain: Vec<(String, VarInfo<D, T>)>, // todo do not keep pub; just here for benchmarking
     pub bdd_variable_set: BddVariableSet, // todo do not keep pub; just here for testing
     _marker: std::marker::PhantomData<T>,
@@ -371,7 +373,6 @@ where
     DO: SymbolicDomainOrd<T>,
 {
     pub fn from_update_fns(
-        // todo do not forget to add default update functions for those variables that are not updated (in the loader from xml)
         vars_and_their_update_fns: HashMap<String, UnprocessedVariableUpdateFn<T>>,
     ) -> Self {
         vars_and_their_update_fns.iter().for_each(|(name, _)| {
@@ -433,15 +434,21 @@ where
             )
         });
 
-        let unit_set = named_symbolic_domains.iter().fold(
-            bdd_variable_set.mk_true(),
-            |acc, ((name, domain), _)| {
-                println!("anded domain name {}", name);
+        let unit_set = named_symbolic_domains
+            .iter()
+            .fold(bdd_variable_set.mk_true(), |acc, ((_name, domain), _)| {
                 acc.and(&domain.unit_collection(&bdd_variable_set))
-                // primed ones must not affect unit collection -> ignore
-                // .and(&primed_domain.unit_collection(&bdd_variable_set))
-            },
-        );
+            });
+
+        let unprimed_var_names_and_their_primed_unit_collection = named_symbolic_domains
+            .iter()
+            .map(|((unprimed_var_name, _), (_, primed_domain))| {
+                (
+                    unprimed_var_name,
+                    primed_domain.unit_collection(&bdd_variable_set),
+                )
+            })
+            .collect::<HashMap<_, _>>();
 
         let relations = update_fns
             .into_iter()
@@ -454,7 +461,8 @@ where
                     .expect("domain always present");
 
                 let relation = update_fn.bit_answering_bdds.iter().fold(
-                    bdd_variable_set.mk_true(),
+                    // unit_set -> result of any `and` encodes only valid states
+                    unit_set.clone(),
                     |acc, (bdd_var, bit_answering_bdd)| {
                         // todo this could be called once & zipped to the iterator to make blazingly fast
                         let bdd_var_primed = find_bdd_variables_prime(
@@ -463,17 +471,20 @@ where
                             target_symbolic_domain_primed,
                         );
 
-                        let bit_answering_bdd = bit_answering_bdd.and(&unit_set);
-
                         let primed_target_variable_bdd = bdd_variable_set.mk_var(bdd_var_primed);
                         let primed_bound_to_udpate =
-                            primed_target_variable_bdd.iff(&bit_answering_bdd);
+                            primed_target_variable_bdd.iff(bit_answering_bdd);
 
-                        acc.and(&primed_bound_to_udpate).and(&unit_set) // todo xd this cant be it
+                        acc.and(&primed_bound_to_udpate)
                     },
                 );
 
-                relation.and(&unit_set) // todo is this needed?
+                let specific_primed_unit_set = unprimed_var_names_and_their_primed_unit_collection
+                    .get(target_variable_name)
+                    .expect("always present");
+
+                // ensure output only valid values
+                relation.and(specific_primed_unit_set)
             })
             .collect::<Vec<_>>();
 
@@ -494,9 +505,18 @@ where
                     )
                 },
             )
-            .collect();
+            .collect::<Vec<_>>();
+
+        let mapper = variables_transition_relation_and_domain
+            .iter()
+            .enumerate()
+            .fold(HashMap::new(), |mut acc, (idx, (var_name, _))| {
+                acc.insert(var_name.to_owned(), idx);
+                acc
+            });
 
         Self {
+            mapper,
             variables_transition_relation_and_domain,
             bdd_variable_set,
             _marker: std::marker::PhantomData,
@@ -518,13 +538,6 @@ where
         let forgor_old_val =
             source_states_transition_relation.exists(target_domain.raw_bdd_variables().as_slice());
 
-        let unit_set = self
-            .variables_transition_relation_and_domain
-            .iter()
-            .fold(self.bdd_variable_set.mk_true(), |acc, (_, var_info)| {
-                acc.and(&var_info.domain.unit_collection(&self.bdd_variable_set))
-            });
-
         target_domain
             .raw_bdd_variables()
             .into_iter()
@@ -533,7 +546,6 @@ where
                 unsafe { acc.rename_variable(primed, unprimed) };
                 acc
             })
-            .and(&unit_set)
     }
 
     /// Like `successors_async`, but a state that "transitions" to itself under
@@ -570,13 +582,6 @@ where
             .get_transition_relation_and_domain(transition_variable_name)
             .expect("unknown variable");
 
-        let unit_set = self
-            .variables_transition_relation_and_domain
-            .iter()
-            .fold(self.bdd_variable_set.mk_true(), |acc, (_, var_info)| {
-                acc.and(&var_info.domain.unit_collection(&self.bdd_variable_set))
-            });
-
         let source_states_primed_set = target_domain
             .raw_bdd_variables()
             .into_iter()
@@ -589,9 +594,7 @@ where
 
         let source_states_transition_relation = source_states_primed_set.and(transition_relation);
 
-        source_states_transition_relation
-            .exists(primed_domain.raw_bdd_variables().as_slice())
-            .and(&unit_set)
+        source_states_transition_relation.exists(primed_domain.raw_bdd_variables().as_slice())
     }
 
     /// Like `predecessors_async`, but a state that "transitions" to itself under
@@ -617,6 +620,9 @@ where
             .iter()
             .find(|(maybe_variable_name, _)| maybe_variable_name == variable_name)
             .map(|(_, update_fn_and_domain)| update_fn_and_domain)
+        // self.mapper
+        // .get(variable_name)
+        // .map(|idx| &self.variables_transition_relation_and_domain[*idx].1)
     }
 
     fn those_states_capable_of_transitioning_under(&self, _variable_name: &str) -> Bdd {

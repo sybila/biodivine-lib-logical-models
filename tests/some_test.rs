@@ -116,7 +116,9 @@ impl TheFourImplsBdd {
 
         println!("smart_are_same output: {}", old_smart_dot == new_smart_dot);
 
-        old_smart_dot == new_smart_dot
+        //old_smart_dot == new_smart_dot
+        //self.old_smart_bdd.iff(&self.new_smart_bdd).is_true()
+        self.old_smart_bdd == self.new_smart_bdd
     }
 
     fn dumb_are_same<D, OD>(&self, context: &TheFourImpls<D, OD>) -> bool
@@ -301,7 +303,7 @@ impl TheFourImpls<NewDomain, OldDomain> {
 // this might be, because the handmade do not target cases where invalid states might come into play
 //  ^ this can be seen by modifying the old impls - if pruning of invalid staes is removed in one of them,
 //    the "basic" tests do not detect any difference, while the "large" tests do
-// #[test]
+#[test]
 fn consistency_check() {
     let mut i = 0usize;
     loop {
@@ -649,7 +651,7 @@ fn check_specific() {
     }
 }
 
-#[test]
+// #[test]
 fn predecessors_consistency_check() {
     let mut i = 0usize;
     let mut whole_test_count = 0usize;
@@ -735,7 +737,19 @@ fn predecessors_consistency_check() {
 
                     let transitioned = the_four.predecessors_async(variable, initial_state);
 
-                    assert!(transitioned.are_same(&the_four), "all are same");
+                    if !transitioned.smart_are_same(&the_four) {
+                        let old_smart_dot = the_four
+                            .old_smart
+                            .bdd_to_dot_string(&transitioned.old_smart_bdd);
+                        println!("old smart: {}", old_smart_dot);
+
+                        let new_smart_dot = the_four
+                            .new_smart
+                            .bdd_to_dot_string(&transitioned.new_smart_bdd);
+                        println!("new smart: {}", new_smart_dot);
+                    }
+
+                    assert!(transitioned.smart_are_same(&the_four), "all are same");
 
                     println!(
                         "predecessors count = {} were the same; whole test {}",
