@@ -117,11 +117,9 @@ fn process_output_var_name_item<XR: XmlReader<BR>, BR: BufRead>(
         }
     });
 
-    let item = qualitative_species
-        .next()
-        .ok_or(XmlReadingError::NoSuchAttribute(
-            "value after qualitativeSpecies".to_string(),
-        ))?;
+    let item = qualitative_species.next().ok_or_else(|| {
+        XmlReadingError::NoSuchAttribute("value after qualitativeSpecies".to_string())
+    })?;
 
     expect_closure_of(xml, "output")?;
 
