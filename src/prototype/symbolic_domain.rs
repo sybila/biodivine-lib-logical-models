@@ -450,11 +450,7 @@ impl SymbolicDomain<u8> for BinaryIntegerDomain<u8> {
             .iter()
             .enumerate()
             .fold(0, |acc, (idx, var)| {
-                let bit = if bdd_valuation.get_value(*var).unwrap() {
-                    1
-                } else {
-                    0
-                };
+                let bit = u8::from(bdd_valuation.get_value(*var).unwrap());
 
                 acc | (bit << idx)
             });
@@ -561,11 +557,7 @@ impl SymbolicDomain<u8> for GrayCodeIntegerDomain<u8> {
             .iter()
             .enumerate()
             .fold(0, |acc, (idx, var)| {
-                let bit = if bdd_valuation.get_value(*var).unwrap() {
-                    1
-                } else {
-                    0
-                };
+                let bit = u8::from(bdd_valuation.get_value(*var).unwrap());
 
                 acc | (bit << idx)
             });

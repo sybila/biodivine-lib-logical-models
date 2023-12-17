@@ -187,7 +187,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
         let unnormalized_res = domain
             .get_all_possible_values(&self.bdd_variable_set)
             .into_iter()
-            .fold(const_false.clone(), |acc, possible_var_val| {
+            .fold(const_false, |acc, possible_var_val| {
                 let bits_of_the_encoded_value = domain.encode_bits_into_vec(possible_var_val);
 
                 // println!("{:?}", bits_of_the_encoded_value);
@@ -430,13 +430,11 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
                         .collect::<Vec<_>>();
 
                     // must order the bit-answering bdds the way the variables are ordered in the domain
-                    let correctly_ordered_bit_answered_bdds = vars_and_their_bits
-                        .iter()
-                        .map(|(bdd_variable, _)| {
+                    let correctly_ordered_bit_answered_bdds =
+                        vars_and_their_bits.iter().map(|(bdd_variable, _)| {
                             vars_and_their_updating_bdds.get(bdd_variable).unwrap()
                             // todo here
-                        })
-                        .collect::<Vec<_>>();
+                        });
 
                     // todo abstract the function `set_of_those_states_that_transition_to_specific_value_of_specific_variable`
                     // let those_transitioning_to_target =
@@ -517,7 +515,6 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
             sym_dom.get_all_possible_values(&self.bdd_variable_set);
 
         let all_possible_values_and_their_bits = all_possible_values_of_target_var
-            .clone()
             .into_iter()
             .map(|val| (val, sym_dom.encode_bits_into_vec(val)))
             .collect::<Vec<_>>();
@@ -628,7 +625,7 @@ impl<D: SymbolicDomain<u8>> SystemUpdateFn<D, u8> {
         sym_dom
             .get_all_possible_values(&self.bdd_variable_set)
             .into_iter()
-            .fold(const_false.clone(), |_acc, one_of_possible_values| {
+            .fold(const_false, |_acc, one_of_possible_values| {
                 let bits = sym_dom.encode_bits_into_vec(one_of_possible_values);
                 let target_set_of_states_with_known_value_of_target_var = target_set_of_states
                     .select(

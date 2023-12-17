@@ -61,7 +61,7 @@ impl<D: SymbolicDomain<u8>> SmartSystemUpdateFn<D, u8> {
                     ),
                 );
 
-                let primed_name = format!("{}'", name.clone());
+                let primed_name = format!("{}'", name);
                 let primed = (
                     primed_name.clone(),
                     D::new(
@@ -2247,7 +2247,6 @@ mod tests {
         // the orderings might be fcked up -> pair the corresponding bdds of the two
         let smart_triple_sorted = {
             let mut smart_triple_sorted = smart_triple
-                .clone()
                 .into_iter()
                 .map(|(name, val, bdd)| (format!("{}-{}", name, val), bdd))
                 .collect::<Vec<_>>();
@@ -2258,7 +2257,6 @@ mod tests {
 
         let force_triple_sorted = {
             let mut force_triple_sorted = force_triple
-                .clone()
                 .into_iter()
                 .map(|(name, val, bdd)| (format!("{}-{}", name, val), bdd))
                 .collect::<Vec<_>>();

@@ -358,12 +358,12 @@ impl<BR: BufRead> XmlReader<BR> for DebuggingReader<BR> {
 
                         if self.expecting_variable_value {
                             self.expecting_variable_value = false;
-                            let actual_value = content.clone().trim().parse::<u8>().unwrap_or_else(
-                                |_| panic!(
-                                            "currently only allowing DebugReader parse u8 values; got {}",
-                                            content
+                            let actual_value = content.trim().parse::<u8>().unwrap_or_else(|_| {
+                                panic!(
+                                    "currently only allowing DebugReader parse u8 values; got {}",
+                                    content
                                 )
-                            );
+                            });
 
                             let associated_max_value = self.vars_and_their_max_values.get(
                                 &self
@@ -427,7 +427,7 @@ impl<BR: BufRead> XmlReader<BR> for CountingReader<BR> {
     fn next(&mut self) -> Result<XmlEvent, String> {
         match self.xml.next() {
             Ok(e) => {
-                match e.clone() {
+                match e {
                     XmlEvent::StartElement { .. } => {
                         self.curr_line += 1;
                     }

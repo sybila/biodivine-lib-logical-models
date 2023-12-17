@@ -121,11 +121,7 @@ where
                 namespace,
             } => {
                 return if name.local_name == expected {
-                    Ok(StartElementWrapper::new(
-                        name,
-                        attributes,
-                        namespace.clone(),
-                    ))
+                    Ok(StartElementWrapper::new(name, attributes, namespace))
                 } else {
                     Err(XmlReadingError::UnexpectedEvent {
                         expected: ExpectedXmlEvent::Start(expected.to_string()),

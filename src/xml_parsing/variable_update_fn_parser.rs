@@ -98,9 +98,7 @@ fn process_input_var_name_item<XR: XmlReader<BR>, BR: BufRead>(
 
     let item = qualitative_species
         .next()
-        .ok_or(XmlReadingError::NoSuchAttribute(
-            "qualitativeSpecies".to_string(),
-        ))?; // todo
+        .ok_or_else(|| XmlReadingError::NoSuchAttribute("qualitativeSpecies".to_string()))?; // todo
 
     expect_closure_of(xml, "input")?;
 
@@ -176,7 +174,7 @@ fn result_level_from_attributes<T: FromStr>(
         .attributes
         .iter()
         .find(|attr_name| attr_name.name.local_name == "resultLevel")
-        .ok_or(XmlReadingError::NoSuchAttribute("resultLevel".to_string()))?;
+        .ok_or_else(|| XmlReadingError::NoSuchAttribute("resultLevel".to_string()))?;
 
     attribute_with_result_lvl
         .value
