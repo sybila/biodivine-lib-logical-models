@@ -1,3 +1,0 @@
-will likely want to specify one more reserved character for the variable names; want to use that as the separator from the variable name and the index of the 'bit' of its encoding in the bdd representation
-
-SBML_Proposition should likely not return Bdd, but some wrapper that would enforcee the consumer to run .prune_invalid() on that before using it (see `sbml.py` in `trap-mvn` line 185 why this is necessary)
