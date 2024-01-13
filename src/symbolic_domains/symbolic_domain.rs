@@ -152,6 +152,8 @@ pub trait SymbolicDomainOrd<T>: SymbolicDomain<T> {
     }
 
     fn cmp(lhs: &T, rhs: &T) -> std::cmp::Ordering;
+
+    fn get_all_possible_values(&self) -> Vec<T>;
 }
 
 /// Implementation of a `SymbolicDomain` using unary integer encoding, i.e. each integer domain
@@ -265,6 +267,10 @@ impl SymbolicDomainOrd<u8> for UnaryIntegerDomain {
     fn cmp(lhs: &u8, rhs: &u8) -> std::cmp::Ordering {
         lhs.cmp(rhs)
     }
+
+    fn get_all_possible_values(&self) -> Vec<u8> {
+        (0..=self.variables.len() as u8).collect() // notice the inclusive range; n values is represented by n-1 bdd variables
+    }
 }
 
 #[derive(Debug)]
@@ -353,6 +359,10 @@ impl SymbolicDomainOrd<u8> for PetriNetIntegerDomain {
 
     fn cmp(lhs: &u8, rhs: &u8) -> std::cmp::Ordering {
         lhs.cmp(rhs)
+    }
+
+    fn get_all_possible_values(&self) -> Vec<u8> {
+        (0..self.variables.len() as u8).collect() // notice the exclusive range; n values is represented by n bdd variables
     }
 }
 
@@ -456,6 +466,10 @@ impl SymbolicDomainOrd<u8> for BinaryIntegerDomain<u8> {
 
     fn cmp(lhs: &u8, rhs: &u8) -> std::cmp::Ordering {
         lhs.cmp(rhs)
+    }
+
+    fn get_all_possible_values(&self) -> Vec<u8> {
+        (0..=self.max_value).collect()
     }
 }
 
@@ -580,5 +594,9 @@ impl SymbolicDomainOrd<u8> for GrayCodeIntegerDomain<u8> {
 
     fn cmp(lhs: &u8, rhs: &u8) -> std::cmp::Ordering {
         lhs.cmp(rhs)
+    }
+
+    fn get_all_possible_values(&self) -> Vec<u8> {
+        (0..=self.max_value).collect()
     }
 }

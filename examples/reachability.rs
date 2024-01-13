@@ -1,5 +1,9 @@
 use biodivine_lib_logical_models::benchmarks::reachability::reachability_benchmark;
-use biodivine_lib_logical_models::prelude::old_symbolic_domain::{
+// use biodivine_lib_logical_models::prelude::old_symbolic_domain::{
+//     BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain, UnaryIntegerDomain,
+// };
+
+use biodivine_lib_logical_models::prelude::symbolic_domain::{
     BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain, UnaryIntegerDomain,
 };
 

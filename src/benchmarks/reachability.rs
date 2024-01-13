@@ -1,12 +1,16 @@
 use biodivine_lib_bdd::Bdd;
 use std::fmt::Debug;
 
-use crate::{
-    prototype::symbolic_domain::SymbolicDomain,
-    prototype::{count_states, find_start_of, log_percent, pick_state_bdd, SmartSystemUpdateFn},
-};
+// use crate::{
+//     prototype::symbolic_domain::SymbolicDomain,
+//     prototype::{count_states, find_start_of, log_percent, pick_state_bdd, SmartSystemUpdateFn},
+// };
 
-pub fn reachability_benchmark<D: SymbolicDomain<u8> + Debug>(sbml_path: &str) {
+use crate::symbolic_domains::symbolic_domain::SymbolicDomainOrd;
+use crate::update::update_fn::SmartSystemUpdateFn;
+use crate::utils::{count_states, find_start_of, log_percent, pick_state_bdd};
+
+pub fn reachability_benchmark<D: SymbolicDomainOrd<u8> + Debug>(sbml_path: &str) {
     let smart_system_update_fn = {
         let file = std::fs::File::open(sbml_path).expect("Cannot open SBML file.");
         let reader = std::io::BufReader::new(file);
@@ -68,7 +72,7 @@ pub fn reachability_benchmark<D: SymbolicDomain<u8> + Debug>(sbml_path: &str) {
 ///
 /// The result BDD contains a vertex `x` if and only if there is a (possibly zero-length) path
 /// from some vertex `x' \in initial` into `x`, i.e. `x' -> x`.
-pub fn reach_fwd<D: SymbolicDomain<u8> + Debug>(
+pub fn reach_fwd<D: SymbolicDomainOrd<u8> + Debug>(
     system: &SmartSystemUpdateFn<D, u8>,
     initial: &Bdd,
     universe: &Bdd,
@@ -84,7 +88,7 @@ pub fn reach_fwd<D: SymbolicDomain<u8> + Debug>(
     );
     'fwd: loop {
         for var in sorted_variables.iter().rev() {
-            let successors = system.transition_under_variable(var.as_str(), &result);
+            let successors = system.successors_async(var.as_str(), &result);
 
             // Should be equivalent to "successors \not\subseteq result".
             if !successors.imp(&result).is_true() {
@@ -113,7 +117,7 @@ pub fn reach_fwd<D: SymbolicDomain<u8> + Debug>(
 ///
 /// The result BDD contains a vertex `x` if and only if there is a (possibly zero-length) path
 /// from `x` into some vertex `x' \in initial`, i.e. `x -> x'`.
-pub fn reach_bwd<D: SymbolicDomain<u8> + Debug>(
+pub fn reach_bwd<D: SymbolicDomainOrd<u8> + Debug>(
     system: &SmartSystemUpdateFn<D, u8>,
     initial: &Bdd,
     universe: &Bdd,
@@ -127,7 +131,7 @@ pub fn reach_bwd<D: SymbolicDomain<u8> + Debug>(
     );
     'bwd: loop {
         for var in sorted_variables.iter().rev() {
-            let predecessors = system.predecessors_under_variable(var.as_str(), &result);
+            let predecessors = system.predecessors_async(var.as_str(), result.to_owned());
 
             // Should be equivalent to "predecessors \not\subseteq result".
             if !predecessors.imp(&result).is_true() {

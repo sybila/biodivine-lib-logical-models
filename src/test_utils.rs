@@ -2,16 +2,14 @@ use biodivine_lib_bdd::Bdd;
 use num_bigint::BigInt;
 use std::fmt::Debug;
 
-use crate::{
-    prototype::symbolic_domain::{
-        BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain, SymbolicDomain,
-        UnaryIntegerDomain,
-    },
-    prototype::{
-        count_states_exact, encode_state_map, find_start_of, pick_state_map, SmartSystemUpdateFn,
-    },
+use crate::utils::{count_states_exact, encode_state_map, find_start_of, pick_state_map};
+
+use crate::symbolic_domains::symbolic_domain::{
+    BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain, SymbolicDomain,
+    SymbolicDomainOrd, UnaryIntegerDomain,
 };
-// use crate::{BinaryIntegerDomain, count_states_exact, encode_state_map, find_start_of, GrayCodeIntegerDomain, PetriNetIntegerDomain, pick_state_map, SmartSystemUpdateFn, SymbolicDomain, UnaryIntegerDomain};
+
+use crate::update::update_fn::SmartSystemUpdateFn;
 
 pub struct ComputationStep {
     steps: usize,
@@ -31,14 +29,14 @@ pub struct ComputationStep {
 
 /// Perform one step of backward reachability procedure. Returns either a new [Bdd] value, or
 /// `None` if no new predecessors can be included.
-fn bwd_step<D: SymbolicDomain<u8> + Debug>(
+fn bwd_step<D: SymbolicDomainOrd<u8> + Debug>(
     system: &SmartSystemUpdateFn<D, u8>,
     set: &Bdd,
 ) -> Option<Bdd> {
     let sorted_variables = system.get_system_variables();
 
     for var in sorted_variables.iter().rev() {
-        let predecessors = system.predecessors_under_variable(var.as_str(), set);
+        let predecessors = system.predecessors_async(var.as_str(), set.to_owned());
 
         // Should be equivalent to "predecessors \not\subseteq result".
         if !predecessors.imp(set).is_true() {
@@ -51,14 +49,14 @@ fn bwd_step<D: SymbolicDomain<u8> + Debug>(
 }
 
 /// The same as [bwd_step], but goes forwards, not backward.
-fn fwd_step<D: SymbolicDomain<u8> + Debug>(
+fn fwd_step<D: SymbolicDomainOrd<u8> + Debug>(
     system: &SmartSystemUpdateFn<D, u8>,
     set: &Bdd,
 ) -> Option<Bdd> {
     let sorted_variables = system.get_system_variables();
 
     for var in sorted_variables.iter().rev() {
-        let successors = system.transition_under_variable(var.as_str(), set);
+        let successors = system.successors_async(var.as_str(), set);
 
         // Should be equivalent to "predecessors \not\subseteq result".
         if !successors.imp(set).is_true() {
@@ -71,7 +69,9 @@ fn fwd_step<D: SymbolicDomain<u8> + Debug>(
 }
 
 /// A generic function that builds [SmartSystemUpdateFn] from an SBML file.
-fn build_update_fn<D: SymbolicDomain<u8> + Debug>(sbml_path: &str) -> SmartSystemUpdateFn<D, u8> {
+fn build_update_fn<D: SymbolicDomainOrd<u8> + Debug>(
+    sbml_path: &str,
+) -> SmartSystemUpdateFn<D, u8> {
     let file = std::fs::File::open(sbml_path).expect("Cannot open SBML file.");
     let reader = std::io::BufReader::new(file);
     let mut xml = xml::reader::EventReader::new(reader);
@@ -79,7 +79,7 @@ fn build_update_fn<D: SymbolicDomain<u8> + Debug>(sbml_path: &str) -> SmartSyste
     find_start_of(&mut xml, "listOfTransitions")
         .expect("Cannot find transitions in the SBML file.");
 
-    SmartSystemUpdateFn::<D, u8>::try_from_xml(&mut xml).expect("Loading system fn update failed.")
+    SmartSystemUpdateFn::try_from_xml(&mut xml).expect("Loading system fn update failed.")
 }
 
 impl ComputationStep {

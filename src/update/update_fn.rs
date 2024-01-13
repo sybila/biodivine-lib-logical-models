@@ -25,6 +25,25 @@ where
     pub cache: Vec<String>, // todo do not keep at all; just here for testing/debug
 }
 
+// impl<D, T> SystemUpdateFn<D, T>
+// where
+//     D: SymbolicDomain<T>,
+// {
+//     pub fn standard_variables(&self) -> Vec<BddVariable> {
+//         self.update_fns
+//             .iter()
+//             .flat_map(|update_fn| {
+//                 update_fn
+//                     .1
+//                      .0
+//                     .bit_answering_bdds
+//                     .iter()
+//                     .map(|(var, _)| *var)
+//             })
+//             .collect()
+//     }
+// }
+
 impl<DO, T> SystemUpdateFn<DO, T>
 where
     DO: SymbolicDomainOrd<T>,
@@ -367,6 +386,76 @@ where
 //         &self.0
 //     }
 // }
+
+impl<D, T> SmartSystemUpdateFn<D, T>
+where
+    D: SymbolicDomain<T>,
+{
+    /// Returns a list of [BddVariable]-s corresponding to the encoding of the standard
+    /// (i.e. "un-primed") system variables.
+    pub fn standard_variables(&self) -> Vec<BddVariable> {
+        self.variables_transition_relation_and_domain
+            .iter()
+            .flat_map(|it| it.1.domain.raw_bdd_variables())
+            .collect()
+    }
+
+    pub fn standard_domains(&self) -> Vec<&D> {
+        self.variables_transition_relation_and_domain
+            .iter()
+            .map(|it| &it.1.domain)
+            .collect()
+    }
+
+    pub fn standard_variables_names_and_domains(&self) -> Vec<(&str, &D)> {
+        self.variables_transition_relation_and_domain
+            .iter()
+            .map(|(name, info)| (name.as_str(), &info.domain))
+            .collect()
+    }
+
+    /// Returns a list of [BddVariable]-s corresponding to the encoding of the "primed"
+    /// system variables.
+    pub fn primed_variables(&self) -> Vec<BddVariable> {
+        self.variables_transition_relation_and_domain
+            .iter()
+            .flat_map(|it| it.1.primed_domain.raw_bdd_variables())
+            .collect()
+    }
+
+    pub fn get_bdd_variable_set(&self) -> &BddVariableSet {
+        &self.bdd_variable_set
+    }
+
+    /// The list of system variables, sorted in ascending order (i.e. the order in which they
+    /// also appear within the BDDs).1
+    pub fn get_system_variables(&self) -> Vec<String> {
+        self.variables_transition_relation_and_domain
+            .iter()
+            .map(|(var_name, _)| var_name.to_owned())
+            .collect()
+    }
+
+    pub fn get_domain(&self, variable_name: &str) -> Option<&D> {
+        self.mapper
+            .get(variable_name)
+            .map(|idx| &self.variables_transition_relation_and_domain[*idx].1.domain)
+    }
+
+    /// Compute the [Bdd] which represents the set of all vertices admissible in this
+    /// [SmartSystemUpdateFn]. Normally, this would just be the `true` BDD, but if the
+    /// encoding contains some invalid values, these need to be excluded.
+    ///
+    /// Note that this only concerns the "standard" system variables. The resulting BDD
+    /// does not depend on the "primed" system variables.
+    pub fn unit_vertex_set(&self) -> Bdd {
+        self.variables_transition_relation_and_domain
+            .iter()
+            .fold(self.bdd_variable_set.mk_true(), |acc, it| {
+                acc.and(&it.1.domain.unit_collection(&self.bdd_variable_set))
+            })
+    }
+}
 
 impl<DO, T> SmartSystemUpdateFn<DO, T>
 where
