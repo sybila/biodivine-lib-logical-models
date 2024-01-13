@@ -1,25 +1,25 @@
 #![allow(dead_code)]
 
 use biodivine_lib_bdd::Bdd;
-use biodivine_lib_logical_models::prelude as bio;
+use biodivine_lib_logical_models::prelude::{
+    self as bio,
+    symbolic_domain::{
+        BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain, SymbolicDomainOrd,
+        UnaryIntegerDomain,
+    },
+};
 
-// type OldDomain = bio::old_symbolic_domain::BinaryIntegerDomain<u8>;
-type NewDomain = bio::symbolic_domain::BinaryIntegerDomain<u8>;
-
-// struct TheFourImpls<D, OD>
-// todo the two impls
-struct TheFourImpls<D>
+struct TheTwoImpls<DO>
 where
-    D: bio::symbolic_domain::SymbolicDomainOrd<u8>,
+    DO: bio::symbolic_domain::SymbolicDomainOrd<u8>,
 {
-    new_dumb: bio::update_fn::SystemUpdateFn<D, u8>,
-    new_smart: bio::update_fn::SmartSystemUpdateFn<D, u8>,
+    new_dumb: bio::update_fn::SystemUpdateFn<DO, u8>,
+    new_smart: bio::update_fn::SmartSystemUpdateFn<DO, u8>,
 }
 
-// impl<D, OD> TheFourImpls<D, OD>
-impl<D> TheFourImpls<D>
+impl<DO> TheTwoImpls<DO>
 where
-    D: bio::symbolic_domain::SymbolicDomainOrd<u8>,
+    DO: bio::symbolic_domain::SymbolicDomainOrd<u8>,
 {
     fn encode_one(&self, variable_name: &str, value: u8) -> TheFourImplsBdd {
         TheFourImplsBdd {
@@ -56,9 +56,9 @@ struct TheFourImplsBdd {
 }
 
 impl TheFourImplsBdd {
-    fn are_same<D>(&self, context: &TheFourImpls<D>) -> bool
+    fn are_same<DO>(&self, context: &TheTwoImpls<DO>) -> bool
     where
-        D: bio::symbolic_domain::SymbolicDomainOrd<u8>,
+        DO: bio::symbolic_domain::SymbolicDomainOrd<u8>,
     {
         let new_dumb_dot = context.new_dumb.bdd_to_dot_string(&self.new_dumb_bdd);
         let new_smart_dot = context.new_smart.bdd_to_dot_string(&self.new_smart_bdd);
@@ -67,23 +67,24 @@ impl TheFourImplsBdd {
     }
 }
 
-// impl TheFourImpls<NewDomain, OldDomain> {
-impl TheFourImpls<NewDomain> {
+impl<DO> TheTwoImpls<DO>
+where
+    DO: SymbolicDomainOrd<u8>,
+{
     fn from_path(sbml_path: &str) -> Self {
         let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
             std::fs::File::open(sbml_path).expect("should be able to open file"),
         ));
         bio::find_start_of(&mut xml, "listOfTransitions").expect("should be able to find");
-        let new_dumb = bio::update_fn::SystemUpdateFn::<NewDomain, u8>::try_from_xml(&mut xml)
+        let new_dumb = bio::update_fn::SystemUpdateFn::<DO, u8>::try_from_xml(&mut xml)
             .expect("should be able to parse");
 
         let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
             std::fs::File::open(sbml_path).expect("should be able to open file"),
         ));
         bio::find_start_of(&mut xml, "listOfTransitions").expect("should be able to find");
-        let new_smart =
-            bio::update_fn::SmartSystemUpdateFn::<NewDomain, u8>::try_from_xml(&mut xml)
-                .expect("should be able to parse");
+        let new_smart = bio::update_fn::SmartSystemUpdateFn::<DO, u8>::try_from_xml(&mut xml)
+            .expect("should be able to parse");
 
         Self {
             new_dumb,
@@ -91,7 +92,6 @@ impl TheFourImpls<NewDomain> {
         }
     }
 
-    // fn async_successors(&self)
     fn successors_async(
         &self,
         transition_variable_name: &str,
@@ -130,8 +130,12 @@ impl TheFourImpls<NewDomain> {
     }
 }
 
-#[test]
-fn consistency_check() {
+/// funciton to compare the two implementations;
+/// in the future, the generics should likely be more flexible (not necessarily `u8`)
+fn consistency_check<DO>()
+where
+    DO: SymbolicDomainOrd<u8>,
+{
     std::fs::read_dir("data/large")
         .expect("could not read dir")
         .for_each(|dirent| {
@@ -140,7 +144,7 @@ fn consistency_check() {
 
             println!("dataset {}", filepath);
 
-            let the_four = TheFourImpls::<NewDomain>::from_path(filepath);
+            let the_four = TheTwoImpls::<DO>::from_path(filepath);
 
             // vector of bdds, one for each value of each variable
             let simple_initial_states = the_four.bbd_for_each_value_of_each_variable();
@@ -173,9 +177,12 @@ fn consistency_check() {
         });
 }
 
-// todo factor out the functionality, provide type parameter for the method -> test for each domain implementation calling the same underlying method
-#[test]
-fn predecessors_consistency_check() {
+/// funciton to compare the two implementations;
+/// in the future, the generics should likely be more flexible (not necessarily `u8`)
+fn predecessors_consistency_check<DO>()
+where
+    DO: SymbolicDomainOrd<u8>,
+{
     std::fs::read_dir("data/large")
         .expect("could not read dir")
         .for_each(|dirent| {
@@ -184,7 +191,7 @@ fn predecessors_consistency_check() {
 
             println!("dataset {}", filepath);
 
-            let the_four = TheFourImpls::<NewDomain>::from_path(filepath);
+            let the_four = TheTwoImpls::<DO>::from_path(filepath);
 
             let simple_initial_states = the_four.bbd_for_each_value_of_each_variable();
 
@@ -213,4 +220,44 @@ fn predecessors_consistency_check() {
                 assert!(transitioned.are_same(&the_four), "all are same");
             }
         });
+}
+
+#[test]
+fn test_consistency_successosr_unary() {
+    consistency_check::<UnaryIntegerDomain>();
+}
+
+#[test]
+fn test_consistency_successosr_binary() {
+    consistency_check::<BinaryIntegerDomain<u8>>();
+}
+
+#[test]
+fn test_consistency_successosr_petri_net() {
+    consistency_check::<PetriNetIntegerDomain>();
+}
+
+#[test]
+fn test_consistency_successosr_gray() {
+    consistency_check::<GrayCodeIntegerDomain<u8>>();
+}
+
+#[test]
+fn test_consistency_predecessors_unary() {
+    predecessors_consistency_check::<UnaryIntegerDomain>();
+}
+
+#[test]
+fn test_consistency_predecessors_binary() {
+    predecessors_consistency_check::<BinaryIntegerDomain<u8>>();
+}
+
+#[test]
+fn test_consistency_predecessors_petri_net() {
+    predecessors_consistency_check::<PetriNetIntegerDomain>();
+}
+
+#[test]
+fn test_consistency_predecessors_gray() {
+    predecessors_consistency_check::<GrayCodeIntegerDomain<u8>>();
 }
