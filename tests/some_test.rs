@@ -11,10 +11,7 @@ type NewDomain = bio::symbolic_domain::BinaryIntegerDomain<u8>;
 struct TheFourImpls<D>
 where
     D: bio::symbolic_domain::SymbolicDomainOrd<u8>,
-    // OD: bio::old_symbolic_domain::SymbolicDomain<u8>,
 {
-    // old_dumb: bio::old_update_fn::SystemUpdateFn<OD, u8>,
-    // old_smart: bio::old_update_fn::SmartSystemUpdateFn<OD, u8>,
     new_dumb: bio::update_fn::SystemUpdateFn<D, u8>,
     new_smart: bio::update_fn::SmartSystemUpdateFn<D, u8>,
 }
@@ -23,12 +20,9 @@ where
 impl<D> TheFourImpls<D>
 where
     D: bio::symbolic_domain::SymbolicDomainOrd<u8>,
-    // OD: bio::old_symbolic_domain::SymbolicDomain<u8>,
 {
     fn encode_one(&self, variable_name: &str, value: u8) -> TheFourImplsBdd {
         TheFourImplsBdd {
-            // old_dumb_bdd: self.old_dumb.encode_one(variable_name, value),
-            // old_smart_bdd: self.old_smart.encode_one(variable_name, value),
             new_dumb_bdd: self.new_dumb.encode_one(variable_name, &value),
             new_smart_bdd: self.new_smart.encode_one(variable_name, &value),
         }
@@ -38,16 +32,10 @@ where
         let mut res = Vec::new();
         for (name, domain) in self.new_smart.standard_variables_names_and_domains().iter() {
             for value in domain.get_all_possible_values() {
-                // res.push(self.encode_one(name, value));
-
-                // let old_dumb_bdd = self.old_dumb.encode_one(name, value);
-                // let old_smart_bdd = self.old_smart.encode_one(name, value);
                 let new_dumb_bdd = self.new_dumb.encode_one(name, &value);
                 let new_smart_bdd = self.new_smart.encode_one(name, &value);
 
                 let the_four_impls_bdd = TheFourImplsBdd {
-                    // old_dumb_bdd,
-                    // old_smart_bdd,
                     new_dumb_bdd,
                     new_smart_bdd,
                 };
@@ -63,98 +51,25 @@ where
 /// that can be passed to `TheFourImpls`, which handles
 /// the transitions
 struct TheFourImplsBdd {
-    // old_dumb_bdd: Bdd,
-    // old_smart_bdd: Bdd,
     new_dumb_bdd: Bdd,
     new_smart_bdd: Bdd,
 }
 
 impl TheFourImplsBdd {
-    // fn are_same<D, OD>(&self, context: &TheFourImpls<D, OD>) -> bool
     fn are_same<D>(&self, context: &TheFourImpls<D>) -> bool
     where
         D: bio::symbolic_domain::SymbolicDomainOrd<u8>,
-        // OD: bio::old_symbolic_domain::SymbolicDomain<u8>,
     {
-        // let old_dumb_dot = context.old_dumb.bdd_to_dot_string(&self.old_dumb_bdd);
-        // let old_smart_dot = context.old_smart.bdd_to_dot_string(&self.old_smart_bdd);
         let new_dumb_dot = context.new_dumb.bdd_to_dot_string(&self.new_dumb_bdd);
         let new_smart_dot = context.new_smart.bdd_to_dot_string(&self.new_smart_bdd);
 
-        // old_dumb_dot == old_smart_dot
-        //     && old_dumb_dot == new_dumb_dot
-        //     && old_dumb_dot == new_smart_dot
-
         new_dumb_dot == new_smart_dot
     }
-
-    // // todo remove this as the `old` implementation is removed
-    // fn old_are_same<D, OD>(&self, context: &TheFourImpls<D, OD>) -> bool
-    // where
-    //     D: bio::symbolic_domain::SymbolicDomainOrd<u8>,
-    //     OD: bio::old_symbolic_domain::SymbolicDomain<u8>,
-    // {
-    //     let old_dumb_dot = context.old_dumb.bdd_to_dot_string(&self.old_dumb_bdd);
-    //     let old_smart_dot = context.old_smart.bdd_to_dot_string(&self.old_smart_bdd);
-
-    //     old_dumb_dot == old_smart_dot
-    // }
-
-    // // todo rename; once `old` removed, there is no `new`
-    // fn new_are_same<D, OD>(&self, context: &TheFourImpls<D, OD>) -> bool
-    // where
-    //     D: bio::symbolic_domain::SymbolicDomainOrd<u8>,
-    //     OD: bio::old_symbolic_domain::SymbolicDomain<u8>,
-    // {
-    //     let new_dumb_dot = context.new_dumb.bdd_to_dot_string(&self.new_dumb_bdd);
-    //     let new_smart_dot = context.new_smart.bdd_to_dot_string(&self.new_smart_bdd);
-
-    //     new_dumb_dot == new_smart_dot
-    // }
-
-    // // todo remove this as the `old` implementation is removed
-    // fn smart_are_same<D, OD>(&self, context: &TheFourImpls<D, OD>) -> bool
-    // where
-    //     D: bio::symbolic_domain::SymbolicDomainOrd<u8>,
-    //     OD: bio::old_symbolic_domain::SymbolicDomain<u8>,
-    // {
-    //     let old_smart_dot = context.old_smart.bdd_to_dot_string(&self.old_smart_bdd);
-    //     let new_smart_dot = context.new_smart.bdd_to_dot_string(&self.new_smart_bdd);
-
-    //     old_smart_dot == new_smart_dot
-    // }
-
-    // // todo remove this as the `old` implementation is removed
-    // fn dumb_are_same<D, OD>(&self, context: &TheFourImpls<D, OD>) -> bool
-    // where
-    //     D: bio::symbolic_domain::SymbolicDomainOrd<u8>,
-    //     OD: bio::old_symbolic_domain::SymbolicDomain<u8>,
-    // {
-    //     let old_dumb_dot = context.old_dumb.bdd_to_dot_string(&self.old_dumb_bdd);
-    //     let new_dumb_dot = context.new_dumb.bdd_to_dot_string(&self.new_dumb_bdd);
-
-    //     old_dumb_dot == new_dumb_dot
-    // }
 }
 
 // impl TheFourImpls<NewDomain, OldDomain> {
 impl TheFourImpls<NewDomain> {
     fn from_path(sbml_path: &str) -> Self {
-        // let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
-        //     std::fs::File::open(sbml_path).expect("should be able to open file"),
-        // ));
-        // bio::find_start_of(&mut xml, "listOfTransitions").expect("should be able to find");
-        // let old_dumb = bio::old_update_fn::SystemUpdateFn::<OldDomain, u8>::try_from_xml(&mut xml)
-        //     .expect("should be able to parse");
-
-        // let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
-        //     std::fs::File::open(sbml_path).expect("should be able to open file"),
-        // ));
-        // bio::find_start_of(&mut xml, "listOfTransitions").expect("should be able to find");
-        // let old_smart =
-        //     bio::old_update_fn::SmartSystemUpdateFn::<OldDomain, u8>::try_from_xml(&mut xml)
-        //         .expect("should be able to parse");
-
         let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
             std::fs::File::open(sbml_path).expect("should be able to open file"),
         ));
@@ -171,8 +86,6 @@ impl TheFourImpls<NewDomain> {
                 .expect("should be able to parse");
 
         Self {
-            // old_dumb,
-            // old_smart,
             new_dumb,
             new_smart,
         }
@@ -184,12 +97,6 @@ impl TheFourImpls<NewDomain> {
         transition_variable_name: &str,
         source_states_set: &TheFourImplsBdd,
     ) -> TheFourImplsBdd {
-        // let old_dumb = self
-        //     .old_dumb
-        //     .transition_under_variable(transition_variable_name, &source_states_set.old_dumb_bdd);
-        // let old_smart = self
-        //     .old_smart
-        //     .transition_under_variable(transition_variable_name, &source_states_set.old_smart_bdd);
         let new_dumb = self
             .new_dumb
             .successors_async(transition_variable_name, &source_states_set.new_dumb_bdd);
@@ -198,8 +105,6 @@ impl TheFourImpls<NewDomain> {
             .successors_async(transition_variable_name, &source_states_set.new_smart_bdd);
 
         TheFourImplsBdd {
-            // old_dumb_bdd: old_dumb,
-            // old_smart_bdd: old_smart,
             new_dumb_bdd: new_dumb,
             new_smart_bdd: new_smart,
         }
@@ -210,13 +115,6 @@ impl TheFourImpls<NewDomain> {
         transition_variable_name: &str,
         source_states_set: &TheFourImplsBdd,
     ) -> TheFourImplsBdd {
-        // let old_dumb = self
-        //     .old_dumb
-        //     .predecessors_attempt_2(transition_variable_name, &source_states_set.old_dumb_bdd);
-        // let old_smart = self.old_smart.predecessors_under_variable(
-        //     transition_variable_name,
-        //     &source_states_set.old_smart_bdd,
-        // );
         let new_dumb = self
             .new_dumb
             .predecessors_async(transition_variable_name, &source_states_set.new_dumb_bdd);
@@ -226,8 +124,6 @@ impl TheFourImpls<NewDomain> {
         );
 
         TheFourImplsBdd {
-            // old_dumb_bdd: old_dumb,
-            // old_smart_bdd: old_smart,
             new_dumb_bdd: new_dumb,
             new_smart_bdd: new_smart,
         }
