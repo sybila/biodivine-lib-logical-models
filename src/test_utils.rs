@@ -2,11 +2,13 @@ use biodivine_lib_bdd::Bdd;
 use num_bigint::BigInt;
 use std::fmt::Debug;
 
-use crate::utils::{count_states_exact, encode_state_map, find_start_of, pick_state_map};
+use crate::utils::{count_states_exact, encode_state_map, pick_state_map};
+
+use crate::xml_parsing::utils::find_start_of;
 
 use crate::symbolic_domains::symbolic_domain::{
-    BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain, SymbolicDomain,
-    SymbolicDomainOrd, UnaryIntegerDomain,
+    BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain, SymbolicDomainOrd,
+    UnaryIntegerDomain,
 };
 
 use crate::update::update_fn::SmartSystemUpdateFn;

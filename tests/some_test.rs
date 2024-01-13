@@ -1,11 +1,7 @@
 #![allow(dead_code)]
 
 use biodivine_lib_bdd::Bdd;
-use biodivine_lib_logical_models::prelude::{
-    self as bio,
-    //  old_symbolic_domain::SymbolicDomain,
-    symbolic_domain::SymbolicDomain as _,
-};
+use biodivine_lib_logical_models::prelude as bio;
 
 // type OldDomain = bio::old_symbolic_domain::BinaryIntegerDomain<u8>;
 type NewDomain = bio::symbolic_domain::BinaryIntegerDomain<u8>;

@@ -8,7 +8,8 @@ use std::fmt::Debug;
 
 use crate::symbolic_domains::symbolic_domain::SymbolicDomainOrd;
 use crate::update::update_fn::SmartSystemUpdateFn;
-use crate::utils::{count_states, find_start_of, log_percent, pick_state_bdd};
+use crate::utils::{count_states, log_percent, pick_state_bdd};
+use crate::xml_parsing::utils::find_start_of;
 
 pub fn reachability_benchmark<D: SymbolicDomainOrd<u8> + Debug>(sbml_path: &str) {
     let smart_system_update_fn = {
