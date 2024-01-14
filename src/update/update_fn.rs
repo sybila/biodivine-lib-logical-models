@@ -2,7 +2,9 @@
 
 use std::{collections::HashMap, fmt::Debug};
 
-use biodivine_lib_bdd::{Bdd, BddVariable, BddVariableSet, BddVariableSetBuilder};
+use biodivine_lib_bdd::{
+    Bdd, BddPartialValuation, BddVariable, BddVariableSet, BddVariableSetBuilder,
+};
 
 use crate::{
     expression_components::{expression::Expression, proposition::Proposition},
@@ -19,38 +21,16 @@ where
     D: SymbolicDomain<T>,
 {
     /// ordered by variable name // todo add a method to get the update function by name (hash map or binary search)
-    pub update_fns: Vec<(String, (VariableUpdateFn, D))>, // todo do not keep pub; just here for testing
-    pub bdd_variable_set: DebugIgnore<BddVariableSet>, // todo do not keep pub
+    update_fns: Vec<(String, (VariableUpdateFn, D))>,
+    bdd_variable_set: DebugIgnore<BddVariableSet>,
     _marker: std::marker::PhantomData<T>,
-    pub cache: Vec<String>, // todo do not keep at all; just here for testing/debug
 }
-
-// impl<D, T> SystemUpdateFn<D, T>
-// where
-//     D: SymbolicDomain<T>,
-// {
-//     pub fn standard_variables(&self) -> Vec<BddVariable> {
-//         self.update_fns
-//             .iter()
-//             .flat_map(|update_fn| {
-//                 update_fn
-//                     .1
-//                      .0
-//                     .bit_answering_bdds
-//                     .iter()
-//                     .map(|(var, _)| *var)
-//             })
-//             .collect()
-//     }
-// }
 
 impl<DO, T> SystemUpdateFn<DO, T>
 where
     DO: SymbolicDomainOrd<T>,
-    T: Debug,
 {
     pub fn from_update_fns(
-        // todo do not forget to add default update functions for those variables that are not updated (in the loader from xml)
         vars_and_their_update_fns: HashMap<String, UnprocessedVariableUpdateFn<T>>,
     ) -> Self {
         let named_update_fns_sorted = {
@@ -58,24 +38,6 @@ where
             to_be_sorted.sort_unstable_by_key(|(var_name, _)| var_name.clone());
             to_be_sorted
         };
-
-        let cache = named_update_fns_sorted
-            .iter()
-            .filter(|(var_name, _)| var_name == "Net1")
-            // .map(|(var_name, update_fn)| format!("{}, update_fn: {:?}", var_name, update_fn))
-            .map(|(var_name, update_fn)| {
-                format!(
-                    "{}, update_fn: {:?}, default: {:?}",
-                    var_name,
-                    update_fn
-                        .terms
-                        .iter()
-                        .map(|(output, _)| output)
-                        .collect::<Vec<_>>(),
-                    update_fn.default
-                )
-            })
-            .collect::<Vec<_>>();
 
         let (symbolic_domains, bdd_variable_set) = {
             let max_values = find_max_values::<DO, T>(&named_update_fns_sorted);
@@ -124,7 +86,6 @@ where
             update_fns: the_triple,
             bdd_variable_set: bdd_variable_set.into(),
             _marker: std::marker::PhantomData,
-            cache,
         }
     }
 
@@ -166,11 +127,6 @@ where
             .map(|value| domain.raw_bdd_variables_encode(&value))
             .collect::<Vec<_>>();
 
-        if transition_variable_name == "Net1" {
-            println!("allowed bits: {:?}", each_allowed_value_bit_encoded);
-        }
-
-        // todo remove this; unit_collection should be cached somehow (or otherwise optimize this)
         let unit_collection = self
             .update_fns
             .iter()
@@ -178,14 +134,9 @@ where
                 acc.and(&domain.unit_collection(&self.bdd_variable_set))
             });
 
-        if transition_variable_name == "Net1" {
-            println!("unit collection: {:?}", unit_collection);
-        }
-
-        let unpruned_res = each_allowed_value_bit_encoded
-            .into_iter()
-            // todo bit_answering_bdds must be in the same order as the bits received from `raw_bdd_variables_encode`
-            .fold(self.bdd_variable_set.mk_false(), |acc, val_bits| {
+        let unpruned_res = each_allowed_value_bit_encoded.into_iter().fold(
+            self.bdd_variable_set.mk_false(),
+            |acc, val_bits| {
                 let any_state_capable_of_transitioning_into_target_value = update_fn
                     .bit_answering_bdds
                     .iter()
@@ -207,8 +158,7 @@ where
 
                 let with_forgotten_values =
                     those_from_source_capable_of_transitioning_into_target_value
-                        // todo there are two ways of accessing the variables; like this or from `update_fn`
-                        .exists(domain.raw_bdd_variables().as_slice()); // todo ensure correct ordering (& ideally that this ordering is from the topmost bdd variable to the bottommost)
+                        .exists(domain.raw_bdd_variables().as_slice());
 
                 let transitioned = with_forgotten_values.select(
                     domain
@@ -220,7 +170,8 @@ where
                 );
 
                 acc.or(&transitioned)
-            });
+            },
+        );
 
         unpruned_res.and(&unit_collection)
     }
@@ -294,7 +245,6 @@ where
                     acc.and(&domain.unit_collection(&self.bdd_variable_set))
                 });
 
-            // todo must also check the anding with the unit collection (much like in successors)
             let any_state_capable_of_transitioning_into_target_value =
                 update_fn.bit_answering_bdds.iter().zip(&val_bits).fold(
                     // self.bdd_variable_set.mk_true(),
@@ -321,11 +271,11 @@ where
     /// of another state from `source_states`).
     pub fn predecessors_async_exclude_loops(
         &self,
-        transition_variable_name: &str, // todo naming of those
+        variable_name: &str,
         source_states: &Bdd,
     ) -> Bdd {
-        self.predecessors_async(transition_variable_name, source_states)
-            .and(&self.those_states_capable_of_transitioning_under(transition_variable_name))
+        self.predecessors_async(variable_name, source_states)
+            .and(&self.those_states_capable_of_transitioning_under(variable_name))
     }
 
     fn those_states_capable_of_transitioning_under(&self, _variable_name: &str) -> Bdd {
@@ -345,13 +295,12 @@ where
     }
 }
 
-pub struct VarInfo<D, T>
-// todo do not keep pub; just for benchmarks
+struct VarInfo<D, T>
 where
     D: SymbolicDomain<T>,
 {
     primed_name: String,
-    pub domain: D, // todo do not keep pub; just for benchmarks
+    domain: D,
     primed_domain: D,
     transition_relation: Bdd,
     _marker: std::marker::PhantomData<T>,
@@ -361,11 +310,10 @@ pub struct SmartSystemUpdateFn<D, T>
 where
     D: SymbolicDomain<T>,
 {
-    /// ordered by variable name // todo add a method to get the update function by name (hash map or binary search)
     /// maps variable name to its index in the `variables_transition_relation_and_domain` vector to allow for fast access while keeping the vector sorted
     mapper: HashMap<String, usize>,
-    pub variables_transition_relation_and_domain: Vec<(String, VarInfo<D, T>)>, // todo do not keep pub; just here for benchmarking
-    pub bdd_variable_set: BddVariableSet, // todo do not keep pub; just here for testing
+    variables_transition_relation_and_domain: Vec<(String, VarInfo<D, T>)>,
+    bdd_variable_set: BddVariableSet,
     _marker: std::marker::PhantomData<T>,
 }
 
@@ -455,6 +403,35 @@ where
                 acc.and(&it.1.domain.unit_collection(&self.bdd_variable_set))
             })
     }
+
+    /// Compute an (approximate) count of state in the given `set` using the encoding of `system`.
+    pub fn count_states(&self, set: &Bdd) -> f64 {
+        let symbolic_var_count = self.variables_transition_relation_and_domain.len() as i32;
+        set.cardinality() / 2.0f64.powi(symbolic_var_count)
+    }
+
+    /// Compute a [Bdd] which represents a single (un-primed) state within the given symbolic `set`.
+    pub fn pick_state_bdd(&self, set: &Bdd) -> Bdd {
+        // Unfortunately, this is now a bit more complicated than it needs to be, because
+        // we have to ignore the primed variables, but it shouldn't bottleneck anything outside of
+        // truly extreme cases.
+        let standard_variables = self
+            .variables_transition_relation_and_domain
+            .iter()
+            .flat_map(|transition| transition.1.domain.raw_bdd_variables());
+        let valuation = set
+            .sat_witness()
+            .expect("Cannot pick state from an empty set.");
+        let mut state_data = BddPartialValuation::empty();
+        for var in standard_variables {
+            state_data.set_value(var, valuation.value(var))
+        }
+        self.bdd_variable_set.mk_conjunctive_clause(&state_data)
+    }
+
+    pub fn log_percent(set: &Bdd, universe: &Bdd) -> f64 {
+        set.cardinality().log2() / universe.cardinality().log2() * 100.0
+    }
 }
 
 impl<DO, T> SmartSystemUpdateFn<DO, T>
@@ -495,7 +472,7 @@ where
                         DO::new(&mut bdd_variable_set_builder, &original_name, max_value);
                     let primed = DO::new(&mut bdd_variable_set_builder, &primed_name, max_value);
 
-                    ((original_name, original), (primed_name, primed)) // todo name the tuple fields
+                    ((original_name, original), (primed_name, primed))
                 })
                 .collect::<Vec<_>>();
 
@@ -542,31 +519,26 @@ where
         let relations = update_fns
             .into_iter()
             .map(|(target_variable_name, update_fn)| {
-                let target_symbolic_domain = *named_symbolic_domains_map
-                    .get(target_variable_name.as_str())
-                    .expect("domain always present");
                 let target_symbolic_domain_primed = *named_symbolic_domains_map
                     .get(format!("{}'", target_variable_name).as_str())
                     .expect("domain always present");
 
-                let relation = update_fn.bit_answering_bdds.iter().fold(
-                    // unit_set -> result of any `and` encodes only valid states
-                    unit_set.clone(),
-                    |acc, (bdd_var, bit_answering_bdd)| {
-                        // todo this could be called once & zipped to the iterator to make blazingly fast
-                        let bdd_var_primed = find_bdd_variables_prime(
-                            bdd_var,
-                            target_symbolic_domain,
-                            target_symbolic_domain_primed,
-                        );
+                let relation = update_fn
+                    .bit_answering_bdds
+                    .iter()
+                    .zip(target_symbolic_domain_primed.raw_bdd_variables())
+                    .fold(
+                        // unit_set -> result of any `and` encodes only valid states
+                        unit_set.clone(),
+                        |acc, ((_bdd_var, bit_answering_bdd), bdd_var_primed)| {
+                            let primed_target_variable_bdd =
+                                bdd_variable_set.mk_var(bdd_var_primed);
+                            let primed_bound_to_udpate =
+                                primed_target_variable_bdd.iff(bit_answering_bdd);
 
-                        let primed_target_variable_bdd = bdd_variable_set.mk_var(bdd_var_primed);
-                        let primed_bound_to_udpate =
-                            primed_target_variable_bdd.iff(bit_answering_bdd);
-
-                        acc.and(&primed_bound_to_udpate)
-                    },
-                );
+                            acc.and(&primed_bound_to_udpate)
+                        },
+                    );
 
                 let specific_primed_unit_set = unprimed_var_names_and_their_primed_unit_collection
                     .get(target_variable_name)
@@ -692,7 +664,7 @@ where
     /// of another state from `source_states`).
     pub fn predecessors_async_exclude_loops(
         &self,
-        _transition_variable_name: &str, // todo naming of those
+        _variable_name: &str,
         _source_states: &Bdd,
     ) -> Bdd {
         // todo better to directly construct the specific no_loop_transition_bdd during construction
@@ -704,14 +676,9 @@ where
     }
 
     fn get_transition_relation_and_domain(&self, variable_name: &str) -> Option<&VarInfo<DO, T>> {
-        // todo optimize using the hashtable mapper
-        self.variables_transition_relation_and_domain
-            .iter()
-            .find(|(maybe_variable_name, _)| maybe_variable_name == variable_name)
-            .map(|(_, update_fn_and_domain)| update_fn_and_domain)
-        // self.mapper
-        // .get(variable_name)
-        // .map(|idx| &self.variables_transition_relation_and_domain[*idx].1)
+        self.mapper
+            .get(variable_name)
+            .map(|idx| &self.variables_transition_relation_and_domain[*idx].1)
     }
 
     fn those_states_capable_of_transitioning_under(&self, _variable_name: &str) -> Bdd {
@@ -843,8 +810,7 @@ pub mod variable_update_fn {
 
     #[derive(Debug)]
     pub struct VariableUpdateFn {
-        // todo ensure this is sorted by the BddVariable (as the output of the `raw_bdd_variables` method on Domain)
-        pub bit_answering_bdds: Vec<(BddVariable, Bdd)>, // todo maybe add String aka the name associated with the BddVariable
+        pub bit_answering_bdds: Vec<(BddVariable, Bdd)>,
     }
 
     impl VariableUpdateFn {
@@ -904,7 +870,6 @@ pub mod variable_update_fn {
                 })
             });
 
-            // todo consider ordering of the bits
             Self {
                 bit_answering_bdds: target_domain
                     .raw_bdd_variables()
@@ -933,7 +898,6 @@ pub mod variable_update_fn {
             Expression::And(clauses) => {
                 clauses
                     .iter()
-                    // todo one of the places where intersection with `unit_set` should be considered
                     .fold(bdd_variable_set.mk_true(), |acc, clausule| {
                         acc.and(&bdd_from_expression(
                             clausule,
@@ -986,7 +950,6 @@ pub mod variable_update_fn {
             CmpOp::Eq => target_vars_domain.encode_one(bdd_variable_set, &proposition.value),
             CmpOp::Neq => target_vars_domain
                 .encode_one(bdd_variable_set, &proposition.value)
-                // todo one of the places where intersection with `unit_set` should be considered (or `domain.encode_one_not()`)
                 .not(),
             CmpOp::Lt => target_vars_domain.encode_lt(bdd_variable_set, &proposition.value),
             CmpOp::Leq => target_vars_domain.encode_le(bdd_variable_set, &proposition.value),

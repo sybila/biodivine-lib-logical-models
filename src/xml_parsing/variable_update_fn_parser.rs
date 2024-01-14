@@ -1,8 +1,5 @@
-#![allow(dead_code)] // todo remove
-
 use std::{
     collections::{HashMap, HashSet},
-    fmt::Debug,
     io::BufRead,
     str::FromStr,
 };
@@ -98,7 +95,7 @@ fn process_input_var_name_item<XR: XmlReader<BR>, BR: BufRead>(
 
     let item = qualitative_species
         .next()
-        .ok_or_else(|| XmlReadingError::NoSuchAttribute("qualitativeSpecies".to_string()))?; // todo
+        .ok_or_else(|| XmlReadingError::NoSuchAttribute("qualitativeSpecies".to_string()))?;
 
     expect_closure_of(xml, "input")?;
 
@@ -181,82 +178,6 @@ fn result_level_from_attributes<T: FromStr>(
         .map_err(|_| XmlReadingError::ParsingError(attribute_with_result_lvl.value.clone()))
 }
 
-// todo alright i have no idea how to do this
-/*
-// fn load_from_sbml<XR, BR, T>(xml: &mut XR) -> Result<> {
-//     // todo
-//     // skip until <listOfFunctionTerms>
-//     // then call load_all_update_fns
-// }
-
-fn load_from_sbml<XR, BR, T>(
-    file_path: &str,
-) -> Result<HashMap<String, UnprocessedVariableUpdateFn<T>>, XmlReadingError>
-where
-    XR: XmlReader<std::io::BufRead>,
-    BR: BufRead,
-    // XR: XmlReader<std::io::BufRead<std::fs::File>>,
-    T: FromStr + Default,
-{
-    // let xd = std::io::BufReader::new(
-    //     std::fs::File::open(file_path).expect("Could not open file for reading"),
-    // );
-    // let xd = xml::reader::EventReader::new(xd);
-    // // let mut xml = XR::new(super::xml_reader::XmlReader::new(xd));
-    // let mut xml = XR::new(xd);
-
-    // let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
-    //     std::fs::File::open(file_path).unwrap(),
-    // ));
-
-    // let xml = xml::reader::EventReader::new(std::io::BufReader::new(
-    //     std::fs::File::open(file_path).unwrap(),
-    // ));
-
-    // let mut xml = XR::new(xml);
-
-    // super::utils::find_start_of(&mut xml, "listOfTransitions")?;
-
-    // load_all_update_fns(&mut xml)
-
-    todo!()
-}
-*/
-
-/// Expects `xml` to be at the start of an sbml file.
-/// Loads all <functionTerm> elements into a HashMap.
-pub fn load_from_sbml_buf_reader<XR, BR, T>(
-    // xml: &mut XR,
-    // file_path: &str,
-    // buf_reader: BR,
-    xml: XR,
-) -> Result<HashMap<String, UnprocessedVariableUpdateFn<T>>, XmlReadingError>
-where
-    XR: XmlReader<BR>,
-    BR: BufRead,
-    T: FromStr + Default,
-{
-    // let xd = std::io::BufReader::new(
-    //     std::fs::File::open(file_path).expect("Could not open file for reading"),
-    // );
-    // let xd = xml::reader::EventReader::new(xd);
-    // // let mut xml = XR::new(super::xml_reader::XmlReader::new(xd));
-    // let mut xml = XR::new(xd);
-
-    // let mut xml = xml::reader::EventReader::new(std::io::BufReader::new(
-    //     std::fs::File::open(file_path).unwrap(),
-    // ));
-
-    // let xml = xml::reader::EventReader::new(buf_reader);
-    // let mut xml = XR::new(xml);
-
-    let mut xml = xml;
-
-    super::utils::find_start_of(&mut xml, "listOfTransitions")?;
-
-    load_all_update_fns(&mut xml)
-}
-
 /// Expect the current XML element to be <listOfFunctionTerms>
 /// Loads all contained <functionTerm> elements into a HashMap.
 fn load_all_update_fns<XR, BR, T>(
@@ -306,7 +227,7 @@ use crate::update::update_fn::{SmartSystemUpdateFn, SystemUpdateFn};
 impl<DO, T> SystemUpdateFn<DO, T>
 where
     DO: SymbolicDomainOrd<T>,
-    T: FromStr + Default + Debug, // todo remove the debug from here
+    T: FromStr + Default,
 {
     /// Parses the <transition> XML element into a VariableUpdateFn struct.
     /// Expects the parameter `xml` to be at the start of the <transition> XML element.

@@ -26,7 +26,7 @@ impl ComparisonOperator {
 }
 
 impl FromStr for ComparisonOperator {
-    type Err = (); // todo maybe better error
+    type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -62,9 +62,7 @@ impl ToString for ComparisonOperator {
 #[derive(Debug)]
 pub struct Proposition<T> {
     pub comparison_operator: ComparisonOperator,
-    // ci = variable name in the xml file // todo remove this comment likely; user of this file should not care about xml
     pub variable: String,
-    // cn = constant value in the xml file // todo remove this comment likely; user of this file should not care about xml
     pub value: T,
 }
 

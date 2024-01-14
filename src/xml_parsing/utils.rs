@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::{fmt::Display, io::BufRead};
 use thiserror::Error;
 use xml::{attribute::OwnedAttribute, name::OwnedName, namespace::Namespace, reader::XmlEvent};
@@ -271,13 +269,13 @@ where
     }
 }
 
-// todo this one is likely useless
 /// Iterates through the xml until it finds the closing tag with the given name,
 /// specifically, closing_element.name.local_name == expected_name.
 ///
 /// Is also capable of working with recursive elements (elements that can contain themselves).
 /// In that case, this function returns once it encounters the closing tag of the element
 /// it is called from.
+#[allow(dead_code)] // useless rn
 pub fn consume_the_rest_of_element<XR, BR>(
     xml: &mut XR,
     element_name: &str,

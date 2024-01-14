@@ -30,16 +30,3 @@ pub enum Expression<T> {
     Xor(Box<Expression<T>>, Box<Expression<T>>),
     Implies(Box<Expression<T>>, Box<Expression<T>>),
 }
-
-// // todo
-// //  really torn apart between keeping this here, moving it to a separate file within
-// //  this module, and moving it into the `xml_parsing` module
-// impl<T: FromStr> Expression<T> {
-//     pub fn try_from_xml<XR, BR>(_xml: &mut XR)
-//     where
-//         XR: XmlReader<BR>,
-//         BR: BufRead,
-//     {
-//         unimplemented!()
-//     }
-// }

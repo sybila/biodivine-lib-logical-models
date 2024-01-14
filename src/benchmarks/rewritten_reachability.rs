@@ -2,11 +2,13 @@ use biodivine_lib_bdd::Bdd;
 use std::fmt::Debug;
 
 use crate::{
-    benchmarks::utils::{count_states, log_percent, pick_state_bdd, unit_vertex_set},
-    prelude::find_start_of,
-    symbolic_domains::symbolic_domain::SymbolicDomainOrd,
+    prelude::find_start_of, symbolic_domains::symbolic_domain::SymbolicDomainOrd,
     update::update_fn::SmartSystemUpdateFn as RewrittenSmartSystemUpdateFn,
 };
+
+pub fn log_percent(set: &Bdd, universe: &Bdd) -> f64 {
+    set.cardinality().log2() / universe.cardinality().log2() * 100.0
+}
 
 pub fn reachability_benchmark<DO: SymbolicDomainOrd<u8> + Debug>(sbml_path: &str) {
     let smart_system_update_fn = {
@@ -21,10 +23,8 @@ pub fn reachability_benchmark<DO: SymbolicDomainOrd<u8> + Debug>(sbml_path: &str
             .expect("Loading system fn update failed.")
     };
 
-    let unit = unit_vertex_set(&smart_system_update_fn);
-    let system_var_count = smart_system_update_fn
-        .variables_transition_relation_and_domain
-        .len();
+    let unit = smart_system_update_fn.unit_vertex_set();
+    let system_var_count = smart_system_update_fn.standard_variables().len();
     println!(
         "Variables: {}, expected states {}",
         system_var_count,
@@ -32,11 +32,11 @@ pub fn reachability_benchmark<DO: SymbolicDomainOrd<u8> + Debug>(sbml_path: &str
     );
     println!(
         "Computed state count: {}",
-        count_states(&smart_system_update_fn, &unit)
+        smart_system_update_fn.count_states(&unit)
     );
     let mut universe = unit.clone();
     while !universe.is_false() {
-        let mut weak_scc = pick_state_bdd(&smart_system_update_fn, &universe);
+        let mut weak_scc = smart_system_update_fn.pick_state_bdd(&universe);
         loop {
             let bwd_reachable = reach_bwd(&smart_system_update_fn, &weak_scc, &universe);
             let fwd_bwd_reachable = reach_fwd(&smart_system_update_fn, &bwd_reachable, &universe);
@@ -45,7 +45,7 @@ pub fn reachability_benchmark<DO: SymbolicDomainOrd<u8> + Debug>(sbml_path: &str
             if !fwd_bwd_reachable.imp(&weak_scc).is_true() {
                 println!(
                     " + SCC increased to (states={}, size={})",
-                    count_states(&smart_system_update_fn, &weak_scc),
+                    smart_system_update_fn.count_states(&weak_scc),
                     weak_scc.size()
                 );
                 weak_scc = fwd_bwd_reachable;
@@ -55,15 +55,15 @@ pub fn reachability_benchmark<DO: SymbolicDomainOrd<u8> + Debug>(sbml_path: &str
         }
         println!(
             " + Found weak SCC (states={}, size={})",
-            count_states(&smart_system_update_fn, &weak_scc),
+            smart_system_update_fn.count_states(&weak_scc),
             weak_scc.size()
         );
         // Remove the SCC from the universe set and start over.
         universe = universe.and_not(&weak_scc);
         println!(
             " + Remaining states: {}/{}",
-            count_states(&smart_system_update_fn, &universe),
-            count_states(&smart_system_update_fn, &unit),
+            smart_system_update_fn.count_states(&universe),
+            smart_system_update_fn.count_states(&unit),
         );
     }
 }
@@ -79,15 +79,11 @@ pub fn reach_fwd<D: SymbolicDomainOrd<u8> + Debug>(
 ) -> Bdd {
     // The list of system variables, sorted in descending order (i.e. opposite order compared
     // to the ordering inside BDDs).
-    let sorted_variables = system
-        .variables_transition_relation_and_domain
-        .iter()
-        .map(|(var_name, _)| var_name)
-        .collect::<Vec<_>>();
+    let sorted_variables = system.get_system_variables();
     let mut result = initial.clone();
     println!(
         "Start forward reachability: (states={}, size={})",
-        count_states(system, &result),
+        system.count_states(&result),
         result.size()
     );
     'fwd: loop {
@@ -100,7 +96,7 @@ pub fn reach_fwd<D: SymbolicDomainOrd<u8> + Debug>(
                 println!(
                     " >> (progress={:.2}%%, states={}, size={})",
                     log_percent(&result, universe),
-                    count_states(system, &result),
+                    system.count_states(&result),
                     result.size()
                 );
                 continue 'fwd;
@@ -110,7 +106,7 @@ pub fn reach_fwd<D: SymbolicDomainOrd<u8> + Debug>(
         // No further successors were computed across all variables. We are done.
         println!(
             " >> Done. (states={}, size={})",
-            count_states(system, &result),
+            system.count_states(&result),
             result.size()
         );
         return result;
@@ -126,15 +122,11 @@ pub fn reach_bwd<D: SymbolicDomainOrd<u8> + Debug>(
     initial: &Bdd,
     universe: &Bdd,
 ) -> Bdd {
-    let sorted_variables = system
-        .variables_transition_relation_and_domain
-        .iter()
-        .map(|(var_name, _)| var_name)
-        .collect::<Vec<_>>();
+    let sorted_variables = system.get_system_variables();
     let mut result = initial.clone();
     println!(
         "Start backward reachability: (states={}, size={})",
-        count_states(system, &result),
+        system.count_states(&result),
         result.size()
     );
     'bwd: loop {
@@ -147,7 +139,7 @@ pub fn reach_bwd<D: SymbolicDomainOrd<u8> + Debug>(
                 println!(
                     " >> (progress={:.2}%%, states={}, size={})",
                     log_percent(&result, universe),
-                    count_states(system, &result),
+                    system.count_states(&result),
                     result.size()
                 );
                 continue 'bwd;
@@ -157,7 +149,7 @@ pub fn reach_bwd<D: SymbolicDomainOrd<u8> + Debug>(
         // No further predecessors were computed across all variables. We are done.
         println!(
             " >> Done. (states={}, size={})",
-            count_states(system, &result),
+            system.count_states(&result),
             result.size()
         );
         return result;

@@ -1,5 +1,3 @@
-#![allow(dead_code)] // todo remove
-
 use std::io::BufRead;
 
 use xml::{reader::XmlEvent, EventReader};
@@ -22,9 +20,8 @@ impl<BR: BufRead> XmlReader<BR> for EventReader<BR> {
 
 /// used for pretty printing of the read xml during the reading process
 pub struct LoudReader<BR: BufRead> {
-    // todo should not be pub -> implement `new()` properly
-    pub xml: EventReader<BR>,
-    pub curr_indent: usize,
+    xml: EventReader<BR>,
+    curr_indent: usize,
 }
 
 impl<BR: BufRead> XmlReader<BR> for LoudReader<BR> {

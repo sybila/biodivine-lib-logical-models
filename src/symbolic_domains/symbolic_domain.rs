@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{cell::OnceCell, collections::HashSet};
 
 use biodivine_lib_bdd::{
     Bdd, BddPartialValuation, BddVariable, BddVariableSet, BddVariableSetBuilder,
@@ -25,7 +25,7 @@ pub trait SymbolicDomain<T> {
         variables.mk_conjunctive_clause(&valuation)
     }
 
-    // todo here because the `and(unit_set)` is often forgotten
+    /// here because the `and(unit_set)` is often forgotten
     fn encode_one_not(&self, bdd_variable_set: &BddVariableSet, value: &T) -> Bdd {
         self.encode_one(bdd_variable_set, value)
             .not()
@@ -165,6 +165,7 @@ pub trait SymbolicDomainOrd<T>: SymbolicDomain<T> {
 pub struct UnaryIntegerDomain {
     /// invariant: sorted
     variables: Vec<BddVariable>, // todo maybe Rc<[BddVariable]>
+    unit_collection_cell: OnceCell<Bdd>,
 }
 
 // implementation author: Samuel Pastva
@@ -200,17 +201,17 @@ impl SymbolicDomain<u8> for UnaryIntegerDomain {
         // `x_{k-1}` for all valid `k`. Following such condition, once a symbolic variable is
         // `true`, all "smaller" variables must be also `true`.
 
-        // TODO:
-        //  We might cache this value in the `SymbolicDomain` object so it does not need
-        //  to be recomputed every time and we can just copy it instead.
-
-        (1..self.variables.len()).fold(variables.mk_true(), |acc, k| {
-            acc.and(
-                &variables
-                    .mk_var(self.variables[k])
-                    .imp(&variables.mk_var(self.variables[k - 1])),
-            )
-        })
+        self.unit_collection_cell
+            .get_or_init(|| {
+                (1..self.variables.len()).fold(variables.mk_true(), |acc, k| {
+                    acc.and(
+                        &variables
+                            .mk_var(self.variables[k])
+                            .imp(&variables.mk_var(self.variables[k - 1])),
+                    )
+                })
+            })
+            .clone()
     }
 
     fn raw_bdd_variables(&self) -> Vec<BddVariable> {
@@ -243,25 +244,24 @@ impl SymbolicDomainOrd<u8> for UnaryIntegerDomain {
     fn new(builder: &mut BddVariableSetBuilder, name: &str, max_value: &u8) -> Self {
         let variables = (0..*max_value)
             .map(|var_idx| {
-                let name = format!("{name}_v{}", var_idx + 1); // todo is there a reason for the +1?
+                let name = format!("{name}_v{}", var_idx + 1);
                 builder.make_variable(name.as_str())
             })
             .collect();
 
-        Self { variables }
+        Self {
+            variables,
+            unit_collection_cell: OnceCell::new(),
+        }
     }
 
     fn encode_lt(&self, bdd_variable_set: &BddVariableSet, exclusive_upper_bound: &u8) -> Bdd {
-        (0..*exclusive_upper_bound).fold(self.empty_collection(bdd_variable_set), |acc, val| {
-            acc.or(&self.encode_one(bdd_variable_set, &val))
-        })
+        // forbid values greater than or equal to the upper bound by forbidding upper_bound_bit
+        let not_upper_bound_bit =
+            bdd_variable_set.mk_not_var(self.variables[(*exclusive_upper_bound - 1) as usize]);
 
-        // todo or maybe... (test this)
-        // let not_upper_bound_bit =
-        //     bdd_variable_set.mk_not_var(self.variables[*exclusive_uppper_bound as usize]);
-
-        // self.unit_collection(bdd_variable_set)
-        //     .and(&not_upper_bound_bit)
+        self.unit_collection(bdd_variable_set)
+            .and(&not_upper_bound_bit)
     }
 
     fn cmp(lhs: &u8, rhs: &u8) -> std::cmp::Ordering {
