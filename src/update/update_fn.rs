@@ -9,7 +9,7 @@ use biodivine_lib_bdd::{
 use crate::{
     expression_components::{expression::Expression, proposition::Proposition},
     symbolic_domains::symbolic_domain::{SymbolicDomain, SymbolicDomainOrd},
-    system::variable_update_function::UnprocessedVariableUpdateFn,
+    update::unprocessed_variable_update_function::UnprocessedVariableUpdateFn,
 };
 
 use self::variable_update_fn::VariableUpdateFn;
@@ -805,7 +805,7 @@ pub mod variable_update_fn {
             proposition::{ComparisonOperator as CmpOp, Proposition},
         },
         symbolic_domains::symbolic_domain::SymbolicDomainOrd,
-        system::variable_update_function::UnprocessedVariableUpdateFn as UnprocessedFn,
+        update::unprocessed_variable_update_function::UnprocessedVariableUpdateFn as UnprocessedFn,
     };
 
     #[derive(Debug)]

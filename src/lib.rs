@@ -5,7 +5,6 @@ pub mod test_utils; // TODO:
                     //   to have it accessible from outside binaries.
 mod expression_components;
 mod symbolic_domains;
-mod system;
 mod update;
 mod utils;
 mod xml_parsing;

@@ -8,7 +8,7 @@ use xml::reader::XmlEvent;
 
 use crate::{
     expression_components::expression::Expression,
-    system::variable_update_function::UnprocessedVariableUpdateFn,
+    update::unprocessed_variable_update_function::UnprocessedVariableUpdateFn,
 };
 
 use super::{
