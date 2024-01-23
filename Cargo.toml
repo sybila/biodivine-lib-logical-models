@@ -10,7 +10,7 @@ name = "biodivine_lib_logical_models"
 path = "src/lib.rs"
 
 [dependencies]
-biodivine-lib-bdd = "0.5.3"
+biodivine-lib-bdd = "0.5.7"
 debug-ignore = "1.0.5"
 dyn-clonable = "0.9.0"
 rayon = "1.8.0"

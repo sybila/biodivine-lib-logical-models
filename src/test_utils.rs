@@ -1,7 +1,17 @@
-use std::fmt::Debug;
 use biodivine_lib_bdd::Bdd;
 use num_bigint::BigInt;
-use crate::{BinaryIntegerDomain, count_states_exact, encode_state_map, find_start_of, GrayCodeIntegerDomain, PetriNetIntegerDomain, pick_state_map, SmartSystemUpdateFn, SymbolicDomain, UnaryIntegerDomain};
+use std::fmt::Debug;
+
+use crate::utils::{count_states_exact, encode_state_map, pick_state_map};
+
+use crate::xml_parsing::utils::find_start_of;
+
+use crate::symbolic_domains::symbolic_domain::{
+    BinaryIntegerDomain, GrayCodeIntegerDomain, PetriNetIntegerDomain, SymbolicDomainOrd,
+    UnaryIntegerDomain,
+};
+
+use crate::update::update_fn::SmartSystemUpdateFn;
 
 pub struct ComputationStep {
     steps: usize,
@@ -21,15 +31,18 @@ pub struct ComputationStep {
 
 /// Perform one step of backward reachability procedure. Returns either a new [Bdd] value, or
 /// `None` if no new predecessors can be included.
-fn bwd_step<D: SymbolicDomain<u8> + Debug>(system: &SmartSystemUpdateFn<D, u8>, set: &Bdd) -> Option<Bdd> {
+fn bwd_step<D: SymbolicDomainOrd<u8> + Debug>(
+    system: &SmartSystemUpdateFn<D, u8>,
+    set: &Bdd,
+) -> Option<Bdd> {
     let sorted_variables = system.get_system_variables();
 
     for var in sorted_variables.iter().rev() {
-        let predecessors = system.predecessors_under_variable(var.as_str(), set);
+        let predecessors = system.predecessors_async(var.as_str(), set.to_owned());
 
         // Should be equivalent to "predecessors \not\subseteq result".
         if !predecessors.imp(set).is_true() {
-            let result = predecessors.or(&set);
+            let result = predecessors.or(set);
             return Some(result);
         }
     }
@@ -38,15 +51,18 @@ fn bwd_step<D: SymbolicDomain<u8> + Debug>(system: &SmartSystemUpdateFn<D, u8>, 
 }
 
 /// The same as [bwd_step], but goes forwards, not backward.
-fn fwd_step<D: SymbolicDomain<u8> + Debug>(system: &SmartSystemUpdateFn<D, u8>, set: &Bdd) -> Option<Bdd> {
+fn fwd_step<D: SymbolicDomainOrd<u8> + Debug>(
+    system: &SmartSystemUpdateFn<D, u8>,
+    set: &Bdd,
+) -> Option<Bdd> {
     let sorted_variables = system.get_system_variables();
 
     for var in sorted_variables.iter().rev() {
-        let successors = system.transition_under_variable(var.as_str(), set);
+        let successors = system.successors_async(var.as_str(), set);
 
         // Should be equivalent to "predecessors \not\subseteq result".
         if !successors.imp(set).is_true() {
-            let result = successors.or(&set);
+            let result = successors.or(set);
             return Some(result);
         }
     }
@@ -55,23 +71,20 @@ fn fwd_step<D: SymbolicDomain<u8> + Debug>(system: &SmartSystemUpdateFn<D, u8>, 
 }
 
 /// A generic function that builds [SmartSystemUpdateFn] from an SBML file.
-fn build_update_fn<D: SymbolicDomain<u8> + Debug>(sbml_path: &str) -> SmartSystemUpdateFn<D, u8> {
-    let file = std::fs::File::open(sbml_path.clone())
-        .expect("Cannot open SBML file.");
+fn build_update_fn<D: SymbolicDomainOrd<u8> + Debug>(
+    sbml_path: &str,
+) -> SmartSystemUpdateFn<D, u8> {
+    let file = std::fs::File::open(sbml_path).expect("Cannot open SBML file.");
     let reader = std::io::BufReader::new(file);
     let mut xml = xml::reader::EventReader::new(reader);
 
     find_start_of(&mut xml, "listOfTransitions")
         .expect("Cannot find transitions in the SBML file.");
 
-    let smart_system_update_fn = SmartSystemUpdateFn::<D, u8>::try_from_xml(&mut xml)
-        .expect("Loading system fn update failed.");
-
-    smart_system_update_fn
+    SmartSystemUpdateFn::try_from_xml(&mut xml).expect("Loading system fn update failed.")
 }
 
 impl ComputationStep {
-
     pub fn new(sbml_path: &str) -> ComputationStep {
         let system_unary = build_update_fn::<UnaryIntegerDomain>(sbml_path);
         let system_binary = build_update_fn::<BinaryIntegerDomain<u8>>(sbml_path);
@@ -126,7 +139,10 @@ impl ComputationStep {
         self.result_unary = bwd_step(&self.system_unary, self.result_unary.as_ref().unwrap());
         self.result_binary = bwd_step(&self.system_binary, self.result_binary.as_ref().unwrap());
         self.result_gray = bwd_step(&self.system_gray, self.result_gray.as_ref().unwrap());
-        self.result_petri_net = bwd_step(&self.system_petri_net, self.result_petri_net.as_ref().unwrap());
+        self.result_petri_net = bwd_step(
+            &self.system_petri_net,
+            self.result_petri_net.as_ref().unwrap(),
+        );
         if let Some(result_unary) = &self.result_unary {
             self.universe_unary = self.universe_unary.and_not(result_unary);
         }
@@ -146,7 +162,10 @@ impl ComputationStep {
         self.result_unary = fwd_step(&self.system_unary, self.result_unary.as_ref().unwrap());
         self.result_binary = fwd_step(&self.system_binary, self.result_binary.as_ref().unwrap());
         self.result_gray = fwd_step(&self.system_gray, self.result_gray.as_ref().unwrap());
-        self.result_petri_net = fwd_step(&self.system_petri_net, self.result_petri_net.as_ref().unwrap());
+        self.result_petri_net = fwd_step(
+            &self.system_petri_net,
+            self.result_petri_net.as_ref().unwrap(),
+        );
         if let Some(result_unary) = &self.result_unary {
             self.universe_unary = self.universe_unary.and_not(result_unary);
         }
@@ -162,29 +181,35 @@ impl ComputationStep {
     }
 
     pub fn check_consistency(&self) {
-        let count_unary = self.result_unary.as_ref().map(|it| {
-            count_states_exact(&self.system_unary, &it)
-        });
-        let count_binary = self.result_binary.as_ref().map(|it| {
-            count_states_exact(&self.system_binary, &it)
-        });
-        let count_gray = self.result_gray.as_ref().map(|it| {
-            count_states_exact(&self.system_gray, &it)
-        });
-        let count_petri_net = self.result_petri_net.as_ref().map(|it| {
-            count_states_exact(&self.system_petri_net, &it)
-        });
-        if count_unary != count_binary || count_binary != count_gray || count_gray != count_petri_net {
+        let count_unary = self
+            .result_unary
+            .as_ref()
+            .map(|it| count_states_exact(&self.system_unary, it));
+        let count_binary = self
+            .result_binary
+            .as_ref()
+            .map(|it| count_states_exact(&self.system_binary, it));
+        let count_gray = self
+            .result_gray
+            .as_ref()
+            .map(|it| count_states_exact(&self.system_gray, it));
+        let count_petri_net = self
+            .result_petri_net
+            .as_ref()
+            .map(|it| count_states_exact(&self.system_petri_net, it));
+        if count_unary != count_binary
+            || count_binary != count_gray
+            || count_gray != count_petri_net
+        {
             panic!(
                 "Error at step {}. {:?} <> {:?} <> {:?} <> {:?}",
-                self.steps,
-                count_unary,
-                count_binary,
-                count_gray,
-                count_petri_net
+                self.steps, count_unary, count_binary, count_gray, count_petri_net
             )
         } else {
-            println!("Step {} successful. Current result state count: {:?}", self.steps, count_unary);
+            println!(
+                "Step {} successful. Current result state count: {:?}",
+                self.steps, count_unary
+            );
             println!(
                 " > BDD sizes: {:?} {:?} {:?} {:?}",
                 self.result_unary.as_ref().map(|it| it.size()),
@@ -194,5 +219,4 @@ impl ComputationStep {
             );
         }
     }
-
 }
